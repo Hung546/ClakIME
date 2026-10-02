@@ -26,7 +26,19 @@ bool isForceUinputSite(const std::string& site) {
   return false;
 }
 
+bool isVSCodeApp(const std::string& app) {
+  static const std::vector<std::string> vsc = {
+    "antigravity-ide", "cursor", "windsurf", "vscodium", "codium",
+    "code-oss", "positron", "trae"};
+  if (app == "code" || app == "vscode") return true;
+  for (const auto& v : vsc) {
+    if (app.find(v) != std::string::npos) return true;
+  }
+  return false;
+}
+
 bool isTerminalApp(const std::string& app) {
+  if (isVSCodeApp(app)) return true;
   static const std::vector<std::string> terms = {
     "kitty", "ghostty", "alacritty", "foot", "wezterm", "xterm",
     "gnome-terminal", "konsole", "tilix", "terminator", "urxvt"};
@@ -37,6 +49,7 @@ bool isTerminalApp(const std::string& app) {
 }
 
 bool isBrowserApp(const std::string& app) {
+  if (isVSCodeApp(app)) return false;
   static const std::vector<std::string> browsers = {
     "chromium", "chrome", "google-chrome", "brave", "firefox", "zen",
     "vivaldi", "opera", "microsoft-edge", "edge", "waterfox", "librewolf",

@@ -25,5 +25,6 @@ All notable changes to this project are documented in this file.
 - Clak input method ([456376](https://github.com/versenilvis/clak/commit/4563768f17a774cde88597532dd2f678d4e97c90))
 - Cursor detector ([982ba6](https://github.com/versenilvis/clak/commit/982ba676cd07b75888e9df223f1ef2135a67f3ad))
 - Detect vscode family ([7ed102](https://github.com/versenilvis/clak/commit/7ed102f204e65de8ff28cd92ac8d58f5c60c008e))
+- Add install script and simulation test ([365962](https://github.com/versenilvis/clak/commit/3659625e5c0ac31dbc45efa5fc12c083949823ef))
 
 

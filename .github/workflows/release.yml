@@ -117,11 +117,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Publish fcitx5-clak to AUR
+      - name: Publish clak to AUR
         if: env.AUR_KEY != ''
         uses: KSXGitHub/github-actions-deploy-aur@v3.1.2
         with:
-          pkgname: fcitx5-clak
+          pkgname: clak
           pkgbuild: packaging/aur/PKGBUILD
           commit_username: "verse"
           commit_email: "versedev.store@proton.me"

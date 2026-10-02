@@ -26,7 +26,7 @@
         }: {
           packages = {
             clak = pkgs.stdenv.mkDerivation rec {
-              pname = "fcitx5-clak";
+              pname = "clak";
               version = self.shortRev or "0.1.0";
               src = pkgs.lib.cleanSource ./.;
 

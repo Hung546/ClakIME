@@ -33,7 +33,9 @@ jobs:
             extra-cmake-modules \
             fcitx5 \
             rust \
-            git
+            git \
+            jq \
+            curl
 
       - name: Run engine tests
         run: cargo test --manifest-path engine/Cargo.toml --verbose

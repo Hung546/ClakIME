@@ -33,6 +33,7 @@
               cargoDeps = pkgs.rustPlatform.importCargoLock {
                 lockFile = ./engine/Cargo.lock;
               };
+              cargoRoot = "engine";
 
               nativeBuildInputs = with pkgs; [
                 cmake

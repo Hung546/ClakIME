@@ -57,16 +57,17 @@ bool UinputTool::send_backspace_direct(size_t count, uint32_t post_delay_ms, uin
     - Mặc định: `2ms`.
     - Giúp ứng dụng nhận diện và xóa từng ký tự một cách ổn định theo chu kỳ đồng hồ.
 2. `post_delay_ms` (Khoảng chờ trước phím chốt):
-   - Mặc định cho ứng dụng thông thường (Gecko, Docs, Terminal): `2ms`.
-   - Riêng trường hợp Address Bar có gợi ý tự động (autofill popup): `20ms` (`kAddressBarPostDelayMs`). Mức delay 20ms này là bắt buộc để trình duyệt (Chromium/Gecko) có đủ thời gian đóng popup gợi ý và tính toán lại con trỏ, ngăn ngừa triệt để lỗi nuốt phím và lỗi nhân đôi `dd -> dđ`.
+   - Mặc định cho ứng dụng thông thường (Gecko, Docs): `2ms`
+   - Terminal (Kitty, Ghostty, Alacritty): `15ms` (`kTerminalPostDelayMs`) và `gap_ms = 4ms` (`kTerminalGapMs`). Mức nhịp này đảm bảo đồng bộ hoàn hảo cho cả terminal thuần Wayland FIFO như Kitty lẫn terminal nền GTK4/GDK event loop như Ghostty, tránh hiện tượng commit bị chen vào giữa các phím backspace
+   - Riêng trường hợp Address Bar có gợi ý tự động (autofill popup): `20ms` (`kAddressBarPostDelayMs`). Mức delay 20ms này là bắt buộc để trình duyệt (Chromium/Gecko) có đủ thời gian đóng popup gợi ý và tính toán lại con trỏ, ngăn ngừa triệt để lỗi nuốt phím và lỗi nhân đôi `dd -> dđ`
 3. Không làm block Event Loop của Fcitx5:
-   - Toàn bộ quá trình phát phím và chờ đợi diễn ra trên luồng tách biệt, do đó Fcitx5 không bao giờ bị đứng hình hay khựng giao diện.
+   - Toàn bộ quá trình phát phím và chờ đợi diễn ra trên luồng tách biệt, do đó Fcitx5 không bao giờ bị đứng hình hay khựng giao diện
 
 ---
 
 ## 3. Tại sao Gecko và Terminal Cần Uinput?
 
 1. **Gecko / Zen Browser**:
-    - Kiến trúc `libxul.so` của Gecko xử lý `delete_surrounding_text` bất đồng bộ chậm hơn nhịp gõ của người dùng. Dữ liệu ngữ cảnh trả về cho IME thường xuyên bị trễ (stale). Sử dụng Uinput phím cứng khiến Gecko xử lý xóa ở tầng cấp thấp, hoàn toàn tương thích và không bị lỗi.
-2. **Terminal (Kitty / Alacritty)**:
-    - Các terminal hiện đại trên Wayland chặn hoặc bỏ qua các lệnh xóa ngữ cảnh phức tạp của IME để bảo vệ bộ đệm dòng lệnh. Khi nhận phím xóa từ Uinput, terminal coi đây là phím bàn phím vật lý thực thụ và xử lý ngay tức khắc.
+    - Kiến trúc `libxul.so` của Gecko xử lý `delete_surrounding_text` bất đồng bộ chậm hơn nhịp gõ của người dùng. Dữ liệu ngữ cảnh trả về cho IME thường xuyên bị trễ (stale). Sử dụng Uinput phím cứng khiến Gecko xử lý xóa ở tầng cấp thấp, hoàn toàn tương thích và không bị lỗi
+2. **Terminal (Kitty / Ghostty / Alacritty)**:
+    - Các terminal trên Wayland thường bỏ qua lệnh xóa ngữ cảnh phức tạp của IME để bảo vệ buffer dòng lệnh. Khi nhận phím xóa từ Uinput, terminal coi đây là phím vật lý thực thụ và xử lý ngay tức khắc

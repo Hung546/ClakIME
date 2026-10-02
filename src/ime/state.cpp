@@ -467,9 +467,8 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 is_address_bar_fix_ = is_autofill;
                 op_group_ = classifyGroup(app, site, is_autofill, true);
 
-                // pacing params: address bar autofill requires 20ms to allow popup dismissal
-                uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs : 2;
-                uint32_t gap_ms = 2;
+                uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs : (is_term ? config::kTerminalPostDelayMs : 2);
+                uint32_t gap_ms = is_term ? config::kTerminalGapMs : 2;
                 uint32_t pre_delay = 0;
 
                 utils::clakLog("uinput waiting for sentinel: expected=" + std::to_string(bs_to_send) +

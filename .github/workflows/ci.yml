@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-engine:
+    name: Rust Engine Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            engine/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('engine/Cargo.lock', 'engine/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run engine tests
+        run: cargo test --manifest-path engine/Cargo.toml --verbose
+
+  build-arch:
+    name: Arch Linux Build & Package
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel \
+            cmake \
+            extra-cmake-modules \
+            fcitx5 \
+            rust \
+            git
+
+      - name: Build Clak
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build -j$(nproc)
+
+      - name: Test installation
+        run: |
+          DESTDIR=/tmp/clak-install cmake --install build
+          test -f /tmp/clak-install/usr/lib/fcitx5/libclak.so
+          test -f /tmp/clak-install/usr/share/fcitx5/addon/clak.conf
+          test -f /tmp/clak-install/usr/share/fcitx5/inputmethod/clak.conf

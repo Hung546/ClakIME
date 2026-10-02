@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel \
+            cmake \
+            extra-cmake-modules \
+            fcitx5 \
+            rust \
+            git
+
+      - name: Run engine tests
+        run: cargo test --manifest-path engine/Cargo.toml --verbose
+
+      - name: Build Clak
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build -j$(nproc)
+
+      - name: Create release bundle
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DESTDIR=/tmp/clak-dist cmake --install build
+          mkdir -p dist
+          tar -C /tmp/clak-dist -czf dist/clak-${VERSION}-linux-x86_64.tar.gz usr/
+
+      - name: Create vendor tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cargo vendor vendor/ --manifest-path engine/Cargo.toml
+          tar -czf dist/clak-${VERSION}-vendor.tar.gz vendor/
+          rm -rf vendor/
+
+      - name: Generate Checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Generate CHANGELOG
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --output /tmp/CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: /tmp/CHANGELOG.md
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  update-changelog:
+    name: Update CHANGELOG.md in repository
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Generate CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --output CHANGELOG.md
+
+      - name: Commit CHANGELOG.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "CHANGELOG.md unchanged, nothing to commit"
+          else
+            git commit -m "docs(changelog): update for ${GITHUB_REF_NAME} [skip ci]"
+            git push origin main
+          fi
+
+  deploy-aur:
+    name: Deploy to AUR
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Publish fcitx5-clak to AUR
+        if: env.AUR_KEY != ''
+        uses: KSXGitHub/github-actions-deploy-aur@v3.1.2
+        with:
+          pkgname: fcitx5-clak
+          pkgbuild: packaging/aur/PKGBUILD
+          commit_username: "verse"
+          commit_email: "versedev.store@proton.me"
+          ssh_private_key: ${{ secrets.AUR_KEY }}
+          commit_message: "release: update to ${GITHUB_REF_NAME}"
+        env:
+          AUR_KEY: ${{ secrets.AUR_KEY }}

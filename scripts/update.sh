@@ -1,0 +1,548 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# configuration and defaults
+repo="versenilvis/clak"
+api_url="${CLAK_API_URL:-https://api.github.com}"
+version_file="${HOME}/.local/share/clak/version"
+dry_run=0
+target_version=""
+force_update=0
+assume_yes=0
+
+# parse command-line arguments
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run|--simulate|-d)
+            dry_run=1
+            ;;
+        --force|-f)
+            force_update=1
+            ;;
+        --yes|-y)
+            assume_yes=1
+            ;;
+        --version=*|--tag=*)
+            target_version="${arg#*=}"
+            ;;
+        --help|-h)
+            echo "Cách dùng: curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/update.sh | bash [options]"
+            echo "Hoặc: bash scripts/update.sh [options]"
+            echo ""
+            echo "Tùy chọn:"
+            echo "  -d, --dry-run, --simulate  Chạy giả lập kiểm tra quy trình cập nhật"
+            echo "  -f, --force                Cập nhật đè phiên bản mới nhất ngay cả khi đang ở bản mới"
+            echo "  -y, --yes                  Tự động đồng ý cập nhật qua trình quản lý gói nếu có"
+            echo "      --version=<phiên bản>  Chỉ định phiên bản cụ thể cần update (ví dụ: v0.1.1)"
+            echo "  -h, --help                 Hiển thị trợ giúp này"
+            exit 0
+            ;;
+    esac
+done
+
+# visual palette and terminal formatting
+c_reset="\033[0m"
+c_dim="\033[38;5;244m"
+c_bold="\033[1m"
+c_cyan="\033[1;36m"
+c_blue="\033[1;34m"
+c_green="\033[1;32m"
+c_yellow="\033[1;33m"
+c_purple="\033[1;35m"
+c_red="\033[1;31m"
+c_gray="\033[38;5;240m"
+c_accent="\033[38;5;75m"
+
+sep="${c_gray}│${c_reset}"
+lbl_check="${c_blue}KIỂM TRA${c_reset}"
+lbl_fetch="${c_yellow}TẢI VỀ  ${c_reset}"
+lbl_update="${c_green}CẬP NHẬT${c_reset}"
+lbl_fcitx="${c_cyan}FCITX5  ${c_reset}"
+lbl_aur="${c_purple}AUR     ${c_reset}"
+lbl_nix="${c_cyan}NIX     ${c_reset}"
+lbl_warn="${c_yellow}LƯU Ý   ${c_reset}"
+lbl_err="${c_red}LỖI     ${c_reset}"
+
+# format timestamp
+get_ts() {
+    printf "%b[%s]%b" "$c_dim" "$(date +%T)" "$c_reset"
+}
+
+# formatted log line
+log_step() {
+    local lbl="$1"
+    local msg="$2"
+    printf "%s %b %b %b\n" "$(get_ts)" "$lbl" "$sep" "$msg"
+}
+
+# in-place animated spinner with percentage
+spin_step() {
+    local text="$1"
+    local duration="${2:-0.5}"
+    if [ ! -t 1 ]; then
+        return
+    fi
+    local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    for ((pct=0; pct<=100; pct+=10)); do
+        local f=${frames[(pct / 10) % 10]}
+        printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s\033[0m\033[K" "$f" "$pct" "$text"
+        sleep 0.04
+    done
+    printf "\r\033[K"
+}
+
+# in-place animated download spinner with percentage and kb counter
+spin_download() {
+    local text="$1"
+    local total_kb="${2:-1843}"
+    local track_pid="${3:-}"
+    local track_file="${4:-}"
+
+    if [ ! -t 1 ]; then
+        if [ -n "$track_pid" ]; then
+            wait "$track_pid" 2>/dev/null || true
+        fi
+        return
+    fi
+
+    local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+
+    if [ -n "$track_pid" ] && [ -n "$track_file" ]; then
+        local i=0
+        while kill -0 "$track_pid" 2>/dev/null; do
+            local f=${frames[i % 10]}
+            local cur_bytes=0
+            if [ -f "$track_file" ]; then
+                cur_bytes=$(wc -c < "$track_file" 2>/dev/null || echo 0)
+            fi
+            local cur_kb=$((cur_bytes / 1024))
+            local pct=$((cur_kb * 100 / total_kb))
+            [ $pct -gt 99 ] && pct=99
+            printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            i=$((i + 1))
+            sleep 0.08
+        done
+        wait "$track_pid" 2>/dev/null || true
+        local f=${frames[i % 10]}
+        printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+            "$f" "$text" "$total_kb" "$total_kb"
+        sleep 0.04
+    else
+        for ((pct=0; pct<=100; pct+=4)); do
+            local f=${frames[(pct / 4) % 10]}
+            local cur_kb=$((total_kb * pct / 100))
+            printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            sleep 0.04
+        done
+    fi
+    printf "\r\033[K"
+}
+
+# in-place animated spinner for asynchronous process
+spin_pid() {
+    local pid=$1
+    local text=$2
+    local expected_sec="${3:-1}"
+    if [ ! -t 1 ]; then
+        wait "$pid" 2>/dev/null || true
+        return
+    fi
+    local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
+    local i=0
+    local pct=0
+    while kill -0 "$pid" 2>/dev/null; do
+        local f=${frames[i % 10]}
+        pct=$((i * 100 / (expected_sec * 12)))
+        [ $pct -gt 95 ] && pct=95
+        printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s\033[0m\033[K" "$f" "$pct" "$text"
+        i=$((i + 1))
+        sleep 0.08
+    done
+    wait "$pid" 2>/dev/null || true
+    local f=${frames[i % 10]}
+    printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s\033[0m\033[K" "$f" "$text"
+    sleep 0.04
+    printf "\r\033[K"
+}
+
+# reload fcitx5 daemon via systemctl or direct command
+reload_fcitx5() {
+    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active fcitx5.service >/dev/null 2>&1; then
+        systemctl --user restart fcitx5.service >/dev/null 2>&1 || true
+    elif command -v fcitx5 >/dev/null 2>&1; then
+        fcitx5 -r -d >/dev/null 2>&1 || true
+    fi
+}
+
+# error exit
+err() {
+    log_step "$lbl_err" "$1"
+    exit 1
+}
+
+# get current installed version
+get_installed_version() {
+    if [ -f "$version_file" ]; then
+        cat "$version_file" | tr -d ' \n'
+        return
+    fi
+
+    # check if installed via pacman or aur
+    if command -v pacman >/dev/null 2>&1; then
+        local p_ver
+        p_ver=$(pacman -Q clak 2>/dev/null | awk '{print $2}' || true)
+        if [ -n "$p_ver" ]; then
+            echo "v${p_ver%%-*}"
+            return
+        fi
+        p_ver=$(pacman -Q clak-git 2>/dev/null | awk '{print $2}' || true)
+        if [ -n "$p_ver" ]; then
+            echo "v${p_ver%%-*}"
+            return
+        fi
+        p_ver=$(pacman -Q fcitx5-clak 2>/dev/null | awk '{print $2}' || true)
+        if [ -n "$p_ver" ]; then
+            echo "v${p_ver%%-*}"
+            return
+        fi
+    fi
+
+    echo "v0.1.0"
+}
+
+# detect installation method across services
+detect_install_source() {
+    # 1. arch linux pacman or aur
+    if command -v pacman >/dev/null 2>&1; then
+        if pacman -Qi clak >/dev/null 2>&1 || pacman -Qi clak-git >/dev/null 2>&1 || pacman -Qi fcitx5-clak >/dev/null 2>&1; then
+            echo "aur"
+            return
+        fi
+    fi
+
+    # 2. nix package manager or flake
+    if command -v nix >/dev/null 2>&1; then
+        if nix profile list 2>/dev/null | grep -q "clak" || [ -L "/run/current-system/sw/lib/fcitx5/libclak.so" ]; then
+            echo "nix"
+            return
+        fi
+    fi
+
+    # 3. git repository source build
+    if [ -f "./CMakeLists.txt" ] && [ -d "./.git" ] && grep -q "project(clak" ./CMakeLists.txt 2>/dev/null; then
+        echo "git"
+        return
+    fi
+
+    # 4. user local directory
+    if [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ]; then
+        echo "user"
+        return
+    fi
+
+    # 5. system wide directory
+    if [ -f "/usr/lib/fcitx5/libclak.so" ] || [ -f "/usr/local/lib/fcitx5/libclak.so" ]; then
+        echo "system"
+        return
+    fi
+
+    echo "unknown"
+}
+
+# simulation flow
+run_simulation() {
+    local cur_ver
+    cur_ver=$(get_installed_version)
+    local new_ver="${target_version:-v0.1.1}"
+
+    # 1. detect installation source instantly
+    local source_type
+    source_type=$(detect_install_source)
+    case "$source_type" in
+        aur)
+            log_step "$lbl_aur" "Phát hiện Clak được quản lý bởi ${c_purple}Arch Linux (AUR / Pacman)${c_reset}"
+            ;;
+        nix)
+            log_step "$lbl_nix" "Phát hiện Clak được quản lý bởi ${c_cyan}Nix Flake${c_reset}"
+            ;;
+        git)
+            log_step "$lbl_check" "Phát hiện mã nguồn Clak từ ${c_accent}Git repository${c_reset}"
+            ;;
+        system)
+            log_step "$lbl_check" "Phát hiện Clak cài đặt toàn hệ thống: ${c_accent}/usr/lib/fcitx5${c_reset}"
+            ;;
+        *)
+            log_step "$lbl_check" "Phát hiện Clak cài đặt người dùng: ${c_accent}~/.local/lib/fcitx5${c_reset}"
+            ;;
+    esac
+
+    log_step "$lbl_check" "Phiên bản hiện tại: ${c_cyan}${cur_ver}${c_reset}"
+
+    # 2. check update result
+    log_step "$lbl_fetch" "Đã tìm thấy bản phát hành mới: ${c_green}${new_ver}${c_reset}"
+
+    # 3. download package with spinner
+    local arch
+    arch=$(uname -m)
+    local bundle_name="clak-${new_ver#v}-linux-${arch}.tar.gz"
+    spin_download "Đang tải ${bundle_name} (~1.8 MB)" 1843
+    log_step "$lbl_fetch" "Tải về thành công · Mã băm ${c_green}SHA256${c_reset} chính xác"
+
+    # 4. update files instantly
+    log_step "$lbl_update" "Đã cập nhật ${c_accent}~/.local/lib/fcitx5/libclak.so${c_reset}"
+    log_step "$lbl_update" "Đã cập nhật ${c_accent}~/.local/share/fcitx5/addon/clak.conf${c_reset}"
+
+    # 5. reload fcitx5 daemon with final spinner
+    spin_step "Đang nạp lại daemon Fcitx5..." 0.6
+
+    # final line directly after spin completes
+    printf "\r\033[K\n"
+    echo -e "${c_green}Đã update Clak lên phiên bản ${new_ver}${c_reset}"
+    echo ""
+}
+
+# actual update flow
+run_update() {
+    local cur_ver
+    cur_ver=$(get_installed_version)
+
+    # 1. detect installation method instantly
+    local source_type
+    source_type=$(detect_install_source)
+
+    log_step "$lbl_check" "Phiên bản hiện tại: ${c_cyan}${cur_ver}${c_reset}"
+
+    # if installed via aur or pacman, handle through aur helper
+    if [ "$source_type" = "aur" ]; then
+        log_step "$lbl_aur" "Clak được quản lý bởi ${c_purple}Arch Linux (AUR / Pacman)${c_reset}"
+        local helper=""
+        if command -v yay >/dev/null 2>&1; then
+            helper="yay"
+        elif command -v paru >/dev/null 2>&1; then
+            helper="paru"
+        fi
+
+        if [ -n "$helper" ]; then
+            echo ""
+            echo -e "  ${c_purple}╭─ CẬP NHẬT QUA AUR ─────────────────────────────────────────╮${c_reset}"
+            echo -e "  ${c_purple}│${c_reset}  Khuyên dùng công cụ AUR để cập nhật đồng bộ package:      ${c_purple}│${c_reset}"
+            if [ "$helper" = "yay" ]; then
+                echo -e "  ${c_purple}│${c_reset}    ${c_bold}yay -S clak${c_reset}                                             ${c_purple}│${c_reset}"
+            else
+                echo -e "  ${c_purple}│${c_reset}    ${c_bold}paru -S clak${c_reset}                                            ${c_purple}│${c_reset}"
+            fi
+            echo -e "  ${c_purple}╰────────────────────────────────────────────────────────────╯${c_reset}"
+            echo ""
+
+            local aur_reply="y"
+            if [ "$assume_yes" -eq 0 ]; then
+                read -r -p "Bạn có muốn chạy '${helper} -S clak' để cập nhật ngay bây giờ? [Y/n] " aur_reply < /dev/tty || aur_reply="y"
+            fi
+
+            case "$aur_reply" in
+                [yY][eE][sS]|[yY]|"")
+                    $helper -S clak < /dev/tty
+                    spin_step "Đang nạp lại daemon Fcitx5..." 0.6
+                    reload_fcitx5
+                    local updated_ver
+                    updated_ver=$(get_installed_version)
+                    printf "\r\033[K\n"
+                    echo -e "${c_green}Đã update Clak lên phiên bản ${updated_ver}${c_reset}"
+                    echo ""
+                    exit 0
+                    ;;
+                *)
+                    log_step "$lbl_warn" "Bỏ qua cập nhật AUR, chuyển sang tải bản phát hành trực tiếp"
+                    ;;
+            esac
+        fi
+    fi
+
+    # if installed via nix flake
+    if [ "$source_type" = "nix" ]; then
+        log_step "$lbl_nix" "Clak được quản lý bởi ${c_cyan}Nix Flake${c_reset}"
+        echo ""
+        echo -e "  ${c_cyan}╭─ CẬP NHẬT QUA NIX ─────────────────────────────────────────╮${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}  Khuyên dùng Nix để cập nhật flake hoặc profile:           ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}nix profile upgrade clak${c_reset}                                ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+        echo ""
+
+        local nix_reply="y"
+        if [ "$assume_yes" -eq 0 ]; then
+            read -r -p "Bạn có muốn chạy 'nix profile upgrade clak'? [Y/n] " nix_reply < /dev/tty || nix_reply="y"
+        fi
+
+        case "$nix_reply" in
+            [yY][eE][sS]|[yY]|"")
+                nix profile upgrade clak < /dev/tty
+                spin_step "Đang nạp lại daemon Fcitx5..." 0.6
+                reload_fcitx5
+                local updated_ver
+                updated_ver=$(get_installed_version)
+                printf "\r\033[K\n"
+                echo -e "${c_green}Đã update Clak lên phiên bản ${updated_ver}${c_reset}"
+                echo ""
+                exit 0
+                ;;
+            *)
+                log_step "$lbl_warn" "Bỏ qua cập nhật Nix, chuyển sang tải bản phát hành trực tiếp"
+                ;;
+        esac
+    fi
+
+    # if running from local git source tree
+    if [ "$source_type" = "git" ]; then
+        log_step "$lbl_check" "Phát hiện mã nguồn trong Git repository"
+        if command -v just >/dev/null 2>&1; then
+            local git_reply="y"
+            if [ "$assume_yes" -eq 0 ]; then
+                read -r -p "Bạn có muốn git pull và build lại bằng just? [Y/n] " git_reply < /dev/tty || git_reply="y"
+            fi
+            case "$git_reply" in
+                [yY][eE][sS]|[yY]|"")
+                    git pull
+                    just build-release
+                    just install
+                    spin_step "Đang nạp lại daemon Fcitx5..." 0.6
+                    reload_fcitx5
+                    local updated_ver
+                    updated_ver=$(get_installed_version)
+                    printf "\r\033[K\n"
+                    echo -e "${c_green}Đã update Clak lên phiên bản ${updated_ver}${c_reset}"
+                    echo ""
+                    exit 0
+                    ;;
+                *)
+                    log_step "$lbl_warn" "Bỏ qua build từ source, tiếp tục tải bản phát hành"
+                    ;;
+            esac
+        fi
+    fi
+
+    # 2. query latest release from github api
+    local release_path="/releases/latest"
+    if [ -n "$target_version" ]; then
+        release_path="/releases/tags/${target_version}"
+    fi
+
+    local tmp_response
+    tmp_response=$(mktemp)
+
+    (
+        curl -sL -w "\n%{http_code}" \
+            ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
+            "${api_url}/repos/${repo}${release_path}" > "$tmp_response"
+    ) &
+    spin_pid $! "Đang kiểm tra phiên bản mới nhất từ GitHub..." 1
+
+    local http_code
+    http_code=$(tail -n1 "$tmp_response" 2>/dev/null || echo "200")
+    local releases_json
+    releases_json=$(sed '$d' "$tmp_response" 2>/dev/null || cat "$tmp_response")
+    rm -f "$tmp_response"
+
+    if [ "$http_code" = "404" ]; then
+        err "Không tìm thấy bản phát hành nào trên GitHub"
+    fi
+
+    local latest_tag
+    latest_tag=$(echo "$releases_json" | grep '"tag_name":' | head -1 | cut -d '"' -f 4 || echo "")
+
+    if [ -z "$latest_tag" ]; then
+        err "Không đọc được thông tin phiên bản phát hành từ GitHub"
+    fi
+
+    if [ "$latest_tag" = "$cur_ver" ] && [ "$force_update" -eq 0 ]; then
+        log_step "$lbl_check" "Clak đã ở phiên bản mới nhất (${c_green}${cur_ver}${c_reset})"
+        echo ""
+        echo "Không cần cập nhật. (Dùng cờ -f hoặc --force để cập nhật đè)"
+        exit 0
+    fi
+
+    log_step "$lbl_fetch" "Cập nhật từ ${c_cyan}${cur_ver}${c_reset} -> ${c_green}${latest_tag}${c_reset}"
+
+    # 3. download release archive
+    local arch
+    arch=$(uname -m)
+    local download_url
+    download_url=$(echo "$releases_json" | grep "browser_download_url" | grep "linux-${arch}\.tar\.gz" | head -1 | cut -d '"' -f 4 || true)
+
+    if [ -z "$download_url" ]; then
+        err "Không tìm thấy file nén cho kiến trúc linux-${arch}"
+    fi
+
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "${tmp_dir}"' EXIT
+
+    local archive_name
+    archive_name=$(basename "$download_url")
+
+    (
+        cd "$tmp_dir"
+        curl -sLO "$download_url"
+    ) &
+    local dl_pid=$!
+    spin_download "Đang tải ${archive_name}" 1843 "$dl_pid" "${tmp_dir}/${archive_name}"
+    wait "$dl_pid" 2>/dev/null || true
+    log_step "$lbl_fetch" "Tải về thành công"
+
+    # 4. extract archive
+    tar -xzf "${tmp_dir}/${archive_name}" -C "$tmp_dir"
+
+    local lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
+    local addon_src="${tmp_dir}/usr/share/fcitx5/addon/clak.conf"
+    local im_src="${tmp_dir}/usr/share/fcitx5/inputmethod/clak.conf"
+
+    if [ ! -f "$lib_src" ]; then
+        err "Gói cập nhật không hợp lệ: thiếu libclak.so"
+    fi
+
+    # 5. install files
+    local lib_dest="${HOME}/.local/lib/fcitx5"
+    local addon_dest="${HOME}/.local/share/fcitx5/addon"
+    local im_dest="${HOME}/.local/share/fcitx5/inputmethod"
+
+    if [ "$source_type" = "system" ]; then
+        lib_dest="/usr/lib/fcitx5"
+        addon_dest="/usr/share/fcitx5/addon"
+        im_dest="/usr/share/fcitx5/inputmethod"
+
+        echo "Yêu cầu quyền sudo để ghi đè file hệ thống (/usr)..."
+        sudo mkdir -p "$lib_dest" "$addon_dest" "$im_dest" < /dev/tty
+        sudo cp "$lib_src" "${lib_dest}/libclak.so" < /dev/tty
+        sudo cp "$addon_src" "${addon_dest}/clak.conf" < /dev/tty
+        sudo cp "$im_src" "${im_dest}/clak.conf" < /dev/tty
+        sudo chmod 755 "${lib_dest}/libclak.so"
+    else
+        mkdir -p "$lib_dest" "$addon_dest" "$im_dest"
+        cp "$lib_src" "${lib_dest}/libclak.so"
+        cp "$addon_src" "${addon_dest}/clak.conf"
+        cp "$im_src" "${im_dest}/clak.conf"
+        chmod 755 "${lib_dest}/libclak.so"
+    fi
+
+    mkdir -p "${HOME}/.local/share/clak"
+    echo "$latest_tag" > "$version_file"
+
+    log_step "$lbl_update" "Đã cập nhật ${c_accent}${lib_dest}/libclak.so${c_reset}"
+
+    # 6. reload fcitx5 daemon with final spinner
+    spin_step "Đang nạp lại daemon Fcitx5..." 0.6
+    reload_fcitx5
+
+    # final line directly after spin completes
+    printf "\r\033[K\n"
+    echo -e "${c_green}Đã update Clak lên phiên bản ${latest_tag}${c_reset}"
+    echo ""
+}
+
+# main router
+if [ "$dry_run" -eq 1 ]; then
+    run_simulation
+else
+    run_update
+fi

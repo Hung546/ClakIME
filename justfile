@@ -84,6 +84,18 @@ pkg-aur:
 changelog:
     git-cliff --unreleased
 
+# test installer simulation flow
+test-install mode="":
+    bash scripts/install.sh --dry-run {{mode}}
+
+# update clak to latest release
+update args="":
+    bash scripts/update.sh {{args}}
+
+# test updater simulation flow
+test-update args="":
+    bash scripts/update.sh --dry-run {{args}}
+
 # clean build artifacts
 clean:
     rm -rf build engine/target vendor clak-vendor.tar.gz clak-vendor.tar.gz.sha256

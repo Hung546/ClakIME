@@ -118,7 +118,7 @@ impl ClakContext {
         let just_del = self.just_deleted;
         self.just_deleted = false;
 
-        let mut has_autocomplete = self.typed_over_selection;
+        let mut has_autocomplete = false;
         if let Some(text) = surrounding_text {
             let is_stale = match &self.stale_surr {
                 Some((st_text, st_cur)) => st_text == text && *st_cur == cursor,
@@ -132,20 +132,28 @@ impl ClakContext {
             let sel_start = std::cmp::min(cur, anch);
             let sel_end = std::cmp::max(cur, anch);
 
-            // mark if typing over a selected URL or single-line field
-            if self.raw_buffer.is_empty() && sel_start < sel_end && !text.contains('\n') {
-                self.typed_over_selection = true;
+            // address bar url autocomplete only applies to single-token urls without spaces or newlines
+            let is_single_token = !text.is_empty() && !text.contains(' ') && !text.contains('\n');
+
+            if sel_start == sel_end {
+                self.typed_over_selection = false;
+            } else if self.raw_buffer.is_empty() {
+                self.reset();
+                if is_single_token && sel_start == 0 && sel_end == chars.len() {
+                    self.typed_over_selection = true;
+                }
             }
 
             // browser address bar autocomplete detection
-            if !self.raw_buffer.is_empty() && sel_start < sel_end && sel_end <= chars.len() {
-                let sel_text: String = chars[sel_start..sel_end].iter().collect();
-                if !sel_text.contains('\n') {
-                    let before_sel: String = chars[..sel_start].iter().collect();
-                    if before_sel.ends_with(&self.last_composed) {
-                        has_autocomplete = true;
-                    }
+            if is_single_token && !self.raw_buffer.is_empty() && sel_start < sel_end && sel_end == chars.len() {
+                let before_sel: String = chars[..sel_start].iter().collect();
+                if before_sel.ends_with(&self.last_composed) {
+                    has_autocomplete = true;
                 }
+            }
+
+            if is_single_token && self.typed_over_selection && sel_start < sel_end {
+                has_autocomplete = true;
             }
 
             // word seeding from surrounding text only when cursor is at word end
@@ -747,5 +755,25 @@ mod tests {
         assert_eq!(act2.delete_count, 2);
         let commit2 = unsafe { CStr::from_ptr(act2.commit_str).to_str().unwrap() };
         assert_eq!(commit2, "ụa");
+    }
+
+    #[test]
+    fn test_typing_over_selected_word_in_sentence() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        let text = "Fcitx5 and Wayland";
+        // user selects "and" (indices 7..10) and types "và" (v, a, f)
+        let a1 = ctx.process_key(b'v' as u32, "v", false, Some(text), 7, 10);
+        assert_eq!(a1.action_type, ACTION_FORWARD);
+
+        // editor replaced "and" with "v", cursor at 8, anchor at 8
+        let a2 = ctx.process_key(b'a' as u32, "a", false, Some("Fcitx5 v Wayland"), 8, 8);
+        assert_eq!(a2.action_type, ACTION_FORWARD);
+
+        // typing 'f' to transform "va" -> "và"
+        let a3 = ctx.process_key(b'f' as u32, "f", false, Some("Fcitx5 va Wayland"), 9, 9);
+        assert_eq!(a3.action_type, ACTION_REPLACE);
+        assert_eq!(a3.delete_count, 1);
+        let commit3 = unsafe { CStr::from_ptr(a3.commit_str).to_str().unwrap() };
+        assert_eq!(commit3, "à");
     }
 }

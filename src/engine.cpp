@@ -23,32 +23,22 @@ void ClakEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent&
 
 void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
     FCITX_UNUSED(entry);
-    auto* state = event.inputContext()->propertyFor(&factory_);
-    if (state && event.type() == fcitx::EventType::InputContextFocusOut) {
-        if (!state->isBrowser()) {
-            state->reset();
-        }
-    }
+    FCITX_UNUSED(event);
 }
 
 void ClakEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
     FCITX_UNUSED(entry);
     auto* state = event.inputContext()->propertyFor(&factory_);
-    if (state && event.type() == fcitx::EventType::InputContextFocusOut) {
-        // preserve composition during browser text-input churn
-        if (!state->isBrowser()) {
-            state->reset();
-        }
+    if (state) {
+        state->reset();
     }
 }
 
 void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
     FCITX_UNUSED(entry);
     auto* state = event.inputContext()->propertyFor(&factory_);
-    if (state && event.type() == fcitx::EventType::InputContextFocusOut) {
-        if (!state->isBrowser()) {
-            state->reset();
-        }
+    if (state) {
+        state->reset();
     }
 }
 

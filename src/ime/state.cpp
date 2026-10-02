@@ -93,7 +93,23 @@ bool ClakState::isGecko() const {
     return config::isGeckoApp(app);
 }
 
-bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type) {
+bool ClakState::isCursorNearWord(const fcitx::SurroundingText& surr) {
+    if (!surr.isValid()) return false;
+    const std::string& text = surr.text();
+    if (text.empty()) return false;
+    unsigned int cursor = surr.cursor();
+    if (cursor > text.size()) return false;
+
+    // check if there is any non-whitespace character after cursor (before or inside words)
+    for (size_t i = cursor; i < text.size(); ++i) {
+        if (!std::isspace(static_cast<unsigned char>(text[i]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr) {
     std::string app = appKey();
     std::string site = activeSite();
 
@@ -117,6 +133,10 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type) {
     if (is_canvas_editor_ || is_rich_text_editor_) {
         return true;
     }
+    // switch to uinput when cursor is detected between, before, or after words in browsers
+    if (isBrowser() && isCursorNearWord(surr)) {
+        return true;
+    }
     return !use_surrounding;
 }
 
@@ -128,24 +148,19 @@ bool ClakState::isAutofillCertain(const fcitx::SurroundingText& surr) {
         return false;
     }
     const std::string& text = surr.text();
-    if (text.empty() || text.find('\n') != std::string::npos) return false;
+    // address bar url autofill does not contain spaces or newlines
+    if (text.empty() || text.find('\n') != std::string::npos || text.find(' ') != std::string::npos) return false;
 
     unsigned int cursor = surr.cursor();
     unsigned int anchor = surr.anchor();
 
-    // selection extends past cursor in single-line context (chromium address bar)
+    // selection extends past cursor in single-line context (chromium address bar autocomplete)
     if (cursor != anchor) {
         unsigned int sel_start = std::min(anchor, cursor);
         unsigned int sel_end = std::max(anchor, cursor);
         if (sel_start >= cursor || (sel_start < cursor && sel_end > cursor)) {
             return true;
         }
-    }
-
-    // rapid text growth heuristic for gecko address bar
-    size_t utf8_len = fcitx::utf8::length(text);
-    if (utf8_len > cursor + 1 && cursor == last_text_len_) {
-        return true;
     }
 
     return false;
@@ -459,7 +474,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
             size_t real_bs = action.delete_count;
             bool is_autofill = (action.action_type == CLAK_ACTION_ADDRESS_BAR_FIX) ||
                                (isBrowser() && isAutofillCertain(surr));
-            bool use_uinput = is_autofill || shouldUseUinput(use_surrounding, action.action_type);
+            bool use_uinput = is_autofill || shouldUseUinput(use_surrounding, action.action_type, surr);
 
             if (use_uinput && real_bs > 0) {
                 size_t autofill_extra = is_autofill ? 1 : 0;

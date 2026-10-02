@@ -24,6 +24,21 @@ pub struct ClakContext {
     stale_surr: Option<(String, usize)>,
     just_deleted: bool,
     typed_over_selection: bool,
+    last_cursor: Option<usize>,
+}
+
+fn byte_to_char_index(s: &str, byte_offset: usize) -> usize {
+    if byte_offset >= s.len() || byte_offset == s.chars().count() {
+        return s.chars().count();
+    }
+    let safe_byte = std::cmp::min(s.len(), byte_offset);
+    let valid_byte = s.char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(s.len()))
+        .filter(|&i| i <= safe_byte)
+        .last()
+        .unwrap_or(0);
+    s[..valid_byte].chars().count()
 }
 
 impl ClakContext {
@@ -39,6 +54,7 @@ impl ClakContext {
             stale_surr: None,
             just_deleted: false,
             typed_over_selection: false,
+            last_cursor: None,
         }
     }
 
@@ -46,6 +62,7 @@ impl ClakContext {
         self.raw_buffer.clear();
         self.last_composed.clear();
         self.typed_over_selection = false;
+        self.last_cursor = None;
     }
 
     pub fn process_key(
@@ -64,13 +81,21 @@ impl ClakContext {
             return self.forward();
         }
 
+        if let Some(last_c) = self.last_cursor {
+            if cursor != last_c && cursor != last_c + 1 && !self.raw_buffer.is_empty() {
+                // cursor moved unexpectedly, reset stale composition
+                self.reset();
+            }
+        }
+        self.last_cursor = Some(cursor);
+
         if key_sym == 0xff08 {
             self.just_deleted = true;
             if let Some(text) = surrounding_text {
                 self.stale_surr = Some((text.to_string(), cursor));
-                let chars: Vec<char> = text.chars().collect();
-                let cur = std::cmp::min(chars.len(), std::cmp::min(cursor, anchor));
-                if text.is_empty() || cur == 0 {
+                let cur = byte_to_char_index(text, cursor);
+                let anch = byte_to_char_index(text, anchor);
+                if text.is_empty() || std::cmp::min(cur, anch) == 0 {
                     self.reset();
                     return self.forward();
                 }
@@ -126,9 +151,10 @@ impl ClakContext {
             self.stale_surr = None;
 
             let chars: Vec<char> = text.chars().collect();
-            let cur = std::cmp::min(chars.len(), std::cmp::min(cursor, anchor));
-            let sel_start = std::cmp::min(cursor, anchor);
-            let sel_end = std::cmp::max(cursor, anchor);
+            let cur = byte_to_char_index(text, cursor);
+            let anch = byte_to_char_index(text, anchor);
+            let sel_start = std::cmp::min(cur, anch);
+            let sel_end = std::cmp::max(cur, anch);
 
             // mark if typing over a selected URL or single-line field
             if self.raw_buffer.is_empty() && sel_start < sel_end && !text.contains('\n') {
@@ -146,10 +172,10 @@ impl ClakContext {
                 }
             }
 
-            // word seeding from surrounding text:
-            // only seed if incoming key is an actual telex modifier and no selection
+            // word seeding from surrounding text only when cursor is at word end
+            let is_at_word_end = cur == chars.len() || is_word_break(chars[cur] as u32);
             let is_telex_mod = matches!(key_ch, 'a' | 'e' | 'o' | 'd' | 'w' | 's' | 'f' | 'r' | 'x' | 'j');
-            if !just_del && !is_stale && !has_autocomplete && cursor == anchor && self.last_composed.is_empty() && cur > 0 && is_telex_mod {
+            if !just_del && !is_stale && !has_autocomplete && cursor == anchor && self.last_composed.is_empty() && cur > 0 && is_telex_mod && is_at_word_end {
                 let mut start = cur;
                 while start > 0 {
                     let prev_char = chars[start - 1];

@@ -30,7 +30,8 @@ private:
   void arm_safety_timer();
   bool handleKey(const fcitx::Key& key);
   void replayBufferedKeys();
-  bool shouldUseUinput(bool use_surrounding, uint32_t action_type);
+  bool shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr);
+  bool isCursorNearWord(const fcitx::SurroundingText& surr);
   bool isAutofillCertain(const fcitx::SurroundingText& surr);
   std::string appKey();
   std::string activeSite();

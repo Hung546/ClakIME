@@ -8,7 +8,7 @@
 <p align="center">
   <b>Bộ gõ tiếng Việt ổn định cao dành cho Linux</b>
 </p>
-
+đây là một bài test trong neovim!
 - Clak giúp bạn gõ trên Twitter/X mượt mà btw
 
 <img src="assets/proof/twitter.gif" width="100%" alt="Twitter" />
@@ -25,9 +25,16 @@
 
 <img src="assets/proof/urlbar.gif" width="100%" alt="URL Bar" />
 
-- Clak giúp bạn gõ trên Electron mượt mà btw
+- Clak giúp bạn gõ trên các app Electron mượt mà btw
 
 <img src="assets/proof/electron.gif" width="100%" alt="Electron" />
+
+- Clak giúp bạn gõ trên Telegram Desktop/Web mượt mà btw
+
+<img src="assets/proof/telegram.webp" width="100%" alt="Telegram" />
+
+- Clak có thể detect được các cli tool như Neovim và biết chính xác đang ở mode nào để giúp trải nghiệm muợt mà hơn btw
+  <img src="assets/proof/neovim.webp" width="100%" alt="Neovim" />
 
 ## Feedback
 

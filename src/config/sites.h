@@ -7,6 +7,7 @@ namespace clak {
 namespace config {
 
 bool isTerminalApp(const std::string& app);
+bool isVSCodeApp(const std::string& app);
 bool isBrowserApp(const std::string& app);
 bool isGeckoApp(const std::string& app);
 bool isChromiumApp(const std::string& app);

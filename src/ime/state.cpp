@@ -98,11 +98,20 @@ bool ClakState::isCursorNearWord(const fcitx::SurroundingText& surr) {
     const std::string& text = surr.text();
     if (text.empty()) return false;
     unsigned int cursor = surr.cursor();
-    if (cursor > text.size()) return false;
+    size_t utf8_len = fcitx::utf8::length(text);
+    if (cursor >= utf8_len) return false;
 
-    // check if there is any non-whitespace character after cursor (before or inside words)
-    for (size_t i = cursor; i < text.size(); ++i) {
-        if (!std::isspace(static_cast<unsigned char>(text[i]))) {
+    // skip to character at cursor offset
+    auto it = text.begin();
+    for (unsigned int i = 0; i < cursor && it != text.end(); ++i) {
+        uint32_t chr = 0;
+        it = fcitx::utf8::getNextChar(it, text.end(), &chr);
+    }
+    // check remaining characters after cursor
+    while (it != text.end()) {
+        uint32_t chr = 0;
+        it = fcitx::utf8::getNextChar(it, text.end(), &chr);
+        if (chr != ' ' && chr != '\t' && chr != '\n' && chr != '\r') {
             return true;
         }
     }

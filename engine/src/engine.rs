@@ -74,8 +74,12 @@ fn crossing_roof_valid(ls: &[Letter], i: usize, upper: bool, swap: bool) -> bool
     if upper {
         trial[i].upper = true;
     }
-    if swap && trial[i].c == 'o' && i > 0 && trial[i - 1].is_vowel
-        && trial[i - 1].c == 'u' && trial[i - 1].variant == 2
+    if swap
+        && trial[i].c == 'o'
+        && i > 0
+        && trial[i - 1].is_vowel
+        && trial[i - 1].c == 'u'
+        && trial[i - 1].variant == 2
     {
         trial[i - 1].variant = 0;
     }
@@ -99,12 +103,12 @@ fn tone_vowel_index(ls: &[Letter], modern: bool) -> Option<usize> {
     while start > 0 && ls[start - 1].is_vowel {
         start -= 1;
     }
-    if start < end {
-        if ls[start].c == 'u' && start > 0 && ls[start - 1].c == 'q' {
-            start += 1;
-        } else if ls[start].c == 'i' && start > 0 && ls[start - 1].c == 'g' {
-            start += 1;
-        }
+    if start < end
+        && start > 0
+        && ((ls[start].c == 'u' && ls[start - 1].c == 'q')
+            || (ls[start].c == 'i' && ls[start - 1].c == 'g'))
+    {
+        start += 1;
     }
     if start > end {
         start = end;
@@ -134,7 +138,7 @@ fn tone_vowel_index(ls: &[Letter], modern: bool) -> Option<usize> {
         return Some(end);
     }
     let (c1, c2) = (ls[start].c, ls[end].c);
-    if (c1 == 'o' && c2 == 'a') || (c1 == 'o' && c2 == 'e') || (c1 == 'u' && c2 == 'y') {
+    if (c1 == 'o' && (c2 == 'a' || c2 == 'e')) || (c1 == 'u' && c2 == 'y') {
         return if modern { Some(end) } else { Some(start) };
     }
     Some(start)
@@ -153,12 +157,12 @@ fn reposition_tone_after_hook(ls: &mut [Letter], modern: bool) {
         start -= 1;
     }
     // Skip gi/qu digraph vowels
-    if start < end {
-        if ls[start].c == 'u' && start > 0 && ls[start - 1].c == 'q' {
-            start += 1;
-        } else if ls[start].c == 'i' && start > 0 && ls[start - 1].c == 'g' {
-            start += 1;
-        }
+    if start < end
+        && start > 0
+        && ((ls[start].c == 'u' && ls[start - 1].c == 'q')
+            || (ls[start].c == 'i' && ls[start - 1].c == 'g'))
+    {
+        start += 1;
     }
     if start > end {
         return;
@@ -217,7 +221,7 @@ pub fn convert_telex(input: &str, modern: bool, short_w: bool) -> String {
 /// (dd, vowel+w, double vowels): those signal intentional IME transforms
 pub fn convert_telex_auto_restore(input: &str, modern: bool, short_w: bool) -> String {
     let composed = convert_telex_impl(input, modern, short_w);
-    let all_ascii = composed.chars().all(|c| c.is_ascii());
+    let all_ascii = composed.is_ascii();
     if composed != input
         && !all_ascii
         && !crate::spelling::is_valid_cvc(&composed)
@@ -274,15 +278,13 @@ fn convert_telex_impl(input: &str, modern: bool, short_w: bool) -> String {
                                     // e crosses u (êu), o crosses i
                                     // (ôi, uôi). Any other intermediate
                                     // vowel blocks the roof.
-                                    let blocked = ls[i + 1..=vi]
-                                        .iter()
-                                        .any(|lt| lt.is_vowel
+                                    let blocked = ls[i + 1..=vi].iter().any(|lt| {
+                                        lt.is_vowel
                                             && !matches!(
                                                 (lc, lt.c),
-                                                ('a', 'y' | 'u')
-                                                    | ('e', 'u')
-                                                    | ('o', 'i')
-                                            ));
+                                                ('a', 'y' | 'u') | ('e', 'u') | ('o', 'i')
+                                            )
+                                    });
                                     if blocked {
                                         break;
                                     }
@@ -490,7 +492,7 @@ pub fn convert_teip_vni(input: &str, modern: bool, short_w: bool) -> String {
                 continue;
             }
         }
-        if lc >= '0' && lc <= '9' {
+        if lc.is_ascii_digit() {
             match lc {
                 '6' => {
                     if let Some(vi) = last_vowel_index(&ls) {
@@ -568,15 +570,13 @@ pub fn convert_teip_vni(input: &str, modern: bool, short_w: bool) -> String {
                         if ls[i].is_vowel {
                             if ls[i].c == lc {
                                 if i < vi {
-                                    let blocked = ls[i + 1..=vi]
-                                        .iter()
-                                        .any(|lt| lt.is_vowel
+                                    let blocked = ls[i + 1..=vi].iter().any(|lt| {
+                                        lt.is_vowel
                                             && !matches!(
                                                 (lc, lt.c),
-                                                ('a', 'y' | 'u')
-                                                    | ('e', 'u')
-                                                    | ('o', 'i')
-                                            ));
+                                                ('a', 'y' | 'u') | ('e', 'u') | ('o', 'i')
+                                            )
+                                    });
                                     if blocked {
                                         break;
                                     }
@@ -1065,10 +1065,10 @@ mod tests {
         assert_eq!(tt("Dad"), "Đa");
         // Toggle once, then one-shot (like aa): dd→đ, ddd→dd, dddd→ddd
         assert_eq!(tt("dadd"), "dad");
-        assert_eq!(tt("ddd"), "dd");     // toggle off once
-        assert_eq!(tt("dddd"), "ddd");   // no re-merge, plain d's
+        assert_eq!(tt("ddd"), "dd"); // toggle off once
+        assert_eq!(tt("dddd"), "ddd"); // no re-merge, plain d's
         assert_eq!(tt("ddddd"), "dddd"); // plain d's
-        assert_eq!(tt("ddda"), "dda");   // plain d's
+        assert_eq!(tt("ddda"), "dda"); // plain d's
         assert_eq!(tt("ddddf"), "dddf"); // tone falls through on plain d's
     }
     #[test]
@@ -1211,11 +1211,11 @@ mod tests {
     #[test]
     fn telex_double_vowel_toggle() {
         assert_eq!(tt("aa"), "â");
-        assert_eq!(tt("aaa"), "aa");    // unmerge once
-        assert_eq!(tt("aaaa"), "aaa");  // no re-merge, plain a's after
+        assert_eq!(tt("aaa"), "aa"); // unmerge once
+        assert_eq!(tt("aaaa"), "aaa"); // no re-merge, plain a's after
         assert_eq!(tt("ee"), "ê");
         assert_eq!(tt("eee"), "ee");
-        assert_eq!(tt("eeee"), "eee");  // no re-merge
+        assert_eq!(tt("eeee"), "eee"); // no re-merge
         assert_eq!(tt("oo"), "ô");
         assert_eq!(tt("ooo"), "oo");
         assert_eq!(tt("oooo"), "ooo");
@@ -1319,10 +1319,10 @@ mod tests {
         assert_eq!(tt("ew"), "ew");
         assert_eq!(tt("uow"), "ươ"); // u+o+w → ươ
         assert_eq!(tt("uoww"), "uow"); // ươ+w → uo + literal w → uow
-        // Triple-w: one-shot after toggle (like aa→â, aaa→aa, aaaa→aaa)
+                                       // Triple-w: one-shot after toggle (like aa→â, aaa→aa, aaaa→aaa)
         assert_eq!(tt("owww"), "oww"); // ơ→o toggle off once, then literal w's
         assert_eq!(tt("uowww"), "uoww"); // ươ→uo toggle off once, then literal w's
-                                       // uu + w → ưu (horn on first u of cluster, matches Unikey Windows)
+                                         // uu + w → ưu (horn on first u of cluster, matches Unikey Windows)
         assert_eq!(tt("uuw"), "ưu");
         assert_eq!(tt("uuww"), "uuw"); // 2nd w: toggle ưu→uu + literal w → uuw
         assert_eq!(tt("uuws"), "ứu"); // uuw + acute

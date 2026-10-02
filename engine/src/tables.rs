@@ -68,12 +68,48 @@ pub fn vowel_utf8(base: char, variant: u8, tone: u8, upper: bool) -> &'static st
     let v = (variant as usize).min(2);
     let t = (tone as usize).min(5);
     let table: &ToneTable = match base.to_ascii_lowercase() {
-        'a' => if upper { &A_UP } else { &A_LO },
-        'e' => if upper { &E_UP } else { &E_LO },
-        'i' => if upper { &I_UP } else { &I_LO },
-        'o' => if upper { &O_UP } else { &O_LO },
-        'u' => if upper { &U_UP } else { &U_LO },
-        'y' => if upper { &Y_UP } else { &Y_LO },
+        'a' => {
+            if upper {
+                &A_UP
+            } else {
+                &A_LO
+            }
+        }
+        'e' => {
+            if upper {
+                &E_UP
+            } else {
+                &E_LO
+            }
+        }
+        'i' => {
+            if upper {
+                &I_UP
+            } else {
+                &I_LO
+            }
+        }
+        'o' => {
+            if upper {
+                &O_UP
+            } else {
+                &O_LO
+            }
+        }
+        'u' => {
+            if upper {
+                &U_UP
+            } else {
+                &U_LO
+            }
+        }
+        'y' => {
+            if upper {
+                &Y_UP
+            } else {
+                &Y_LO
+            }
+        }
         _ => return if upper { &A_UP } else { &A_LO }[0][0], // fallback
     };
     table[v][t]

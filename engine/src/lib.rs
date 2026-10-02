@@ -1,9 +1,9 @@
-pub mod tables;
-pub mod engine;
-pub mod spelling;
 pub mod charset;
-pub mod vseq;
+pub mod engine;
 pub mod ime;
+pub mod spelling;
+pub mod tables;
+pub mod vseq;
 
 pub use ime::*;
 
@@ -13,23 +13,23 @@ use std::os::raw::c_char;
 use std::sync::OnceLock;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Method { Telex, Vni, TeipVni, Viqr }
+pub enum Method {
+    Telex,
+    Vni,
+    TeipVni,
+    Viqr,
+}
 
 static DICT: OnceLock<Vec<&'static str>> = OnceLock::new();
 static BASES: OnceLock<Vec<String>> = OnceLock::new();
 
 fn dict() -> &'static Vec<&'static str> {
-    DICT.get_or_init(|| {
-        include_str!("../data/vietnamese.cm.dict")
-            .lines()
-            .collect()
-    })
+    DICT.get_or_init(|| include_str!("../data/vietnamese.cm.dict").lines().collect())
 }
 
 fn bases() -> &'static Vec<String> {
     BASES.get_or_init(|| {
-        let mut v: Vec<String> =
-            dict().iter().map(|w| charset::remove_tone(w)).collect();
+        let mut v: Vec<String> = dict().iter().map(|w| charset::remove_tone(w)).collect();
         v.sort();
         v.dedup();
         v
@@ -59,11 +59,21 @@ impl ClakCore {
         }
     }
 
-    pub fn set_method(&mut self, method: Method) { self.method = method; }
-    pub fn set_modern(&mut self, v: bool) { self.modern = v; }
-    pub fn set_short_w(&mut self, v: bool) { self.short_w = v; }
-    pub fn set_auto_restore(&mut self, v: bool) { self.auto_restore = v; }
-    pub fn set_dict(&mut self, v: bool) { self.dict = v; }
+    pub fn set_method(&mut self, method: Method) {
+        self.method = method;
+    }
+    pub fn set_modern(&mut self, v: bool) {
+        self.modern = v;
+    }
+    pub fn set_short_w(&mut self, v: bool) {
+        self.short_w = v;
+    }
+    pub fn set_auto_restore(&mut self, v: bool) {
+        self.auto_restore = v;
+    }
+    pub fn set_dict(&mut self, v: bool) {
+        self.dict = v;
+    }
 
     pub fn add_word(&mut self, word: &str) {
         self.user_words.insert(word.to_lowercase());
@@ -76,9 +86,7 @@ impl ClakCore {
     fn dict_known(&self, word: &str) -> bool {
         let base = charset::remove_tone(word);
         if base != word {
-            if self.user_words.contains(word)
-                || dict().binary_search(&word).is_ok()
-            {
+            if self.user_words.contains(word) || dict().binary_search(&word).is_ok() {
                 return true;
             }
             for w in &self.user_words {
@@ -113,14 +121,13 @@ impl ClakCore {
             Method::TeipVni => engine::convert_teip_vni(input, self.modern, self.short_w),
             Method::Viqr => engine::convert_viqr(input),
         };
-        let all_ascii = composed.chars().all(|c| c.is_ascii());
+        let all_ascii = composed.is_ascii();
         let known = if self.dict {
             self.dict_known(&composed.to_lowercase())
         } else {
             Self::is_valid(&composed)
         };
-        if self.auto_restore && !all_ascii && composed != input
-            && !known && !has_vn_markers(input)
+        if self.auto_restore && !all_ascii && composed != input && !known && !has_vn_markers(input)
         {
             input.to_string()
         } else {
@@ -166,12 +173,18 @@ pub unsafe extern "C" fn clak_core_new(method: i32) -> *mut ClakCore {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_free(engine: *mut ClakCore) {
-    if !engine.is_null() { unsafe { drop(Box::from_raw(engine)); } }
+    if !engine.is_null() {
+        unsafe {
+            drop(Box::from_raw(engine));
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_set_method(engine: *mut ClakCore, method: i32) {
-    if engine.is_null() { return; }
+    if engine.is_null() {
+        return;
+    }
     let m = match method {
         0 => Method::Telex,
         1 => Method::Vni,
@@ -179,51 +192,84 @@ pub unsafe extern "C" fn clak_core_set_method(engine: *mut ClakCore, method: i32
         3 => Method::TeipVni,
         _ => Method::Telex,
     };
-    unsafe { (*engine).set_method(m); }
+    unsafe {
+        (*engine).set_method(m);
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_set_tone_style(e: *mut ClakCore, v: i32) {
-    if !e.is_null() { unsafe { (*e).set_modern(v != 0); } }
+    if !e.is_null() {
+        unsafe {
+            (*e).set_modern(v != 0);
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_set_free_marking(e: *mut ClakCore, v: i32) {
-    if !e.is_null() { unsafe { (*e).set_modern(v != 0); } }
+    if !e.is_null() {
+        unsafe {
+            (*e).set_modern(v != 0);
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_set_short_w(e: *mut ClakCore, v: i32) {
-    if !e.is_null() { unsafe { (*e).set_short_w(v != 0); } }
+    if !e.is_null() {
+        unsafe {
+            (*e).set_short_w(v != 0);
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_set_auto_restore(e: *mut ClakCore, v: i32) {
-    if !e.is_null() { unsafe { (*e).set_auto_restore(v != 0); } }
+    if !e.is_null() {
+        unsafe {
+            (*e).set_auto_restore(v != 0);
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_set_dict(e: *mut ClakCore, v: i32) {
-    if !e.is_null() { unsafe { (*e).set_dict(v != 0); } }
+    if !e.is_null() {
+        unsafe {
+            (*e).set_dict(v != 0);
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_add_word(e: *mut ClakCore, word: *const c_char) {
-    if e.is_null() || word.is_null() { return; }
+    if e.is_null() || word.is_null() {
+        return;
+    }
     let s = match unsafe { CStr::from_ptr(word) }.to_str() {
-        Ok(s) => s, Err(_) => return,
+        Ok(s) => s,
+        Err(_) => return,
     };
-    unsafe { (*e).add_word(s); }
+    unsafe {
+        (*e).add_word(s);
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_clear_words(e: *mut ClakCore) {
-    if !e.is_null() { unsafe { (*e).clear_words(); } }
+    if !e.is_null() {
+        unsafe {
+            (*e).clear_words();
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_dict_words() -> *mut c_char {
-    CString::new(dict().join("\n")).unwrap_or_default().into_raw()
+    CString::new(dict().join("\n"))
+        .unwrap_or_default()
+        .into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -234,10 +280,13 @@ pub unsafe extern "C" fn clak_core_transform(
     engine: *const ClakCore,
     input: *const c_char,
 ) -> *mut c_char {
-    if engine.is_null() || input.is_null() { return std::ptr::null_mut(); }
+    if engine.is_null() || input.is_null() {
+        return std::ptr::null_mut();
+    }
     let e = unsafe { &*engine };
     let s = match unsafe { CStr::from_ptr(input) }.to_str() {
-        Ok(s) => s, Err(_) => return std::ptr::null_mut(),
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
     };
     CString::new(e.transform(s)).unwrap_or_default().into_raw()
 }
@@ -248,9 +297,12 @@ pub unsafe extern "C" fn clak_charset_encode(
     charset: i32,
     out_len: *mut usize,
 ) -> *mut u8 {
-    if input.is_null() || out_len.is_null() { return std::ptr::null_mut(); }
+    if input.is_null() || out_len.is_null() {
+        return std::ptr::null_mut();
+    }
     let s = match unsafe { CStr::from_ptr(input) }.to_str() {
-        Ok(s) => s, Err(_) => return std::ptr::null_mut(),
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
     };
     let cs = match charset {
         0 => charset::VietCharset::Unicode,
@@ -263,9 +315,15 @@ pub unsafe extern "C" fn clak_charset_encode(
     let encoded = charset::encode(s, cs);
     let len = encoded.len();
     let ptr = libc::malloc(len).cast::<u8>();
-    if ptr.is_null() { return std::ptr::null_mut(); }
-    unsafe { std::ptr::copy_nonoverlapping(encoded.as_ptr(), ptr, len); }
-    unsafe { *out_len = len; }
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(encoded.as_ptr(), ptr, len);
+    }
+    unsafe {
+        *out_len = len;
+    }
     ptr
 }
 
@@ -275,7 +333,9 @@ pub unsafe extern "C" fn clak_charset_decode(
     len: usize,
     charset: i32,
 ) -> *mut c_char {
-    if input.is_null() { return std::ptr::null_mut(); }
+    if input.is_null() {
+        return std::ptr::null_mut();
+    }
     let bytes = unsafe { std::slice::from_raw_parts(input, len) };
     let cs = match charset {
         0 => charset::VietCharset::Unicode,
@@ -291,30 +351,50 @@ pub unsafe extern "C" fn clak_charset_decode(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_charset_remove_tone(input: *const c_char) -> *mut c_char {
-    if input.is_null() { return std::ptr::null_mut(); }
+    if input.is_null() {
+        return std::ptr::null_mut();
+    }
     let s = match unsafe { CStr::from_ptr(input) }.to_str() {
-        Ok(s) => s, Err(_) => return std::ptr::null_mut(),
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
     };
-    CString::new(charset::remove_tone(s)).unwrap_or_default().into_raw()
+    CString::new(charset::remove_tone(s))
+        .unwrap_or_default()
+        .into_raw()
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_charset_free_buf(ptr: *mut u8) {
-    if !ptr.is_null() { unsafe { libc::free(ptr.cast()); } }
+    if !ptr.is_null() {
+        unsafe {
+            libc::free(ptr.cast());
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_core_is_valid(s: *const c_char) -> i32 {
-    if s.is_null() { return 0; }
+    if s.is_null() {
+        return 0;
+    }
     let s = match unsafe { CStr::from_ptr(s) }.to_str() {
-        Ok(s) => s, Err(_) => return 0,
+        Ok(s) => s,
+        Err(_) => return 0,
     };
-    if ClakCore::is_valid(s) { 1 } else { 0 }
+    if ClakCore::is_valid(s) {
+        1
+    } else {
+        0
+    }
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_free_string(s: *mut c_char) {
-    if !s.is_null() { unsafe { drop(CString::from_raw(s)); } }
+    if !s.is_null() {
+        unsafe {
+            drop(CString::from_raw(s));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -449,11 +529,8 @@ mod tests {
 
     #[test]
     fn dict_embedded_is_sorted() {
-        let dict = DICT.get_or_init(|| {
-            include_str!("../data/vietnamese.cm.dict")
-                .lines()
-                .collect()
-        });
+        let dict =
+            DICT.get_or_init(|| include_str!("../data/vietnamese.cm.dict").lines().collect());
         assert!(dict.len() > 7000, "dict unexpectedly small: {}", dict.len());
         for w in dict.windows(2) {
             assert!(w[0] < w[1], "dict not sorted at {:?}", w);

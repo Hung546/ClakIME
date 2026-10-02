@@ -19,18 +19,66 @@ struct VSeq {
 }
 
 static VSEQ_TABLE: &[VSeq] = &[
-    VSeq { base: ['u', 'o', 'i'], len: 3, hook_mask: 0b011 },
-    VSeq { base: ['u', 'o', 'u'], len: 3, hook_mask: 0b011 },
-    VSeq { base: ['u', 'o', '\0'], len: 2, hook_mask: 0b11 },
-    VSeq { base: ['u', 'a', '\0'], len: 2, hook_mask: 0b01 },
-    VSeq { base: ['u', 'i', '\0'], len: 2, hook_mask: 0b01 },
-    VSeq { base: ['u', 'y', '\0'], len: 2, hook_mask: 0b01 },
-    VSeq { base: ['u', 'e', '\0'], len: 2, hook_mask: 0b01 },
-    VSeq { base: ['o', 'a', '\0'], len: 2, hook_mask: 0b10 },
-    VSeq { base: ['o', 'e', '\0'], len: 2, hook_mask: 0b01 },
-    VSeq { base: ['a', '\0', '\0'], len: 1, hook_mask: 0b01 },
-    VSeq { base: ['o', '\0', '\0'], len: 1, hook_mask: 0b01 },
-    VSeq { base: ['u', '\0', '\0'], len: 1, hook_mask: 0b01 },
+    VSeq {
+        base: ['u', 'o', 'i'],
+        len: 3,
+        hook_mask: 0b011,
+    },
+    VSeq {
+        base: ['u', 'o', 'u'],
+        len: 3,
+        hook_mask: 0b011,
+    },
+    VSeq {
+        base: ['u', 'o', '\0'],
+        len: 2,
+        hook_mask: 0b11,
+    },
+    VSeq {
+        base: ['u', 'a', '\0'],
+        len: 2,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['u', 'i', '\0'],
+        len: 2,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['u', 'y', '\0'],
+        len: 2,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['u', 'e', '\0'],
+        len: 2,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['o', 'a', '\0'],
+        len: 2,
+        hook_mask: 0b10,
+    },
+    VSeq {
+        base: ['o', 'e', '\0'],
+        len: 2,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['a', '\0', '\0'],
+        len: 1,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['o', '\0', '\0'],
+        len: 1,
+        hook_mask: 0b01,
+    },
+    VSeq {
+        base: ['u', '\0', '\0'],
+        len: 1,
+        hook_mask: 0b01,
+    },
 ];
 
 fn vowel_cluster(ls: &[Letter]) -> Option<(usize, usize)> {
@@ -40,9 +88,10 @@ fn vowel_cluster(ls: &[Letter]) -> Option<(usize, usize)> {
         start -= 1;
     }
     // skip gi/qu digraph vowels
-    if ls[start].c == 'u' && start > 0 && ls[start - 1].c == 'q' {
-        start += 1;
-    } else if ls[start].c == 'i' && start > 0 && ls[start - 1].c == 'g' {
+    if start > 0
+        && ((ls[start].c == 'u' && ls[start - 1].c == 'q')
+            || (ls[start].c == 'i' && ls[start - 1].c == 'g'))
+    {
         start += 1;
     }
     if start > end {
@@ -52,10 +101,9 @@ fn vowel_cluster(ls: &[Letter]) -> Option<(usize, usize)> {
 }
 
 fn lookup_vseq(base: &[char]) -> Option<&'static VSeq> {
-    VSEQ_TABLE.iter().find(|vs| {
-        vs.len as usize == base.len()
-            && (0..base.len()).all(|i| vs.base[i] == base[i])
-    })
+    VSEQ_TABLE
+        .iter()
+        .find(|vs| vs.len as usize == base.len() && (0..base.len()).all(|i| vs.base[i] == base[i]))
 }
 
 pub(crate) fn try_apply_hook(ls: &mut Vec<Letter>) -> HookResult {
@@ -64,9 +112,7 @@ pub(crate) fn try_apply_hook(ls: &mut Vec<Letter>) -> HookResult {
         None => return HookResult::NotApplicable,
     };
 
-    let base: Vec<char> = (vstart..vstart + vcount)
-        .map(|i| ls[i].c)
-        .collect();
+    let base: Vec<char> = (vstart..vstart + vcount).map(|i| ls[i].c).collect();
 
     let vs = match lookup_vseq(&base) {
         Some(vs) => vs,
@@ -96,9 +142,7 @@ pub(crate) fn try_apply_hook(ls: &mut Vec<Letter>) -> HookResult {
             }
             return HookResult::Applied;
         }
-        if vs.len == 1 && vs.base[0] == 'u'
-            && ls[vstart].variant == 2 && ls[vstart].from_w
-        {
+        if vs.len == 1 && vs.base[0] == 'u' && ls[vstart].variant == 2 && ls[vstart].from_w {
             ls[vstart].c = 'w';
             ls[vstart].is_vowel = false;
             ls[vstart].from_w = false;
@@ -212,10 +256,7 @@ pub(crate) fn try_insert_horn(ls: &mut Vec<Letter>, short_w: bool, upper: bool) 
         true
     });
 
-    if short_w
-        && !has_real_vowel
-        && !ls.last().map_or(false, |lt| lt.c == 'w' && !lt.is_vowel)
-    {
+    if short_w && !has_real_vowel && !ls.last().is_some_and(|lt| lt.c == 'w' && !lt.is_vowel) {
         ls.push(Letter::new_standalone_u(upper));
         return true;
     }

@@ -1,5 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use clak_engine::engine;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_single_char(c: &mut Criterion) {
     c.bench_function("telex_single_a", |b| {
@@ -34,11 +34,39 @@ fn bench_long_text(c: &mut Criterion) {
 
 fn bench_incremental_typing(c: &mut Criterion) {
     let typing_sequences: &[&[&str]] = &[
-        &["x", "xi", "xin", "xin ", "xin c", "xin ch", "xin cha", "xin chaf", "xin chafo"],
-        &["t", "ti", "tie", "tiee", "tieen", "tieeng", "tieengs",
-          "tieengs ", "tieengs V", "tieengs Vi", "tieengs Vie", "tieengs Viee", "tieengs Viej", "tieengs Vieejt"],
-        &["d", "dd", "ddu", "dduw", "dduwo", "dduwow", "dduwowc", "dduwowcj"],
-        &["n", "ng", "ngu", "nguw", "nguwo", "nguwow", "nguwowi", "nguwowif"],
+        &[
+            "x",
+            "xi",
+            "xin",
+            "xin ",
+            "xin c",
+            "xin ch",
+            "xin cha",
+            "xin chaf",
+            "xin chafo",
+        ],
+        &[
+            "t",
+            "ti",
+            "tie",
+            "tiee",
+            "tieen",
+            "tieeng",
+            "tieengs",
+            "tieengs ",
+            "tieengs V",
+            "tieengs Vi",
+            "tieengs Vie",
+            "tieengs Viee",
+            "tieengs Viej",
+            "tieengs Vieejt",
+        ],
+        &[
+            "d", "dd", "ddu", "dduw", "dduwo", "dduwow", "dduwowc", "dduwowcj",
+        ],
+        &[
+            "n", "ng", "ngu", "nguw", "nguwo", "nguwow", "nguwowi", "nguwowif",
+        ],
         &["t", "to", "tof", "tofa", "tofan"],
     ];
 
@@ -56,7 +84,8 @@ fn bench_incremental_typing(c: &mut Criterion) {
 }
 
 fn bench_rapid_accumulation(c: &mut Criterion) {
-    let chars: Vec<String> = "tieengs vieejt dduwowcj nguwowif".chars()
+    let chars: Vec<String> = "tieengs vieejt dduwowcj nguwowif"
+        .chars()
         .scan(String::new(), |acc, ch| {
             acc.push(ch);
             Some(acc.clone())
@@ -93,18 +122,32 @@ fn bench_teipvni(c: &mut Criterion) {
 fn bench_charset(c: &mut Criterion) {
     let text = "tiếng Việt là ngôn ngữ của người Việt Nam, được viết bằng chữ Latinh với các dấu thanh điệu";
     c.bench_function("charset_encode_tcvn3", |b| {
-        b.iter(|| clak_engine::charset::encode(black_box(text), clak_engine::charset::VietCharset::TCVN3))
+        b.iter(|| {
+            clak_engine::charset::encode(black_box(text), clak_engine::charset::VietCharset::TCVN3)
+        })
     });
     c.bench_function("charset_decode_tcvn3", |b| {
         let encoded = clak_engine::charset::encode(text, clak_engine::charset::VietCharset::TCVN3);
-        b.iter(|| clak_engine::charset::decode(black_box(&encoded), clak_engine::charset::VietCharset::TCVN3))
+        b.iter(|| {
+            clak_engine::charset::decode(
+                black_box(&encoded),
+                clak_engine::charset::VietCharset::TCVN3,
+            )
+        })
     });
     c.bench_function("charset_encode_vniwin", |b| {
-        b.iter(|| clak_engine::charset::encode(black_box(text), clak_engine::charset::VietCharset::VNIWin))
+        b.iter(|| {
+            clak_engine::charset::encode(black_box(text), clak_engine::charset::VietCharset::VNIWin)
+        })
     });
     c.bench_function("charset_decode_vniwin", |b| {
         let encoded = clak_engine::charset::encode(text, clak_engine::charset::VietCharset::VNIWin);
-        b.iter(|| clak_engine::charset::decode(black_box(&encoded), clak_engine::charset::VietCharset::VNIWin))
+        b.iter(|| {
+            clak_engine::charset::decode(
+                black_box(&encoded),
+                clak_engine::charset::VietCharset::VNIWin,
+            )
+        })
     });
     c.bench_function("charset_remove_tone", |b| {
         b.iter(|| clak_engine::charset::remove_tone(black_box(text)))

@@ -1,6 +1,6 @@
+use crate::{ClakCore, Method};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use crate::{ClakCore, Method};
 
 #[repr(C)]
 pub struct ImeAction {
@@ -96,7 +96,11 @@ impl ClakContext {
             return self.forward();
         }
 
-        if key_sym == 0xff1b || key_sym == 0xff0d || key_sym == 0xff09 || (key_sym >= 0xff50 && key_sym <= 0xff57) {
+        if key_sym == 0xff1b
+            || key_sym == 0xff0d
+            || key_sym == 0xff09
+            || (0xff50..=0xff57).contains(&key_sym)
+        {
             self.reset();
             self.just_deleted = false;
             self.stale_surr = None;
@@ -145,7 +149,11 @@ impl ClakContext {
             }
 
             // browser address bar autocomplete detection
-            if is_single_token && !self.raw_buffer.is_empty() && sel_start < sel_end && sel_end == chars.len() {
+            if is_single_token
+                && !self.raw_buffer.is_empty()
+                && sel_start < sel_end
+                && sel_end == chars.len()
+            {
                 let before_sel: String = chars[..sel_start].iter().collect();
                 if before_sel.ends_with(&self.last_composed) {
                     has_autocomplete = true;
@@ -158,8 +166,19 @@ impl ClakContext {
 
             // word seeding from surrounding text only when cursor is at word end
             let is_at_word_end = cur == chars.len() || is_word_break(chars[cur] as u32);
-            let is_telex_mod = matches!(key_ch, 'a' | 'e' | 'o' | 'd' | 'w' | 's' | 'f' | 'r' | 'x' | 'j');
-            if !just_del && !is_stale && !has_autocomplete && cursor == anchor && self.last_composed.is_empty() && cur > 0 && is_telex_mod && is_at_word_end {
+            let is_telex_mod = matches!(
+                key_ch,
+                'a' | 'e' | 'o' | 'd' | 'w' | 's' | 'f' | 'r' | 'x' | 'j'
+            );
+            if !just_del
+                && !is_stale
+                && !has_autocomplete
+                && cursor == anchor
+                && self.last_composed.is_empty()
+                && cur > 0
+                && is_telex_mod
+                && is_at_word_end
+            {
                 let mut start = cur;
                 while start > 0 {
                     let prev_char = chars[start - 1];
@@ -232,38 +251,146 @@ fn is_word_break(ucs4: u32) -> bool {
         || ucs4 == '\n' as u32
         || ucs4 == '\r' as u32
         || ucs4 == 0
-        || (ucs4 >= 58 && ucs4 <= 64)
-        || (ucs4 >= 33 && ucs4 <= 47)
-        || (ucs4 >= 91 && ucs4 <= 96)
-        || (ucs4 >= 123 && ucs4 <= 126)
+        || (58..=64).contains(&ucs4)
+        || (33..=47).contains(&ucs4)
+        || (91..=96).contains(&ucs4)
+        || (123..=126).contains(&ucs4)
 }
 
 fn decompose_char_to_telex(c: char) -> (&'static str, Option<char>) {
     match c {
-        'á' => ("a", Some('s')), 'à' => ("a", Some('f')), 'ả' => ("a", Some('r')), 'ã' => ("a", Some('x')), 'ạ' => ("a", Some('j')),
-        'Á' => ("A", Some('s')), 'À' => ("A", Some('f')), 'Ả' => ("A", Some('r')), 'Ã' => ("A", Some('x')), 'Ạ' => ("A", Some('j')),
-        'â' => ("aa", None), 'ấ' => ("aa", Some('s')), 'ầ' => ("aa", Some('f')), 'ẩ' => ("aa", Some('r')), 'ẫ' => ("aa", Some('x')), 'ậ' => ("aa", Some('j')),
-        'Â' => ("AA", None), 'Ấ' => ("AA", Some('s')), 'Ầ' => ("AA", Some('f')), 'Ẩ' => ("AA", Some('r')), 'Ẫ' => ("AA", Some('x')), 'Ậ' => ("AA", Some('j')),
-        'ă' => ("aw", None), 'ắ' => ("aw", Some('s')), 'ằ' => ("aw", Some('f')), 'ẳ' => ("aw", Some('r')), 'ẵ' => ("aw", Some('x')), 'ặ' => ("aw", Some('j')),
-        'Ă' => ("AW", None), 'Ắ' => ("AW", Some('s')), 'Ằ' => ("AW", Some('f')), 'Ẳ' => ("AW", Some('r')), 'Ẵ' => ("AW", Some('x')), 'Ặ' => ("AW", Some('j')),
-        'é' => ("e", Some('s')), 'è' => ("e", Some('f')), 'ẻ' => ("e", Some('r')), 'ẽ' => ("e", Some('x')), 'ẹ' => ("e", Some('j')),
-        'É' => ("E", Some('s')), 'È' => ("E", Some('f')), 'Ẻ' => ("E", Some('r')), 'Ẽ' => ("E", Some('x')), 'Ẹ' => ("E", Some('j')),
-        'ê' => ("ee", None), 'ế' => ("ee", Some('s')), 'ề' => ("ee", Some('f')), 'ể' => ("ee", Some('r')), 'ễ' => ("ee", Some('x')), 'ệ' => ("ee", Some('j')),
-        'Ê' => ("EE", None), 'Ế' => ("EE", Some('s')), 'Ề' => ("EE", Some('f')), 'Ể' => ("EE", Some('r')), 'Ễ' => ("EE", Some('x')), 'Ệ' => ("EE", Some('j')),
-        'í' => ("i", Some('s')), 'ì' => ("i", Some('f')), 'ỉ' => ("i", Some('r')), 'ĩ' => ("i", Some('x')), 'ị' => ("i", Some('j')),
-        'Í' => ("I", Some('s')), 'Ì' => ("I", Some('f')), 'Ỉ' => ("I", Some('r')), 'Ĩ' => ("I", Some('x')), 'Ị' => ("I", Some('j')),
-        'ó' => ("o", Some('s')), 'ò' => ("o", Some('f')), 'ỏ' => ("o", Some('r')), 'õ' => ("o", Some('x')), 'ọ' => ("o", Some('j')),
-        'Ó' => ("O", Some('s')), 'Ò' => ("O", Some('f')), 'Ỏ' => ("O", Some('r')), 'Õ' => ("O", Some('x')), 'Ọ' => ("O", Some('j')),
-        'ô' => ("oo", None), 'ố' => ("oo", Some('s')), 'ồ' => ("oo", Some('f')), 'ổ' => ("oo", Some('r')), 'ỗ' => ("oo", Some('x')), 'ộ' => ("oo", Some('j')),
-        'Ô' => ("OO", None), 'Ố' => ("OO", Some('s')), 'Ồ' => ("OO", Some('f')), 'Ổ' => ("OO", Some('r')), 'Ỗ' => ("OO", Some('x')), 'Ộ' => ("OO", Some('j')),
-        'ơ' => ("ow", None), 'ớ' => ("ow", Some('s')), 'ờ' => ("ow", Some('f')), 'ở' => ("ow", Some('r')), 'ỡ' => ("ow", Some('x')), 'ợ' => ("ow", Some('j')),
-        'Ơ' => ("OW", None), 'Ớ' => ("OW", Some('s')), 'Ờ' => ("OW", Some('f')), 'Ở' => ("OW", Some('r')), 'Ỡ' => ("OW", Some('x')), 'Ợ' => ("OW", Some('j')),
-        'ú' => ("u", Some('s')), 'ù' => ("u", Some('f')), 'ủ' => ("u", Some('r')), 'ũ' => ("u", Some('x')), 'ụ' => ("u", Some('j')),
-        'Ú' => ("U", Some('s')), 'Ù' => ("U", Some('f')), 'Ủ' => ("U", Some('r')), 'Ũ' => ("U", Some('x')), 'Ụ' => ("U", Some('j')),
-        'ư' => ("uw", None), 'ứ' => ("uw", Some('s')), 'ừ' => ("uw", Some('f')), 'ử' => ("uw", Some('r')), 'ữ' => ("uw", Some('x')), 'ự' => ("uw", Some('j')),
-        'Ư' => ("UW", None), 'Ứ' => ("UW", Some('s')), 'Ừ' => ("UW", Some('f')), 'Ử' => ("UW", Some('r')), 'Ữ' => ("UW", Some('x')), 'Ự' => ("UW", Some('j')),
-        'ý' => ("y", Some('s')), 'ỳ' => ("y", Some('f')), 'ỷ' => ("y", Some('r')), 'ỹ' => ("y", Some('x')), 'ỵ' => ("y", Some('j')),
-        'Ý' => ("Y", Some('s')), 'Ỳ' => ("Y", Some('f')), 'Ỷ' => ("Y", Some('r')), 'Ỹ' => ("Y", Some('x')), 'Ỵ' => ("Y", Some('j')),
+        'á' => ("a", Some('s')),
+        'à' => ("a", Some('f')),
+        'ả' => ("a", Some('r')),
+        'ã' => ("a", Some('x')),
+        'ạ' => ("a", Some('j')),
+        'Á' => ("A", Some('s')),
+        'À' => ("A", Some('f')),
+        'Ả' => ("A", Some('r')),
+        'Ã' => ("A", Some('x')),
+        'Ạ' => ("A", Some('j')),
+        'â' => ("aa", None),
+        'ấ' => ("aa", Some('s')),
+        'ầ' => ("aa", Some('f')),
+        'ẩ' => ("aa", Some('r')),
+        'ẫ' => ("aa", Some('x')),
+        'ậ' => ("aa", Some('j')),
+        'Â' => ("AA", None),
+        'Ấ' => ("AA", Some('s')),
+        'Ầ' => ("AA", Some('f')),
+        'Ẩ' => ("AA", Some('r')),
+        'Ẫ' => ("AA", Some('x')),
+        'Ậ' => ("AA", Some('j')),
+        'ă' => ("aw", None),
+        'ắ' => ("aw", Some('s')),
+        'ằ' => ("aw", Some('f')),
+        'ẳ' => ("aw", Some('r')),
+        'ẵ' => ("aw", Some('x')),
+        'ặ' => ("aw", Some('j')),
+        'Ă' => ("AW", None),
+        'Ắ' => ("AW", Some('s')),
+        'Ằ' => ("AW", Some('f')),
+        'Ẳ' => ("AW", Some('r')),
+        'Ẵ' => ("AW", Some('x')),
+        'Ặ' => ("AW", Some('j')),
+        'é' => ("e", Some('s')),
+        'è' => ("e", Some('f')),
+        'ẻ' => ("e", Some('r')),
+        'ẽ' => ("e", Some('x')),
+        'ẹ' => ("e", Some('j')),
+        'É' => ("E", Some('s')),
+        'È' => ("E", Some('f')),
+        'Ẻ' => ("E", Some('r')),
+        'Ẽ' => ("E", Some('x')),
+        'Ẹ' => ("E", Some('j')),
+        'ê' => ("ee", None),
+        'ế' => ("ee", Some('s')),
+        'ề' => ("ee", Some('f')),
+        'ể' => ("ee", Some('r')),
+        'ễ' => ("ee", Some('x')),
+        'ệ' => ("ee", Some('j')),
+        'Ê' => ("EE", None),
+        'Ế' => ("EE", Some('s')),
+        'Ề' => ("EE", Some('f')),
+        'Ể' => ("EE", Some('r')),
+        'Ễ' => ("EE", Some('x')),
+        'Ệ' => ("EE", Some('j')),
+        'í' => ("i", Some('s')),
+        'ì' => ("i", Some('f')),
+        'ỉ' => ("i", Some('r')),
+        'ĩ' => ("i", Some('x')),
+        'ị' => ("i", Some('j')),
+        'Í' => ("I", Some('s')),
+        'Ì' => ("I", Some('f')),
+        'Ỉ' => ("I", Some('r')),
+        'Ĩ' => ("I", Some('x')),
+        'Ị' => ("I", Some('j')),
+        'ó' => ("o", Some('s')),
+        'ò' => ("o", Some('f')),
+        'ỏ' => ("o", Some('r')),
+        'õ' => ("o", Some('x')),
+        'ọ' => ("o", Some('j')),
+        'Ó' => ("O", Some('s')),
+        'Ò' => ("O", Some('f')),
+        'Ỏ' => ("O", Some('r')),
+        'Õ' => ("O", Some('x')),
+        'Ọ' => ("O", Some('j')),
+        'ô' => ("oo", None),
+        'ố' => ("oo", Some('s')),
+        'ồ' => ("oo", Some('f')),
+        'ổ' => ("oo", Some('r')),
+        'ỗ' => ("oo", Some('x')),
+        'ộ' => ("oo", Some('j')),
+        'Ô' => ("OO", None),
+        'Ố' => ("OO", Some('s')),
+        'Ồ' => ("OO", Some('f')),
+        'Ổ' => ("OO", Some('r')),
+        'Ỗ' => ("OO", Some('x')),
+        'Ộ' => ("OO", Some('j')),
+        'ơ' => ("ow", None),
+        'ớ' => ("ow", Some('s')),
+        'ờ' => ("ow", Some('f')),
+        'ở' => ("ow", Some('r')),
+        'ỡ' => ("ow", Some('x')),
+        'ợ' => ("ow", Some('j')),
+        'Ơ' => ("OW", None),
+        'Ớ' => ("OW", Some('s')),
+        'Ờ' => ("OW", Some('f')),
+        'Ở' => ("OW", Some('r')),
+        'Ỡ' => ("OW", Some('x')),
+        'Ợ' => ("OW", Some('j')),
+        'ú' => ("u", Some('s')),
+        'ù' => ("u", Some('f')),
+        'ủ' => ("u", Some('r')),
+        'ũ' => ("u", Some('x')),
+        'ụ' => ("u", Some('j')),
+        'Ú' => ("U", Some('s')),
+        'Ù' => ("U", Some('f')),
+        'Ủ' => ("U", Some('r')),
+        'Ũ' => ("U", Some('x')),
+        'Ụ' => ("U", Some('j')),
+        'ư' => ("uw", None),
+        'ứ' => ("uw", Some('s')),
+        'ừ' => ("uw", Some('f')),
+        'ử' => ("uw", Some('r')),
+        'ữ' => ("uw", Some('x')),
+        'ự' => ("uw", Some('j')),
+        'Ư' => ("UW", None),
+        'Ứ' => ("UW", Some('s')),
+        'Ừ' => ("UW", Some('f')),
+        'Ử' => ("UW", Some('r')),
+        'Ữ' => ("UW", Some('x')),
+        'Ự' => ("UW", Some('j')),
+        'ý' => ("y", Some('s')),
+        'ỳ' => ("y", Some('f')),
+        'ỷ' => ("y", Some('r')),
+        'ỹ' => ("y", Some('x')),
+        'ỵ' => ("y", Some('j')),
+        'Ý' => ("Y", Some('s')),
+        'Ỳ' => ("Y", Some('f')),
+        'Ỷ' => ("Y", Some('r')),
+        'Ỹ' => ("Y", Some('x')),
+        'Ỵ' => ("Y", Some('j')),
         'đ' => ("dd", None),
         'Đ' => ("Dd", None),
         _ => ("", None),
@@ -349,20 +476,19 @@ pub unsafe extern "C" fn clak_process_key(
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let c = match ctx.as_mut() {
             Some(ptr) => ptr,
-            None => return ImeAction {
-                action_type: ACTION_FORWARD,
-                delete_count: 0,
-                commit_str: std::ptr::null(),
-            },
+            None => {
+                return ImeAction {
+                    action_type: ACTION_FORWARD,
+                    delete_count: 0,
+                    commit_str: std::ptr::null(),
+                }
+            }
         };
 
         let k_str = if key_str.is_null() {
             ""
         } else {
-            match CStr::from_ptr(key_str).to_str() {
-                Ok(s) => s,
-                Err(_) => "",
-            }
+            CStr::from_ptr(key_str).to_str().unwrap_or_default()
         };
 
         let s_text = if surrounding_text.is_null() {
@@ -374,7 +500,11 @@ pub unsafe extern "C" fn clak_process_key(
         let action = c.process_key(key_sym, k_str, has_ctrl_alt, s_text, cursor, anchor);
 
         // log key action to /tmp/clak.log
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/clak.log") {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("/tmp/clak.log")
+        {
             use std::io::Write;
             let act_name = match action.action_type {
                 0 => "FORWARD",
@@ -474,9 +604,23 @@ mod tests {
     #[test]
     fn test_address_bar_typing_over_selected_url() {
         let mut ctx = ClakContext::new(Method::Telex);
-        let act1 = ctx.process_key(b'd' as u32, "d", false, Some("https://www.facebook.com"), 0, 24);
+        let act1 = ctx.process_key(
+            b'd' as u32,
+            "d",
+            false,
+            Some("https://www.facebook.com"),
+            0,
+            24,
+        );
         assert_eq!(act1.action_type, ACTION_FORWARD);
-        let act2 = ctx.process_key(b'd' as u32, "d", false, Some("https://www.facebook.com"), 0, 24);
+        let act2 = ctx.process_key(
+            b'd' as u32,
+            "d",
+            false,
+            Some("https://www.facebook.com"),
+            0,
+            24,
+        );
         assert_eq!(act2.action_type, ACTION_ADDRESS_BAR_FIX);
         assert_eq!(act2.delete_count, 1);
         let commit = unsafe { CStr::from_ptr(act2.commit_str).to_str().unwrap() };

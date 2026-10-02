@@ -34,7 +34,8 @@
 <img src="assets/proof/telegram.webp" width="100%" alt="Telegram" />
 
 - Clak có thể detect được các cli tool như Neovim và biết chính xác đang ở mode nào để giúp trải nghiệm muợt mà hơn btw
-  <img src="assets/proof/neovim.webp" width="100%" alt="Neovim" />
+
+<img src="assets/proof/neovim.webp" width="100%" alt="Neovim" />
 
 ## Feedback
 

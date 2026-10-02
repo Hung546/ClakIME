@@ -1,4 +1,4 @@
-# RUN "just -l" TO VIEW ALL COMMANDS
+# run "just -l" to view all commands
 
 default:
     @just --list
@@ -54,6 +54,21 @@ log:
 clean-log:
     rm -f /tmp/clak.log
 
+# create cargo vendor archive for offline packaging
+vendor:
+    cargo vendor vendor/ --manifest-path engine/Cargo.toml
+    tar -czf clak-vendor.tar.gz vendor/
+    sha256sum clak-vendor.tar.gz > clak-vendor.tar.gz.sha256
+    rm -rf vendor/
+
+# update aur .srcinfo metadata
+pkg-aur:
+    cd packaging/aur && makepkg --printsrcinfo > .SRCINFO
+
+# generate changelog with git-cliff
+changelog:
+    git-cliff --unreleased
+
 # clean build artifacts
 clean:
-    rm -rf build engine/target
+    rm -rf build engine/target vendor clak-vendor.tar.gz clak-vendor.tar.gz.sha256

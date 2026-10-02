@@ -1,0 +1,47 @@
+[changelog]
+header = "# Changelog\n\nAll notable changes to this project are documented in this file.\n\n"
+body = """
+{% if version %}\
+## [{{ version }}](https://github.com/versenilvis/clak/releases/tag/{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{{ "\n" }}\
+{% for group, commits in commits | group_by(attribute="group") %}\
+### {{ group | upper_first }}
+{{ "\n" }}\
+{% for commit in commits %}\
+- {{ commit.message | upper_first }} ([{{ commit.id | truncate(length=6, end="") }}](https://github.com/versenilvis/clak/commit/{{ commit.id }}))
+{% endfor %}\
+{{ "\n" }}\
+{% endfor %}\
+"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_preprocessors = [
+    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/versenilvis/clak/issues/${1}))" },
+]
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+sort_commits = "oldest"
+
+commit_parsers = [
+    { message = "(?i)^feat", group = "Features" },
+    { message = "(?i)^fix\\(ci\\)", skip = true },
+    { message = "(?i)^fix\\(release\\)", skip = true },
+    { message = "(?i)^fix", group = "Bug fixes" },
+    { message = "(?i)^perf", group = "Performance" },
+    { message = "(?i)^refactor", group = "Refactors" },
+    { message = "(?i)^docs\\(changelog\\)", skip = true },
+    { message = "(?i)^docs?", group = "Documentation" },
+    { message = "(?i)^chore", skip = true },
+    { message = "(?i)^build", skip = true },
+    { message = "(?i)^ci", skip = true },
+    { message = "(?i)^test", skip = true },
+    { message = "(?i)^style", skip = true },
+    { message = ".*", skip = true },
+]

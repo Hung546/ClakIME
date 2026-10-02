@@ -1,0 +1,18 @@
+pkgbase = fcitx5-clak
+	pkgdesc = Fast and highly stable Vietnamese input method for Fcitx5 and Wayland
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/versenilvis/clak
+	arch = x86_64
+	arch = aarch64
+	license = 0BSD
+	makedepends = cmake
+	makedepends = extra-cmake-modules
+	makedepends = rust
+	makedepends = cargo
+	depends = fcitx5
+	depends = hicolor-icon-theme
+	source = fcitx5-clak-0.1.0.tar.gz::https://github.com/versenilvis/clak/archive/refs/tags/v0.1.0.tar.gz
+	sha256sums = SKIP
+
+pkgname = fcitx5-clak

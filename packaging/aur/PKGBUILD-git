@@ -1,0 +1,32 @@
+# maintainer: verse <versedev.store@proton.me>
+pkgname=fcitx5-clak-git
+pkgver=0.1.0.r12.g4a4d0d6
+pkgrel=1
+pkgdesc="Fast and highly stable Vietnamese input method for Fcitx5 and Wayland (git version)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/versenilvis/clak"
+license=('0BSD')
+depends=('fcitx5' 'hicolor-icon-theme')
+makedepends=('git' 'cmake' 'extra-cmake-modules' 'rust' 'cargo')
+provides=('fcitx5-clak')
+conflicts=('fcitx5-clak')
+source=("git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$srcdir/clak"
+    git describe --long --tags 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' ||
+    printf "0.1.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+build() {
+    cd "$srcdir/clak"
+    cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build -j"$(nproc)"
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install "$srcdir/clak/build"
+}

@@ -1,0 +1,10 @@
+CompileFlags:
+  CompilationDatabase: build
+
+---
+If:
+  PathMatch: (.*/)?\.scratch/.*
+Index:
+  Background: Skip
+Diagnostics:
+  Suppress: ["*"]

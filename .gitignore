@@ -1,0 +1,59 @@
+# --- project local / scratch ---
+.scratch/
+.scratch
+.cache/
+
+# --- CMake out-of-source builds ---
+build/
+build-*/
+out/
+install/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+compile_commands.json
+prefix.sh
+prefix.sh.fish
+*_autogen/
+*.so
+*.so.*
+*.a
+*.o
+*.os
+
+# generated fcitx5 addon confs (in build dir)
+/vikey.conf
+/vikey-local.conf
+
+# --- Rust / Cargo (engine/) ---
+engine/target/
+engine-target/
+**/target/
+**/*.rs.bk
+# NOTE: keep engine/Cargo.lock tracked for reproducible builds
+
+# --- Qt / KDE / ECM ---
+*.moc
+moc_*.cpp
+*.qm
+*.tsbuildinfo
+
+# --- Editors / IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+*.rej
+.clangd/
+.cache/clangd/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini

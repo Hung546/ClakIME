@@ -1,0 +1,22 @@
+[package]
+name = "clak-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Vietnamese input method engine"
+license = "GPL-3.0-only"
+keywords = ["vietnamese", "ime", "telex", "vni", "input-method"]
+categories = ["text-processing", "internationalization"]
+
+[lib]
+name = "clak_engine"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "engine_bench"
+harness = false

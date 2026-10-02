@@ -1,0 +1,14 @@
+[Addon]
+Name=Clak
+Name[vi]=Clak
+Comment=Fast Vietnamese input method
+Category=InputMethod
+Version=0.1.0
+Enabled=True
+Icon=org.fcitx.Fcitx5.clak
+Library=clak
+Type=SharedLibrary
+OnDemand=True
+Configurable=False
+[Dependencies]
+0=core:5.0.14

@@ -1,0 +1,87 @@
+#ifndef CLAK_IME_STATE_H
+#define CLAK_IME_STATE_H
+
+#include <fcitx/inputcontext.h>
+#include <fcitx/inputcontextproperty.h>
+#include <fcitx-utils/event.h>
+#include <fcitx-utils/eventloopinterface.h>
+#include <string>
+#include <vector>
+#include <memory>
+#include "core.h"
+
+namespace clak {
+
+class ClakEngine;
+
+namespace ime {
+
+class ClakState : public fcitx::InputContextProperty {
+public:
+  ClakState(ClakEngine* engine, fcitx::InputContext* ic);
+  ~ClakState() override;
+
+  void keyEvent(fcitx::KeyEvent& keyEvent);
+  void reset();
+  bool isBrowser() const;
+  bool isGecko() const;
+
+private:
+  void arm_safety_timer();
+  bool handleKey(const fcitx::Key& key);
+  void replayBufferedKeys();
+  bool shouldUseUinput(bool use_surrounding, uint32_t action_type);
+  bool isAutofillCertain(const fcitx::SurroundingText& surr);
+  std::string appKey();
+  std::string activeSite();
+  void setVerifyExpectation(const std::string& wordBefore, size_t delChars, const std::string& added);
+  void verifySurrounding(const fcitx::SurroundingText& surr);
+  void doCommitString(const std::string& text);
+  void updateModalEditorStatus();
+  std::string classifyGroup(const std::string& app, const std::string& site, bool is_autofill, bool used_uinput);
+  void logLatency(const std::string& group, uint64_t start_us, const std::string& action_type);
+
+  ClakEngine* engine_;
+  fcitx::InputContext* ic_;
+  ClakContext* rust_ctx_{nullptr};
+  uint64_t last_commit_time_us_{0};
+
+  bool is_deleting_{false};
+  bool is_address_bar_fix_{false};
+  size_t expected_backspaces_{0};
+  size_t current_backspace_count_{0};
+  size_t last_text_len_{0};
+  uint64_t op_start_us_{0};
+  std::string op_group_;
+
+  struct PendingVerify {
+    bool pending = false;
+    std::string preWord;
+    size_t del = 0;
+    std::string added;
+    std::string expectWord;
+  };
+  PendingVerify verify_;
+  std::string pending_commit_string_;
+  std::unique_ptr<fcitx::EventSourceTime> safety_timer_;
+  std::vector<fcitx::Key> buffered_keys_;
+  bool is_canvas_editor_{false};
+  bool is_rich_text_editor_{false};
+  int mismatch_count_{0};
+
+  enum class EditorMode {
+    NORMAL,
+    INSERT,
+    COMMAND
+  };
+  EditorMode editor_mode_{EditorMode::NORMAL};
+  bool is_modal_editor_{false};
+  uint64_t last_editor_check_us_{0};
+  uint64_t last_site_check_us_{0};
+  std::string cached_site_;
+};
+
+} // namespace ime
+} // namespace clak
+
+#endif

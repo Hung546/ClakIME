@@ -2,12 +2,32 @@
   <img src="assets/banner.png" alt="Clak Banner" />
 </p>
 
-<h1 align="center">
-  <b>Clak</b>
-</h1>
-<p align="center">
-  <b>Bộ gõ tiếng Việt ổn định cao dành cho Linux</b>
-</p>
+<!-- <h1 align="center">Clak</h1> -->
+
+<!-- <p align="center">
+  <em>Bộ gõ tiếng Việt ổn định cao dành cho Linux</em>
+</p> -->
+
+## Cài đặt
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/install.sh | bash
+```
+
+Arch Linux (AUR):
+
+```bash
+yay -S clak
+# hoặc paru -S clak
+```
+
+Nix Flake:
+
+```bash
+nix profile install github:versenilvis/clak
+```
+
+## Các điểm chính
 
 - Clak giúp bạn gõ trên Twitter/X mượt mà btw
 

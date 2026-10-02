@@ -30,9 +30,14 @@
               version = self.shortRev or "0.1.0";
               src = pkgs.lib.cleanSource ./.;
 
+              cargoDeps = pkgs.rustPlatform.importCargoLock {
+                lockFile = ./engine/Cargo.lock;
+              };
+
               nativeBuildInputs = with pkgs; [
                 cmake
                 kdePackages.extra-cmake-modules
+                rustPlatform.cargoSetupHook
                 rustc
                 cargo
                 pkg-config
@@ -46,10 +51,6 @@
                 "-DCMAKE_BUILD_TYPE=Release"
                 "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
               ];
-
-              preBuild = ''
-                export CARGO_HOME="$TMPDIR/cargo"
-              '';
 
               meta = with pkgs.lib; {
                 description = "Fast and highly stable Vietnamese input method for Fcitx5 and Wayland";

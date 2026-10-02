@@ -124,7 +124,7 @@ jobs:
 
       - name: Publish clak to AUR
         if: env.AUR_KEY != ''
-        uses: KSXGitHub/github-actions-deploy-aur@v3.1.2
+        uses: KSXGitHub/github-actions-deploy-aur@v4
         with:
           pkgname: clak
           pkgbuild: packaging/aur/PKGBUILD

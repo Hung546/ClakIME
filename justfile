@@ -46,6 +46,21 @@ test-scenario:
 # run all automated tests
 test: test-unit test-scenario
 
+# run all fmt, clippy, unit tests and build check before pushing
+check:
+    cargo fmt --manifest-path engine/Cargo.toml -- --check
+    cargo clippy --manifest-path engine/Cargo.toml -- -D warnings
+    cargo test --manifest-path engine/Cargo.toml
+    cmake --build build
+
+# install git pre-push hook to run checks before pushing
+install-hooks:
+    @echo '#!/bin/sh' > .git/hooks/pre-push
+    @echo 'echo "Running pre-push checks..."' >> .git/hooks/pre-push
+    @echo 'just check || exit 1' >> .git/hooks/pre-push
+    @chmod +x .git/hooks/pre-push
+    @echo "pre-push hook installed successfully"
+
 # tail debug log
 log:
     tail -f /tmp/clak.log

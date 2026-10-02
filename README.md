@@ -8,7 +8,7 @@
 <p align="center">
   <b>Bộ gõ tiếng Việt ổn định cao dành cho Linux</b>
 </p>
-đây là một bài test trong neovim!
+
 - Clak giúp bạn gõ trên Twitter/X mượt mà btw
 
 <img src="assets/proof/twitter.gif" width="100%" alt="Twitter" />

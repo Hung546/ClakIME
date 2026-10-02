@@ -32,7 +32,7 @@
 
               nativeBuildInputs = with pkgs; [
                 cmake
-                extra-cmake-modules
+                kdePackages.extra-cmake-modules
                 rustc
                 cargo
                 pkg-config
@@ -64,7 +64,7 @@
           devShells.default = pkgs.mkShell {
             packages = with pkgs; [
               cmake
-              extra-cmake-modules
+              kdePackages.extra-cmake-modules
               fcitx5
               rustc
               cargo

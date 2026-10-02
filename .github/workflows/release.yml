@@ -36,6 +36,7 @@ jobs:
             git \
             jq \
             curl
+          git config --global --add safe.directory '*'
 
       - name: Run engine tests
         run: cargo test --manifest-path engine/Cargo.toml --verbose

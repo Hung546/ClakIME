@@ -67,6 +67,7 @@ set(CLAK_SOURCES
     src/config/sites.cpp
     src/platform/hyprland.cpp
     src/platform/modal_editor.cpp
+    src/platform/mouse_tracker.cpp
     src/uinput/uinput.cpp
     src/utils/log.cpp
     src/utils/text_utils.cpp
@@ -90,6 +91,8 @@ target_include_directories(clak PRIVATE
 target_link_libraries(clak PRIVATE
     Fcitx5::Core
     clak_rust_engine
+    input
+    udev
     pthread
     dl
     m

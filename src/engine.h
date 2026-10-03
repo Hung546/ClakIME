@@ -9,6 +9,9 @@
 #include "ime/state.h"
 
 namespace clak {
+namespace platform {
+class MouseTracker;
+}
 
 class ClakEngine : public fcitx::InputMethodEngineV2 {
 public:
@@ -34,6 +37,7 @@ public:
     bool isAppEnabled(const std::string& app);
     void toggleAppEnabled(const std::string& app);
     void setAppEnabled(const std::string& app, bool enabled);
+    void onMouseClick();
 
 private:
     fcitx::Instance* instance_;
@@ -46,6 +50,7 @@ private:
     std::unordered_map<std::string, bool> app_states_;
     bool global_enabled_{true};
     uint64_t config_version_{0};
+    std::unique_ptr<platform::MouseTracker> mouse_tracker_;
 };
 
 class ClakEngineFactory : public fcitx::AddonFactory {

@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "platform/mouse_tracker.h"
 #include "uinput/uinput.h"
 
 #include "utils/log.h"
@@ -17,9 +18,18 @@ ClakEngine::ClakEngine(fcitx::Instance* instance)
     uinput::UinputTool::instance();
     loadConfig();
     setupConfigWatcher();
+    mouse_tracker_ = std::make_unique<platform::MouseTracker>(
+        instance_->eventLoop(),
+        [this]() {
+            onMouseClick();
+        }
+    );
 }
 
 ClakEngine::~ClakEngine() {
+    if (mouse_tracker_) {
+        mouse_tracker_.reset();
+    }
     if (config_io_) {
         config_io_.reset();
     }
@@ -32,6 +42,17 @@ ClakEngine::~ClakEngine() {
     if (config_) {
         clak_config_free(config_);
         config_ = nullptr;
+    }
+}
+
+void ClakEngine::onMouseClick() {
+    auto* ic = instance_->lastFocusedInputContext();
+    if (ic) {
+        auto* state = ic->propertyFor(&factory_);
+        if (state) {
+            utils::clakLog("mouse_tracker: click detected, resetting composition for active window");
+            state->reset(/*force=*/true);
+        }
     }
 }
 

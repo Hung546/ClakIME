@@ -46,6 +46,10 @@ test-scenario:
 # run all automated tests
 test: test-unit test-scenario
 
+# run latency benchmark analysis and regression assertion
+bench *args:
+    ./bin/clak bench {{args}}
+
 # build clak settings gui binary
 build-gui:
     cargo build --manifest-path ui/Cargo.toml --release

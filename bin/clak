@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+import re
+import math
+import subprocess
+
+def calculate_percentiles(values):
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    def get_p(p):
+        idx = (p / 100.0) * (n - 1)
+        lower = int(math.floor(idx))
+        upper = int(math.ceil(idx))
+        if lower == upper:
+            return s[lower]
+        return s[lower] + (s[upper] - s[lower]) * (idx - lower)
+    return {
+        'count': n,
+        'p50': get_p(50),
+        'p95': get_p(95),
+        'p99': get_p(99),
+        'min': s[0],
+        'max': s[-1],
+        'avg': sum(s) / n
+    }
+
+def run_bench(args):
+    # if --run is specified, execute benchmark script first
+    if args.run:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.abspath(os.path.join(script_dir, ".."))
+        bench_script = os.path.join(repo_root, "scripts", "tests", "benchmark_all_groups.sh")
+        if os.path.exists(bench_script):
+            print(f"Running benchmark suite: {bench_script}...")
+            res = subprocess.run(["bash", bench_script], cwd=repo_root)
+            if res.returncode != 0:
+                print(f"Benchmark run exited with code {res.returncode}")
+
+    log_file = args.log or "/tmp/clak.log"
+    if not os.path.exists(log_file):
+        print(f"Error: log file '{log_file}' not found. Make sure debug logging is enabled or run with --run")
+        sys.exit(1)
+
+    groups = {}
+    pattern = re.compile(r'\[LATENCY\]\s+group=([^\s]+)\s+delta_ms=([0-9\.]+)\s+action=([^\s]+)')
+
+    try:
+        with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                m = pattern.search(line)
+                if m:
+                    group, delta_str, action = m.group(1), m.group(2), m.group(3)
+                    if action.startswith("REPLACE"):
+                        delta = float(delta_str)
+                        groups.setdefault(group, []).append(delta)
+    except Exception as e:
+        print(f"Error reading {log_file}: {e}")
+        sys.exit(1)
+
+    if not groups:
+        print(f"No latency records found in {log_file}")
+        sys.exit(1)
+
+    # filter by schema/group if specified
+    target_group = args.schema
+    filtered_groups = {}
+    if target_group:
+        for g, vals in groups.items():
+            if target_group.lower() in g.lower():
+                filtered_groups[g] = vals
+        if not filtered_groups:
+            print(f"No records matched schema/group filter: '{target_group}'")
+            print(f"Available groups: {', '.join(sorted(groups.keys()))}")
+            sys.exit(1)
+    else:
+        filtered_groups = groups
+
+    # print statistics table
+    print(f"\n{'Group':<28} | {'Count':<6} | {'p50 (ms)':<9} | {'p95 (ms)':<9} | {'p99 (ms)':<9} | {'Min':<6} | {'Max':<6}")
+    print("-" * 85)
+    assertion_failures = []
+
+    for g, vals in sorted(filtered_groups.items()):
+        stats = calculate_percentiles(vals)
+        print(f"{g:<28} | {stats['count']:<6} | {stats['p50']:<9.2f} | {stats['p95']:<9.2f} | {stats['p99']:<9.2f} | {stats['min']:<6.2f} | {stats['max']:<6.2f}")
+
+        if args.assert_p99_ms is not None:
+            if stats['p99'] > args.assert_p99_ms:
+                assertion_failures.append(
+                    f"Group '{g}' p99 ({stats['p99']:.2f}ms) exceeded threshold ({args.assert_p99_ms:.2f}ms)"
+                )
+
+        if args.assert_p95_ms is not None:
+            if stats['p95'] > args.assert_p95_ms:
+                assertion_failures.append(
+                    f"Group '{g}' p95 ({stats['p95']:.2f}ms) exceeded threshold ({args.assert_p95_ms:.2f}ms)"
+                )
+
+    print("-" * 85)
+
+    if assertion_failures:
+        print("\n❌ Benchmark assertions FAILED:")
+        for fail in assertion_failures:
+            print(f"  - {fail}")
+        sys.exit(1)
+    elif args.assert_p99_ms is not None or args.assert_p95_ms is not None:
+        print("\n✔ All latency assertions PASSED!")
+        sys.exit(0)
+
+def main():
+    parser = argparse.ArgumentParser(description="Clak input method utility CLI")
+    subparsers = parser.add_subparsers(dest="command")
+
+    bench_parser = subparsers.add_parser("bench", help="Benchmark latency analysis and regression assertion")
+    bench_parser.add_argument("--schema", "--group", dest="schema", help="Filter by specific application group name")
+    bench_parser.add_argument("--assert-p99-ms", type=float, help="Assert that p99 latency does not exceed threshold in milliseconds")
+    bench_parser.add_argument("--assert-p95-ms", type=float, help="Assert that p95 latency does not exceed threshold in milliseconds")
+    bench_parser.add_argument("--log", help="Path to log file (default: /tmp/clak.log)")
+    bench_parser.add_argument("--run", action="store_true", help="Run benchmark suite before analysis")
+
+    args = parser.parse_args()
+    if args.command == "bench":
+        run_bench(args)
+    else:
+        parser.print_help()
+
+if __name__ == '__main__':
+    main()

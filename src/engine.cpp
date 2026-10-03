@@ -1,6 +1,10 @@
 #include "engine.h"
 #include "uinput/uinput.h"
 
+#include "utils/log.h"
+#include <sys/inotify.h>
+#include <unistd.h>
+
 namespace clak {
 
 ClakEngine::ClakEngine(fcitx::Instance* instance)
@@ -11,6 +15,101 @@ ClakEngine::ClakEngine(fcitx::Instance* instance)
     instance_->inputContextManager().registerProperty("clakState", &factory_);
     // pre-warm uinput device so kernel and libinput enumerate it before first use
     uinput::UinputTool::instance();
+    loadConfig();
+    setupConfigWatcher();
+}
+
+ClakEngine::~ClakEngine() {
+    if (config_io_) {
+        config_io_.reset();
+    }
+    if (inotify_wd_ >= 0 && inotify_fd_ >= 0) {
+        inotify_rm_watch(inotify_fd_, inotify_wd_);
+    }
+    if (inotify_fd_ >= 0) {
+        close(inotify_fd_);
+    }
+    if (config_) {
+        clak_config_free(config_);
+        config_ = nullptr;
+    }
+}
+
+void ClakEngine::loadConfig() {
+    if (config_) {
+        clak_config_free(config_);
+    }
+    config_ = clak_config_load();
+    config_version_++;
+    if (config_) {
+        global_enabled_ = (clak_config_get_startup_mode(config_) == 0);
+        utils::clakLog("config loaded: version=" + std::to_string(config_version_) +
+                       " startup=" + (global_enabled_ ? "vietnamese" : "english"));
+    }
+}
+
+void ClakEngine::setupConfigWatcher() {
+    char* path_c = clak_config_path();
+    if (!path_c) return;
+    std::string config_path(path_c);
+    clak_free_string(path_c);
+
+    size_t last_slash = config_path.find_last_of('/');
+    std::string dir = (last_slash != std::string::npos) ? config_path.substr(0, last_slash) : ".";
+
+    inotify_fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (inotify_fd_ < 0) return;
+
+    inotify_wd_ = inotify_add_watch(inotify_fd_, dir.c_str(), IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE);
+    if (inotify_wd_ < 0) {
+        close(inotify_fd_);
+        inotify_fd_ = -1;
+        return;
+    }
+
+    config_io_ = instance_->eventLoop().addIOEvent(
+        inotify_fd_,
+        fcitx::IOEventFlag::In,
+        [this](fcitx::EventSourceIO*, int fd, fcitx::IOEventFlags) {
+            char buffer[4096];
+            while (read(fd, buffer, sizeof(buffer)) > 0) {}
+            utils::clakLog("config file change detected via inotify, reloading");
+            loadConfig();
+            return true;
+        }
+    );
+}
+
+bool ClakEngine::isAppEnabled(const std::string& app) {
+    if (config_ && clak_config_is_app_excluded(config_, app.c_str())) {
+        return false;
+    }
+    if (config_ && clak_config_get_remember_state(config_)) {
+        auto it = app_states_.find(app);
+        if (it != app_states_.end()) {
+            return it->second;
+        }
+    }
+    return global_enabled_;
+}
+
+void ClakEngine::toggleAppEnabled(const std::string& app) {
+    bool current = isAppEnabled(app);
+    bool next = !current;
+    if (config_ && clak_config_get_remember_state(config_)) {
+        app_states_[app] = next;
+    } else {
+        global_enabled_ = next;
+    }
+    utils::clakLog("toggled input state for app '" + app + "' -> " + (next ? "Vi" : "En"));
+}
+
+void ClakEngine::setAppEnabled(const std::string& app, bool enabled) {
+    if (config_ && clak_config_get_remember_state(config_)) {
+        app_states_[app] = enabled;
+    } else {
+        global_enabled_ = enabled;
+    }
 }
 
 void ClakEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& keyEvent) {
@@ -45,7 +144,14 @@ void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContext
 std::string ClakEngine::subMode(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
     FCITX_UNUSED(ic);
-    return "Telex";
+    if (!config_) return "Telex";
+    int method = clak_config_get_method(config_);
+    switch (method) {
+        case 1: return "VNI";
+        case 2: return "VIQR";
+        case 3: return "TeipVNI";
+        default: return "Telex";
+    }
 }
 
 std::string ClakEngine::subModeIconImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
@@ -56,8 +162,9 @@ std::string ClakEngine::subModeIconImpl(const fcitx::InputMethodEntry& entry, fc
 
 std::string ClakEngine::subModeLabelImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    FCITX_UNUSED(ic);
-    return "Vi";
+    auto* state = ic.propertyFor(&factory_);
+    std::string app = state ? state->appKey() : ic.program();
+    return isAppEnabled(app) ? "Vi" : "En";
 }
 
 } // namespace clak

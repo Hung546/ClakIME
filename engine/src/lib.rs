@@ -1,10 +1,12 @@
 pub mod charset;
+pub mod config;
 pub mod engine;
 pub mod ime;
 pub mod spelling;
 pub mod tables;
 pub mod vseq;
 
+pub use config::*;
 pub use ime::*;
 
 use std::collections::HashSet;
@@ -395,6 +397,116 @@ pub unsafe extern "C" fn clak_free_string(s: *mut c_char) {
             drop(CString::from_raw(s));
         }
     }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_path() -> *mut c_char {
+    let p = config::config_path().to_string_lossy().to_string();
+    CString::new(p).unwrap_or_default().into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_load() -> *mut config::ClakConfig {
+    Box::into_raw(Box::new(config::ClakConfig::load()))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_free(cfg: *mut config::ClakConfig) {
+    if !cfg.is_null() {
+        drop(Box::from_raw(cfg));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_is_app_excluded(
+    cfg: *const config::ClakConfig,
+    app_name: *const c_char,
+) -> bool {
+    if cfg.is_null() || app_name.is_null() {
+        return false;
+    }
+    let app = match CStr::from_ptr(app_name).to_str() {
+        Ok(s) => s.to_lowercase(),
+        Err(_) => return false,
+    };
+    let c = &*cfg;
+    c.per_app
+        .excluded_apps
+        .iter()
+        .any(|ex| app.contains(&ex.to_lowercase()))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_remember_state(cfg: *const config::ClakConfig) -> bool {
+    if cfg.is_null() {
+        return true;
+    }
+    (*cfg).per_app.remember_state
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_uinput_ack(cfg: *const config::ClakConfig) -> bool {
+    if cfg.is_null() {
+        return false;
+    }
+    (*cfg).advanced.uinput_ack
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_debug_log(cfg: *const config::ClakConfig) -> bool {
+    if cfg.is_null() {
+        return false;
+    }
+    (*cfg).advanced.debug_log
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_startup_mode(cfg: *const config::ClakConfig) -> i32 {
+    if cfg.is_null() {
+        return 0;
+    }
+    if (*cfg).general.startup_mode == "english" {
+        1
+    } else {
+        0
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_method(cfg: *const config::ClakConfig) -> i32 {
+    if cfg.is_null() {
+        return 0;
+    }
+    match (*cfg).general.method.as_str() {
+        "vni" => 1,
+        "viqr" => 2,
+        "teip_vni" => 3,
+        _ => 0,
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_toggle_shortcut(
+    cfg: *const config::ClakConfig,
+) -> *mut c_char {
+    let sc = if cfg.is_null() {
+        "ctrl_shift"
+    } else {
+        (*cfg).shortcuts.toggle_vietnamese.as_str()
+    };
+    CString::new(sc).unwrap_or_default().into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_get_switch_shortcut(
+    cfg: *const config::ClakConfig,
+) -> *mut c_char {
+    let sc = if cfg.is_null() {
+        "ctrl_space"
+    } else {
+        (*cfg).shortcuts.switch_method.as_str()
+    };
+    CString::new(sc).unwrap_or_default().into_raw()
 }
 
 #[cfg(test)]

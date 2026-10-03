@@ -39,6 +39,26 @@ add_custom_command(
 )
 add_custom_target(clak_engine_build DEPENDS ${CLAK_ENGINE_LIB})
 
+set(CLAK_UI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ui")
+set(CLAK_UI_BIN "${CMAKE_CURRENT_BINARY_DIR}/ui-target/release/clak-gui")
+
+file(GLOB_RECURSE CLAK_UI_SOURCES CONFIGURE_DEPENDS
+    "${CLAK_UI_DIR}/src/*"
+    "${CLAK_UI_DIR}/Cargo.toml"
+    "${CLAK_UI_DIR}/build.rs"
+)
+
+add_custom_command(
+    OUTPUT ${CLAK_UI_BIN}
+    COMMAND cargo build --release
+        --manifest-path "${CLAK_UI_DIR}/Cargo.toml"
+        --target-dir "${CMAKE_CURRENT_BINARY_DIR}/ui-target"
+    WORKING_DIRECTORY ${CLAK_UI_DIR}
+    DEPENDS ${CLAK_UI_SOURCES} ${CLAK_ENGINE_SOURCES}
+    VERBATIM
+)
+add_custom_target(clak_gui_build ALL DEPENDS ${CLAK_UI_BIN})
+
 add_library(clak_rust_engine INTERFACE)
 target_link_libraries(clak_rust_engine INTERFACE "${CLAK_ENGINE_LIB}")
 add_dependencies(clak_rust_engine clak_engine_build)
@@ -87,16 +107,22 @@ file(GENERATE
 )
 
 install(TARGETS clak DESTINATION "${FCITX_INSTALL_ADDONDIR}")
+install(PROGRAMS "${CLAK_UI_BIN}" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/clak-gui.desktop" DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/clak.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/clak.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/" DESTINATION "${CMAKE_INSTALL_DATADIR}/icons")
 
 add_custom_target(install-user
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/bin"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/share/applications"
     COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/share/fcitx5/addon"
     COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/share/fcitx5/inputmethod"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CLAK_UI_BIN}" "$ENV{HOME}/.local/bin/clak-gui"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/data/clak-gui.desktop" "$ENV{HOME}/.local/share/applications/clak-gui.desktop"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_BINARY_DIR}/clak-local.conf" "$ENV{HOME}/.local/share/fcitx5/addon/clak.conf"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/data/clak.conf" "$ENV{HOME}/.local/share/fcitx5/inputmethod/clak.conf"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/hicolor" "$ENV{HOME}/.local/share/icons/hicolor"
     COMMAND gtk-update-icon-cache -f -t "$ENV{HOME}/.local/share/icons/hicolor" || true
-    DEPENDS clak
+    DEPENDS clak clak_gui_build
 )

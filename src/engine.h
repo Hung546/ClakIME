@@ -13,7 +13,7 @@ namespace clak {
 class ClakEngine : public fcitx::InputMethodEngineV2 {
 public:
     ClakEngine(fcitx::Instance* instance);
-    ~ClakEngine() override = default;
+    ~ClakEngine() override;
 
     void keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& keyEvent) override;
     void activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) override;
@@ -26,9 +26,26 @@ public:
 
     fcitx::Instance* instance() { return instance_; }
 
+    void loadConfig();
+    void setupConfigWatcher();
+    const ClakConfig* config() const { return config_; }
+    uint64_t configVersion() const { return config_version_; }
+
+    bool isAppEnabled(const std::string& app);
+    void toggleAppEnabled(const std::string& app);
+    void setAppEnabled(const std::string& app, bool enabled);
+
 private:
     fcitx::Instance* instance_;
     fcitx::FactoryFor<ime::ClakState> factory_;
+
+    ClakConfig* config_{nullptr};
+    std::unique_ptr<fcitx::EventSourceIO> config_io_;
+    int inotify_fd_{-1};
+    int inotify_wd_{-1};
+    std::unordered_map<std::string, bool> app_states_;
+    bool global_enabled_{true};
+    uint64_t config_version_{0};
 };
 
 class ClakEngineFactory : public fcitx::AddonFactory {

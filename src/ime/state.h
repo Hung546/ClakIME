@@ -25,6 +25,8 @@ public:
   void reset();
   bool isBrowser() const;
   bool isGecko() const;
+  std::string appKey();
+  void syncConfig();
 
 private:
   void arm_safety_timer();
@@ -33,7 +35,6 @@ private:
   bool shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr);
   bool isCursorNearWord(const fcitx::SurroundingText& surr);
   bool isAutofillCertain(const fcitx::SurroundingText& surr);
-  std::string appKey();
   std::string activeSite();
   void setVerifyExpectation(const std::string& wordBefore, size_t delChars, const std::string& added);
   void verifySurrounding(const fcitx::SurroundingText& surr);
@@ -45,6 +46,7 @@ private:
   ClakEngine* engine_;
   fcitx::InputContext* ic_;
   ClakContext* rust_ctx_{nullptr};
+  uint64_t applied_config_version_{0};
   uint64_t last_commit_time_us_{0};
 
   bool is_deleting_{false};

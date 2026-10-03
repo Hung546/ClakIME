@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Clak Settings
+Name[vi]=Cài đặt Clak
+Comment=Configure Clak Vietnamese Input Method
+Comment[vi]=Cấu hình bộ gõ tiếng Việt Clak
+Exec=clak-gui
+Icon=org.fcitx.Fcitx5.clak
+Terminal=false
+Type=Application
+Categories=Settings;Utility;
+Keywords=input;method;vietnamese;telex;vni;ime;fcitx;

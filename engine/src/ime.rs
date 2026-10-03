@@ -24,6 +24,11 @@ pub struct ClakContext {
     stale_surr: Option<(String, usize)>,
     just_deleted: bool,
     typed_over_selection: bool,
+    bracket_brackets: bool,
+    double_space_period: bool,
+    auto_capitalize: bool,
+    macros_enabled: bool,
+    macros: std::collections::HashMap<String, String>,
 }
 
 impl ClakContext {
@@ -39,7 +44,36 @@ impl ClakContext {
             stale_surr: None,
             just_deleted: false,
             typed_over_selection: false,
+            bracket_brackets: true,
+            double_space_period: false,
+            auto_capitalize: false,
+            macros_enabled: true,
+            macros: std::collections::HashMap::new(),
         }
+    }
+
+    pub fn apply_config(&mut self, cfg: &crate::config::ClakConfig) {
+        let m = match cfg.general.method.as_str() {
+            "vni" => Method::Vni,
+            "viqr" => Method::Viqr,
+            "teip_vni" => Method::TeipVni,
+            _ => Method::Telex,
+        };
+        self.engine.set_method(m);
+        self.engine.set_modern(cfg.spelling.modern_tone);
+        self.engine.set_auto_restore(cfg.spelling.auto_restore);
+        self.engine.set_dict(cfg.spelling.enabled);
+        self.engine.set_short_w(cfg.general.short_w);
+        self.bracket_brackets = cfg.general.bracket_brackets;
+        self.double_space_period = cfg.typing.double_space_period;
+        self.auto_capitalize = cfg.typing.auto_capitalize;
+        self.macros_enabled = cfg.macros.enabled;
+        self.macros = cfg
+            .macros
+            .items
+            .iter()
+            .map(|item| (item.trigger.clone(), item.replace.clone()))
+            .collect();
     }
 
     pub fn reset(&mut self) {
@@ -111,8 +145,64 @@ impl ClakContext {
             return self.forward();
         }
 
+        // bracket shortcut handling for square and curly brackets
+        if self.bracket_brackets {
+            if self.last_composed == "ơ" && key_str == "[" {
+                self.reset();
+                return self.replace(1, "[");
+            } else if self.last_composed == "ư" && key_str == "]" {
+                self.reset();
+                return self.replace(1, "]");
+            } else if self.last_composed == "Ơ" && key_str == "{" {
+                self.reset();
+                return self.replace(1, "{");
+            } else if self.last_composed == "Ư" && key_str == "}" {
+                self.reset();
+                return self.replace(1, "}");
+            } else if self.raw_buffer.is_empty() {
+                let mapped = match key_str {
+                    "[" => Some("ơ"),
+                    "]" => Some("ư"),
+                    "{" => Some("Ơ"),
+                    "}" => Some("Ư"),
+                    _ => None,
+                };
+                if let Some(target) = mapped {
+                    self.raw_buffer.push_str(key_str);
+                    self.last_composed = target.to_string();
+                    return self.replace(0, target);
+                }
+            }
+        }
+
         let key_ch = key_str.chars().next().unwrap_or('\0');
         if is_word_break(key_ch as u32) {
+            // check macro expansion before resetting
+            if self.macros_enabled && !self.last_composed.is_empty() {
+                if let Some(replacement) = self.macros.get(&self.last_composed) {
+                    let del_count = self.last_composed.chars().count();
+                    let mut commit_text = replacement.clone();
+                    commit_text.push_str(key_str);
+                    self.reset();
+                    self.just_deleted = false;
+                    self.stale_surr = None;
+                    return self.replace(del_count, &commit_text);
+                }
+            }
+
+            // check double space to period
+            if self.double_space_period && key_sym == 0x20 {
+                if let Some(text) = surrounding_text {
+                    let chars: Vec<char> = text.chars().collect();
+                    if cursor > 0 && cursor <= chars.len() && chars[cursor - 1] == ' ' {
+                        self.reset();
+                        self.just_deleted = false;
+                        self.stale_surr = None;
+                        return self.replace(1, ". ");
+                    }
+                }
+            }
+
             self.reset();
             self.just_deleted = false;
             self.stale_surr = None;
@@ -460,6 +550,16 @@ pub unsafe extern "C" fn clak_context_free(ctx: *mut ClakContext) {
 pub unsafe extern "C" fn clak_context_reset(ctx: *mut ClakContext) {
     if let Some(c) = ctx.as_mut() {
         c.reset();
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_context_apply_config(
+    ctx: *mut ClakContext,
+    cfg: *const crate::config::ClakConfig,
+) {
+    if let (Some(c), Some(config)) = (ctx.as_mut(), cfg.as_ref()) {
+        c.apply_config(config);
     }
 }
 
@@ -919,5 +1019,33 @@ mod tests {
         assert_eq!(a3.delete_count, 1);
         let commit3 = unsafe { CStr::from_ptr(a3.commit_str).to_str().unwrap() };
         assert_eq!(commit3, "à");
+    }
+
+    #[test]
+    fn test_bracket_shortcuts() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        let a1 = ctx.process_key(b'[' as u32, "[", false, None, 0, 0);
+        assert_eq!(a1.action_type, ACTION_REPLACE);
+        let commit1 = unsafe { CStr::from_ptr(a1.commit_str).to_str().unwrap() };
+        assert_eq!(commit1, "ơ");
+
+        let a2 = ctx.process_key(b'[' as u32, "[", false, None, 0, 0);
+        assert_eq!(a2.action_type, ACTION_REPLACE);
+        assert_eq!(a2.delete_count, 1);
+        let commit2 = unsafe { CStr::from_ptr(a2.commit_str).to_str().unwrap() };
+        assert_eq!(commit2, "[");
+    }
+
+    #[test]
+    fn test_macro_expansion() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        ctx.macros.insert("vn".to_string(), "Việt Nam".to_string());
+        ctx.process_key(b'v' as u32, "v", false, None, 0, 0);
+        ctx.process_key(b'n' as u32, "n", false, None, 1, 1);
+        let act = ctx.process_key(0x20, " ", false, None, 2, 2);
+        assert_eq!(act.action_type, ACTION_REPLACE);
+        assert_eq!(act.delete_count, 2);
+        let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
+        assert_eq!(commit, "Việt Nam ");
     }
 }

@@ -18,6 +18,16 @@ namespace ime {
 ClakState::ClakState(ClakEngine* engine, fcitx::InputContext* ic)
     : engine_(engine), ic_(ic) {
     rust_ctx_ = clak_context_new(CLAK_METHOD_TELEX);
+    syncConfig();
+}
+
+void ClakState::syncConfig() {
+    if (!engine_ || !rust_ctx_) return;
+    const ClakConfig* cfg = engine_->config();
+    if (cfg && applied_config_version_ != engine_->configVersion()) {
+        clak_context_apply_config(rust_ctx_, cfg);
+        applied_config_version_ = engine_->configVersion();
+    }
 }
 
 ClakState::~ClakState() {
@@ -550,11 +560,44 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
         return;
     }
 
+    syncConfig();
+
+    std::string app = appKey();
+    const auto& key = keyEvent.key();
+
+    bool is_alt = key.states().test(fcitx::KeyState::Alt);
+    bool is_ctrl = key.states().test(fcitx::KeyState::Ctrl);
+    char* sc_c = engine_->config() ? clak_config_get_toggle_shortcut(engine_->config()) : nullptr;
+    std::string shortcut = sc_c ? sc_c : "ctrl_shift";
+    if (sc_c) clak_free_string(sc_c);
+
+    if (shortcut == "alt_z" && is_alt && !is_ctrl && (key.sym() == FcitxKey_z || key.sym() == FcitxKey_Z)) {
+        engine_->toggleAppEnabled(app);
+        reset();
+        ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+        keyEvent.filterAndAccept();
+        return;
+    }
+
+    if (shortcut == "ctrl_shift") {
+        if ((key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R) && is_ctrl) {
+            engine_->toggleAppEnabled(app);
+            reset();
+            ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+            keyEvent.filterAndAccept();
+            return;
+        }
+    }
+
+    if (!engine_->isAppEnabled(app)) {
+        reset();
+        return;
+    }
+
     if (!is_deleting_) {
         op_start_us_ = fcitx::now(CLOCK_MONOTONIC);
     }
 
-    const auto& key = keyEvent.key();
     std::string key_str = fcitx::Key::keySymToUTF8(key.sym());
 
     // waiting for uinput events to loop back

@@ -46,11 +46,20 @@ test-scenario:
 # run all automated tests
 test: test-unit test-scenario
 
+# build clak settings gui binary
+build-gui:
+    cargo build --manifest-path ui/Cargo.toml --release
+
+# run clak settings gui
+gui:
+    cargo run --manifest-path ui/Cargo.toml --release
+
 # run all fmt, clippy, unit tests and build check before pushing
 check:
     cargo fmt --manifest-path engine/Cargo.toml -- --check
     cargo clippy --manifest-path engine/Cargo.toml -- -D warnings
     cargo test --manifest-path engine/Cargo.toml
+    cargo test --manifest-path ui/Cargo.toml
     cmake --build build
 
 # install git pre-push hook to run checks before pushing

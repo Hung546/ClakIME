@@ -57,6 +57,22 @@ typedef struct {
 ClakContext *clak_context_new(int32_t method);
 void         clak_context_free(ClakContext *ctx);
 void         clak_context_reset(ClakContext *ctx);
+
+typedef void ClakConfig;
+
+char       *clak_config_path(void);
+ClakConfig *clak_config_load(void);
+void        clak_config_free(ClakConfig *cfg);
+bool        clak_config_is_app_excluded(const ClakConfig *cfg, const char *app_name);
+bool        clak_config_get_remember_state(const ClakConfig *cfg);
+bool        clak_config_get_uinput_ack(const ClakConfig *cfg);
+bool        clak_config_get_debug_log(const ClakConfig *cfg);
+int32_t     clak_config_get_startup_mode(const ClakConfig *cfg);
+int32_t     clak_config_get_method(const ClakConfig *cfg);
+char       *clak_config_get_toggle_shortcut(const ClakConfig *cfg);
+char       *clak_config_get_switch_shortcut(const ClakConfig *cfg);
+void        clak_context_apply_config(ClakContext *ctx, const ClakConfig *cfg);
+
 ClakAction   clak_process_key(ClakContext *ctx,
                               uint32_t key_sym,
                               const char *key_str,

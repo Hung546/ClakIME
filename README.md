@@ -57,6 +57,10 @@ nix profile install github:versenilvis/clak
 
 <img src="assets/proof/neovim.webp" width="100%" alt="Neovim" />
 
+- Clak giúp bạn gõ trên WPS Office/LibreOffice mượt mà btw
+
+<img src="assets/proof/wps.webp" width="100%" alt="WPS" />
+
 ## Feedback
 
 - [Email](mailto:versedev.store@proton.me)

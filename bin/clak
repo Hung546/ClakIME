@@ -210,6 +210,26 @@ def run_doctor(args):
     else:
         print(f"  • File log: Chưa kích hoạt ghi log debug vào {log_path}")
 
+    # check running apps with special input requirements (e.g. wps office)
+    wps_pids = []
+    for p in glob.glob('/proc/[0-9]*/cmdline'):
+        try:
+            with open(p, 'rb') as f:
+                c = f.read()
+                if b'office6' in c or b'/wps' in c:
+                    wps_pids.append(p.split('/')[2])
+        except Exception:
+            pass
+
+    for wpid in wps_pids:
+        try:
+            with open(f"/proc/{wpid}/maps", 'r') as f:
+                maps_content = f.read()
+                if 'libfcitxplatforminputcontextplugin.so' not in maps_content and 'libcomposeplatforminputcontextplugin.so' in maps_content:
+                    warnings.append(f"WPS Office (PID {wpid}) đang chạy với compose plugin do thiếu QT_IM_MODULE=fcitx. Cần đóng WPS và khởi chạy lại bằng lệnh: QT_IM_MODULE=fcitx wps")
+        except Exception:
+            pass
+
     # summary report
     print("\n" + "=" * 55)
     if not issues and not warnings:

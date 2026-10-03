@@ -60,6 +60,7 @@ lbl_update="${c_green}CẬP NHẬT${c_reset}"
 lbl_fcitx="${c_cyan}FCITX5  ${c_reset}"
 lbl_aur="${c_purple}AUR     ${c_reset}"
 lbl_nix="${c_cyan}NIX     ${c_reset}"
+lbl_wps="${c_yellow}WPS     ${c_reset}"
 lbl_warn="${c_yellow}LƯU Ý   ${c_reset}"
 lbl_err="${c_red}LỖI     ${c_reset}"
 
@@ -251,6 +252,64 @@ detect_install_source() {
     echo "unknown"
 }
 
+# detect and configure wps office compatibility
+configure_wps_compatibility() {
+    local is_sim="${1:-0}"
+    local has_wps=0
+    if command -v wps >/dev/null 2>&1 || [ -d /usr/lib/office6 ] || compgen -G "/usr/share/applications/wps-office-*.desktop" >/dev/null; then
+        has_wps=1
+    fi
+
+    if [ "$has_wps" -eq 1 ]; then
+        log_step "$lbl_wps" "Phát hiện hệ thống có cài đặt WPS Office (ứng dụng Qt5 XWayland)"
+        echo -e "  ${c_yellow}• WPS Office sử dụng Qt5 nội bộ, cần biến QT_IM_MODULE=fcitx để nạp bộ gõ${c_reset}"
+        echo -e "  ${c_yellow}• Clak tự động whitelist WPS: kích hoạt uinput trực tiếp và lọc Surrounding Text rác ('10')${c_reset}"
+        echo -e "  ${c_yellow}• Hoàn toàn không ghi đè file gốc của WPS, không ảnh hưởng gì tới app chính${c_reset}"
+        echo -e "  ${c_yellow}• Bạn vẫn có thể sử dụng và cập nhật hệ thống (pacman/yay) bình thường${c_reset}"
+
+        if [ "$is_sim" -eq 1 ]; then
+            echo -e "  ${c_yellow}  [Giả lập] Tối ưu shortcut WPS tại ~/.local/share/applications/ (an toàn khi update hệ thống)${c_reset}"
+            log_step "$lbl_wps" "Đã tối ưu tương thích WPS Office (${c_green}sử dụng được ngay với mọi launcher${c_reset})"
+        else
+            mkdir -p "${HOME}/.local/share/applications"
+            local patched_count=0
+            for df in /usr/share/applications/wps-office-*.desktop; do
+                if [ -f "$df" ]; then
+                    local bname
+                    bname=$(basename "$df")
+                    sed 's|^Exec=/usr/bin/|Exec=env QT_IM_MODULE=fcitx /usr/bin/|' "$df" > "${HOME}/.local/share/applications/${bname}"
+                    patched_count=$((patched_count + 1))
+                fi
+            done
+            if [ "$patched_count" -gt 0 ]; then
+                command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+                log_step "$lbl_wps" "Đã tạo shortcut tương thích tại ${c_accent}~/.local/share/applications/${c_reset} (${c_green}${patched_count} ứng dụng${c_reset})"
+            fi
+            # configure systemd environment.d to export QT_IM_MODULE=fcitx
+            mkdir -p "${HOME}/.config/environment.d"
+            echo "QT_IM_MODULE=fcitx" > "${HOME}/.config/environment.d/99-clak-wps.conf"
+            log_step "$lbl_wps" "Đã khai báo biến ${c_accent}QT_IM_MODULE=fcitx${c_reset} trong environment.d (${c_green}hoàn toàn không ghi đè file gốc của WPS${c_reset})"
+
+            # create user-level terminal wrappers in ~/.local/bin for terminal usage
+            mkdir -p "${HOME}/.local/bin"
+            local bin_count=0
+            for b in wps wpp et wpspdf; do
+                if command -v "/usr/bin/$b" >/dev/null 2>&1; then
+                    cat << 'EOF' > "${HOME}/.local/bin/$b"
+#!/bin/sh
+exec env QT_IM_MODULE=fcitx "/usr/bin/$(basename "$0")" "$@"
+EOF
+                    chmod +x "${HOME}/.local/bin/$b"
+                    bin_count=$((bin_count + 1))
+                fi
+            done
+            if [ "$bin_count" -gt 0 ]; then
+                log_step "$lbl_wps" "Đã tạo wrapper tương thích tại ${c_accent}~/.local/bin/${c_reset} (${c_green}${bin_count} lệnh${c_reset})"
+            fi
+        fi
+    fi
+}
+
 # simulation flow
 run_simulation() {
     local cur_ver
@@ -294,7 +353,10 @@ run_simulation() {
     log_step "$lbl_update" "Đã cập nhật ${c_accent}~/.local/lib/fcitx5/libclak.so${c_reset}"
     log_step "$lbl_update" "Đã cập nhật ${c_accent}~/.local/share/fcitx5/addon/clak.conf${c_reset}"
 
-    # 5. reload fcitx5 daemon with final spinner
+    # 5. configure wps office compatibility
+    configure_wps_compatibility 1
+
+    # 6. reload fcitx5 daemon with final spinner
     spin_step "Đang nạp lại daemon Fcitx5..." 0.6
 
     # final line directly after spin completes
@@ -530,7 +592,10 @@ run_update() {
 
     log_step "$lbl_update" "Đã cập nhật ${c_accent}${lib_dest}/libclak.so${c_reset}"
 
-    # 6. reload fcitx5 daemon with final spinner
+    # 6. check and configure wps office compatibility
+    configure_wps_compatibility 0
+
+    # 7. reload fcitx5 daemon with final spinner
     spin_step "Đang nạp lại daemon Fcitx5..." 0.6
     reload_fcitx5
 

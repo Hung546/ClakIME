@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 namespace clak {
 namespace uinput {
@@ -71,6 +72,23 @@ bool UinputTool::init_direct_uinput() {
 bool UinputTool::send_backspace_direct(size_t count, uint32_t post_delay_ms, uint32_t pre_delay_ms, uint32_t gap_ms) {
     if (direct_fd_ < 0 || count == 0) {
         return false;
+    }
+
+    // synchronous fast path when zero delays requested
+    if (pre_delay_ms == 0 && post_delay_ms == 0 && gap_ms == 0) {
+        std::lock_guard<std::mutex> lock(uinput_mutex_);
+        if (direct_fd_ < 0) return false;
+
+        std::vector<struct input_event> evs;
+        evs.reserve(count * 4);
+        for (size_t i = 0; i < count; ++i) {
+            evs.push_back({ {}, EV_KEY, KEY_BACKSPACE, 1 });
+            evs.push_back({ {}, EV_SYN, SYN_REPORT, 0 });
+            evs.push_back({ {}, EV_KEY, KEY_BACKSPACE, 0 });
+            evs.push_back({ {}, EV_SYN, SYN_REPORT, 0 });
+        }
+        ssize_t written = write(direct_fd_, evs.data(), evs.size() * sizeof(struct input_event));
+        return written > 0;
     }
 
     // paced uinput worker thread prevents blocking fcitx event loop

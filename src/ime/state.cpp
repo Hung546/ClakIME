@@ -40,7 +40,7 @@ ClakState::~ClakState() {
 void ClakState::reset(bool force) {
     std::string app = appKey();
     std::string site = activeSite();
-    if (is_deleting_) {
+    if (is_deleting_ && !force) {
         utils::clakLog("reset: ignored mid-flight uinput deletion (sentinel in flight: " +
                        std::to_string(current_backspace_count_) + "/" + std::to_string(expected_backspaces_) +
                        " pending='" + pending_commit_string_ + "' app=" + app + " site='" + site + "')");
@@ -80,6 +80,8 @@ void ClakState::reset(bool force) {
     mismatch_count_ = 0;
     cached_site_.clear();
     last_site_check_us_ = 0;
+    ctrl_shift_down_ = false;
+    ctrl_shift_other_key_ = false;
     if (rust_ctx_) {
         clak_context_reset(rust_ctx_);
     }
@@ -142,9 +144,27 @@ bool ClakState::isCursorNearWord(const fcitx::SurroundingText& surr) {
     return false;
 }
 
+bool isWpsOfficeApp(const std::string& app) {
+    return app == "wps" || app == "wpp" || app == "et" || app == "wpspdf" || app == "wpsoffice" ||
+           app.find("wps") != std::string::npos;
+}
+
+static bool isWpsFontSizeText(const std::string& text) {
+    if (text.empty() || text.size() > 4) return false;
+    for (char c : text) {
+        if (!isdigit(static_cast<unsigned char>(c)) && c != '.') return false;
+    }
+    return true;
+}
+
 bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr) {
     std::string app = appKey();
     std::string site = activeSite();
+
+    // wps office on xwayland ignores dbus forwardKey, require reliable uinput
+    if (isWpsOfficeApp(app)) {
+        return true;
+    }
 
     if (config::isTerminalApp(app)) {
         return true;
@@ -238,6 +258,7 @@ void ClakState::doCommitString(const std::string& text) {
 std::string ClakState::classifyGroup(const std::string& app, const std::string& site, bool is_autofill, bool used_uinput) {
     bool has_url_cap = ic_ && ic_->capabilityFlags().test(fcitx::CapabilityFlag::Url);
     if (is_autofill || has_url_cap) return "address-bar";
+    if (isWpsOfficeApp(app)) return "WPS-Office";
     if (config::isTerminalApp(app)) return "Terminal-Uinput";
     if (site == "docs.google.com" || site.find("docs.google.com") != std::string::npos) return "Docs-Uinput";
     if (config::isGeckoApp(app)) return "Gecko-Uinput";
@@ -410,8 +431,16 @@ bool ClakState::handleKey(const fcitx::Key& key) {
         }
     }
 
-    if (sym == FcitxKey_Escape) {
-        reset();
+    bool is_cursor_move = key.isCursorMove() || (sym >= FcitxKey_Home && sym <= FcitxKey_End);
+    bool is_reset_key = is_cursor_move || sym == FcitxKey_Escape ||
+                        sym == FcitxKey_Delete || sym == FcitxKey_KP_Delete ||
+                        sym == FcitxKey_Return || sym == FcitxKey_KP_Enter ||
+                        sym == FcitxKey_Tab || sym == FcitxKey_KP_Tab ||
+                        has_ctrl_alt;
+
+    if (is_reset_key) {
+        reset(/*force=*/true);
+        return false;
     }
 
     const char* surr_text = nullptr;
@@ -427,6 +456,11 @@ bool ClakState::handleKey(const fcitx::Key& key) {
 
     bool has_surrounding = ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText);
     const auto& surr = ic_->surroundingText();
+
+    if (sym == FcitxKey_BackSpace && has_surrounding && surr.isValid() && surr.cursor() != surr.anchor()) {
+        reset(/*force=*/true);
+        return false;
+    }
 
     if (is_meta) {
         is_canvas_editor_ = false;
@@ -446,14 +480,16 @@ bool ClakState::handleKey(const fcitx::Key& key) {
         }
     }
 
-    // valid surrounding text to pass to rust engine
-    bool valid_surr = has_surrounding && surr.isValid() && !is_canvas_editor_ && !is_term;
+    bool is_office = isWpsOfficeApp(app);
+    bool is_wps_toolbar = is_office && isWpsFontSizeText(surr.text());
+    // valid surrounding text to pass to rust engine (filter bogus wps font-size toolbar)
+    bool valid_surr = has_surrounding && surr.isValid() && !is_canvas_editor_ && !is_term && !is_wps_toolbar;
     if (valid_surr) {
         surr_text = surr.text().c_str();
         cursor = surr.cursor();
         anchor = surr.anchor();
     }
-    bool use_surrounding = valid_surr && !is_rich_text_editor_ && !is_force_uinput;
+    bool use_surrounding = valid_surr && !is_rich_text_editor_ && !is_force_uinput && !is_office;
 
     // gecko surrounding text is async so skip verify to avoid false mismatch
     bool skip_verify = is_gecko || is_meta;
@@ -515,8 +551,11 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 is_address_bar_fix_ = is_autofill;
                 op_group_ = classifyGroup(app, site, is_autofill, true);
 
-                uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs : (is_term ? config::kTerminalPostDelayMs : 2);
-                uint32_t gap_ms = is_term ? config::kTerminalGapMs : 2;
+                bool is_wps = isWpsOfficeApp(app);
+                uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs :
+                                      (is_term ? config::kTerminalPostDelayMs :
+                                      (is_wps ? 3 : 2));
+                uint32_t gap_ms = is_term ? config::kTerminalGapMs : (is_wps ? 2 : 2);
                 uint32_t pre_delay = 0;
 
                 utils::clakLog("uinput waiting for sentinel: expected=" + std::to_string(bs_to_send) +
@@ -570,59 +609,109 @@ bool ClakState::handleKey(const fcitx::Key& key) {
 }
 
 void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
+    std::string app = appKey();
+    const auto& key = keyEvent.key();
+    std::string key_str = fcitx::Key::keySymToUTF8(key.sym());
+
+    bool is_alt = key.states().test(fcitx::KeyState::Alt);
+    bool is_ctrl = key.states().test(fcitx::KeyState::Ctrl);
+    bool is_shift = key.states().test(fcitx::KeyState::Shift);
+    char* sc_c = engine_->config() ? clak_config_get_toggle_shortcut(engine_->config()) : nullptr;
+    std::string shortcut = sc_c ? sc_c : "ctrl_shift";
+    if (sc_c) clak_free_string(sc_c);
+
     if (keyEvent.isRelease()) {
+        if (shortcut == "ctrl_shift" && ctrl_shift_down_) {
+            bool is_mod_release = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R ||
+                                   key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R);
+            if (is_mod_release) {
+                if (!ctrl_shift_other_key_) {
+                    engine_->toggleAppEnabled(app);
+                    reset(/*force=*/true);
+                    ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+                }
+                ctrl_shift_down_ = false;
+                ctrl_shift_other_key_ = false;
+            }
+        }
         return;
     }
 
     syncConfig();
 
-    std::string app = appKey();
-    const auto& key = keyEvent.key();
-
-    bool is_alt = key.states().test(fcitx::KeyState::Alt);
-    bool is_ctrl = key.states().test(fcitx::KeyState::Ctrl);
-    char* sc_c = engine_->config() ? clak_config_get_toggle_shortcut(engine_->config()) : nullptr;
-    std::string shortcut = sc_c ? sc_c : "ctrl_shift";
-    if (sc_c) clak_free_string(sc_c);
+    utils::clakLog("keyEvent: sym=" + std::to_string(key.sym()) + " ('" + key_str + "') app='" + app +
+                   "' enabled=" + std::to_string(engine_->isAppEnabled(app)) +
+                   " ctrl=" + std::to_string(is_ctrl) + " shift=" + std::to_string(is_shift) +
+                   " alt=" + std::to_string(is_alt) + " shortcut='" + shortcut + "'");
 
     if (shortcut == "alt_z" && is_alt && !is_ctrl && (key.sym() == FcitxKey_z || key.sym() == FcitxKey_Z)) {
         engine_->toggleAppEnabled(app);
-        reset();
+        reset(/*force=*/true);
         ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
         keyEvent.filterAndAccept();
         return;
     }
 
     if (shortcut == "ctrl_shift") {
-        if ((key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R) && is_ctrl) {
-            engine_->toggleAppEnabled(app);
-            reset();
-            ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
-            keyEvent.filterAndAccept();
-            return;
+        bool is_shift_press = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R) && is_ctrl;
+        bool is_ctrl_press = (key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R) && is_shift;
+        if (is_shift_press || is_ctrl_press) {
+            ctrl_shift_down_ = true;
+            // defer toggle to key release to avoid intercepting shortcuts like ctrl+shift+arrow
+        } else if (ctrl_shift_down_ && !key.isModifier()) {
+            ctrl_shift_other_key_ = true;
         }
     }
 
+    bool is_super = key.states().test(fcitx::KeyState::Super);
+    bool has_ctrl_alt = is_ctrl || is_alt || is_super;
+    uint32_t sym = key.sym();
+
     if (!engine_->isAppEnabled(app)) {
-        reset();
+        reset(/*force=*/true);
         return;
     }
 
-    if (!is_deleting_) {
-        op_start_us_ = fcitx::now(CLOCK_MONOTONIC);
+    bool is_cursor_move = key.isCursorMove() || (sym >= FcitxKey_Home && sym <= FcitxKey_End);
+    bool is_special_nav = sym == FcitxKey_Escape ||
+                          sym == FcitxKey_Delete || sym == FcitxKey_KP_Delete ||
+                          sym == FcitxKey_Tab || sym == FcitxKey_KP_Tab || sym == FcitxKey_ISO_Left_Tab;
+
+    // track text selection shortcuts (ctrl+a, shift+arrows)
+    if ((is_ctrl && !is_alt && (sym == FcitxKey_a || sym == FcitxKey_A)) ||
+        (is_shift && is_cursor_move)) {
+        last_selection_time_us_ = fcitx::now(CLOCK_MONOTONIC);
     }
 
-    std::string key_str = fcitx::Key::keySymToUTF8(key.sym());
+    // uinput deletion sentinel check: only clean backspace from uinput loopback counts
+    bool is_clean_backspace = (sym == FcitxKey_BackSpace) && !has_ctrl_alt && !is_shift;
+    if (is_deleting_ && is_clean_backspace) {
+        current_backspace_count_++;
+        if (current_backspace_count_ < expected_backspaces_) {
+            return;
+        }
+        keyEvent.filterAndAccept();
+        if (safety_timer_) {
+            safety_timer_.reset();
+        }
+        is_deleting_ = false;
+        is_address_bar_fix_ = false;
+        expected_backspaces_ = 0;
+        current_backspace_count_ = 0;
 
-    // waiting for uinput events to loop back
-    if (is_deleting_) {
-        if (key.sym() == FcitxKey_BackSpace) {
-            current_backspace_count_++;
-            if (current_backspace_count_ < expected_backspaces_) {
-                return;
-            }
-            // last sentinel backspace: swallow it, then commit
-            keyEvent.filterAndAccept();
+        if (!pending_commit_string_.empty()) {
+            doCommitString(pending_commit_string_);
+            pending_commit_string_.clear();
+        }
+        logLatency(op_group_, op_start_us_, "REPLACE");
+        op_start_us_ = 0;
+        replayBufferedKeys();
+        return;
+    }
+
+    // abort deletion and reset state if user pressed a modifier shortcut or navigation key
+    if (has_ctrl_alt || is_cursor_move || is_special_nav) {
+        if (is_deleting_) {
             if (safety_timer_) {
                 safety_timer_.reset();
             }
@@ -630,22 +719,47 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
             is_address_bar_fix_ = false;
             expected_backspaces_ = 0;
             current_backspace_count_ = 0;
-
-            if (!pending_commit_string_.empty()) {
-                doCommitString(pending_commit_string_);
-                pending_commit_string_.clear();
-            }
-            logLatency(op_group_, op_start_us_, "REPLACE");
-            op_start_us_ = 0;
-            replayBufferedKeys();
-            return;
-        } else if (key.isModifier()) {
-            return;
-        } else {
-            buffered_keys_.push_back(key);
-            keyEvent.filterAndAccept();
-            return;
+            pending_commit_string_.clear();
+            buffered_keys_.clear();
         }
+        reset(/*force=*/true);
+
+        if (sym == FcitxKey_BackSpace) {
+            uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
+            bool has_surrounding = ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText);
+            const auto& surr = ic_->surroundingText();
+            bool has_selection = has_surrounding && surr.isValid() && (surr.cursor() != surr.anchor());
+            bool recent_selection = (last_selection_time_us_ > 0) && (now_us - last_selection_time_us_ < 1500000);
+
+            if (recent_selection || has_selection) {
+                last_selection_time_us_ = 0;
+                utils::clakLog("rapid selection backspace: forward clean BackSpace without modifiers");
+                ic_->forwardKey(fcitx::Key(FcitxKey_BackSpace));
+                keyEvent.filterAndAccept();
+                return;
+            }
+        }
+        return;
+    }
+
+    if (key.isModifier()) {
+        return;
+    }
+
+    if (is_deleting_) {
+        if (buffered_keys_.size() < config::kMaxBufferedKeys) {
+            buffered_keys_.push_back(key);
+        }
+        keyEvent.filterAndAccept();
+        return;
+    }
+
+    if (sym == FcitxKey_BackSpace) {
+        last_selection_time_us_ = 0;
+    }
+
+    if (!is_deleting_) {
+        op_start_us_ = fcitx::now(CLOCK_MONOTONIC);
     }
 
     if (handleKey(key)) {

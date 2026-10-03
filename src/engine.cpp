@@ -135,20 +135,28 @@ void ClakEngine::setAppEnabled(const std::string& app, bool enabled) {
 
 void ClakEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent& keyEvent) {
     FCITX_UNUSED(entry);
-    auto* state = keyEvent.inputContext()->propertyFor(&factory_);
+    auto* ic = keyEvent.inputContext();
+    auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     if (state) {
         state->keyEvent(keyEvent);
+    } else {
+        utils::clakLog("engine::keyEvent: NO state for ic program='" + (ic ? ic->program() : "") + "'");
     }
 }
 
 void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
     FCITX_UNUSED(entry);
-    FCITX_UNUSED(event);
+    auto* ic = event.inputContext();
+    auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
+    std::string app = state ? state->appKey() : (ic ? ic->program() : "");
+    utils::clakLog("engine::activate: ic program='" + (ic ? ic->program() : "") + "' app='" + app + "' enabled=" + std::to_string(isAppEnabled(app)));
 }
 
 void ClakEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
     FCITX_UNUSED(entry);
-    auto* state = event.inputContext()->propertyFor(&factory_);
+    auto* ic = event.inputContext();
+    utils::clakLog("engine::deactivate: ic program='" + (ic ? ic->program() : "") + "'");
+    auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     if (state) {
         state->reset(/*force=*/true);
     }

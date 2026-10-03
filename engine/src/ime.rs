@@ -114,6 +114,7 @@ impl ClakContext {
             }
 
             if cursor != anchor {
+                self.reset();
                 return self.forward();
             }
 
@@ -133,6 +134,8 @@ impl ClakContext {
         if key_sym == 0xff1b
             || key_sym == 0xff0d
             || key_sym == 0xff09
+            || key_sym == 0xffff
+            || key_sym == 0xff9f
             || (0xff50..=0xff57).contains(&key_sym)
         {
             self.reset();
@@ -229,15 +232,6 @@ impl ClakContext {
             // address bar url autocomplete only applies to single-token urls without spaces or newlines
             let is_single_token = !text.is_empty() && !text.contains(' ') && !text.contains('\n');
 
-            if sel_start == sel_end {
-                self.typed_over_selection = false;
-            } else if self.raw_buffer.is_empty() {
-                self.reset();
-                if is_single_token && sel_start == 0 && sel_end == chars.len() {
-                    self.typed_over_selection = true;
-                }
-            }
-
             // browser address bar autocomplete detection
             if is_single_token
                 && !self.raw_buffer.is_empty()
@@ -252,6 +246,15 @@ impl ClakContext {
 
             if is_single_token && self.typed_over_selection && sel_start < sel_end {
                 has_autocomplete = true;
+            }
+
+            if sel_start == sel_end {
+                self.typed_over_selection = false;
+            } else if !has_autocomplete {
+                self.reset();
+                if is_single_token && sel_start == 0 && sel_end == chars.len() {
+                    self.typed_over_selection = true;
+                }
             }
 
             // word seeding from surrounding text only when cursor is at word end

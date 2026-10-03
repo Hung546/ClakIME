@@ -22,7 +22,7 @@ public:
   ~ClakState() override;
 
   void keyEvent(fcitx::KeyEvent& keyEvent);
-  void reset();
+  void reset(bool force = false);
   bool isBrowser() const;
   bool isGecko() const;
   std::string appKey();

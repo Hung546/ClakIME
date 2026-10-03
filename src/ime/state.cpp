@@ -37,7 +37,7 @@ ClakState::~ClakState() {
     }
 }
 
-void ClakState::reset() {
+void ClakState::reset(bool force) {
     std::string app = appKey();
     std::string site = activeSite();
     if (is_deleting_) {
@@ -45,6 +45,20 @@ void ClakState::reset() {
                        std::to_string(current_backspace_count_) + "/" + std::to_string(expected_backspaces_) +
                        " pending='" + pending_commit_string_ + "' app=" + app + " site='" + site + "')");
         return;
+    }
+    if (!force) {
+        // guard against false reset doi nguoc tu web app trong 50ms post-commit
+        uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
+        if (last_commit_time_us_ > 0 && (now_us - last_commit_time_us_) < 50000) {
+            utils::clakLog("reset: ignored false reset within 50ms post-commit window (delta=" +
+                           std::to_string(now_us - last_commit_time_us_) + "us) app=" + app + " site='" + site + "'");
+            return;
+        }
+        if (!buffered_keys_.empty()) {
+            utils::clakLog("reset: ignored reset while keys buffered (count=" +
+                           std::to_string(buffered_keys_.size()) + ") app=" + app + " site='" + site + "'");
+            return;
+        }
     }
     last_editor_check_us_ = 0;
     last_text_len_ = 0;

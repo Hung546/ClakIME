@@ -129,7 +129,7 @@ void ClakEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputCo
     FCITX_UNUSED(entry);
     auto* state = event.inputContext()->propertyFor(&factory_);
     if (state) {
-        state->reset();
+        state->reset(/*force=*/true);
     }
 }
 
@@ -137,7 +137,7 @@ void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContext
     FCITX_UNUSED(entry);
     auto* state = event.inputContext()->propertyFor(&factory_);
     if (state) {
-        state->reset();
+        state->reset(/*force=*/false);
     }
 }
 

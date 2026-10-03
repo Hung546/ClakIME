@@ -50,6 +50,10 @@ test: test-unit test-scenario
 bench *args:
     ./bin/clak bench {{args}}
 
+# run environment diagnostics
+doctor:
+    ./bin/clak doctor
+
 # build clak settings gui binary
 build-gui:
     cargo build --manifest-path ui/Cargo.toml --release

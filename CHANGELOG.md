@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.5](https://github.com/versenilvis/clak/releases/tag/v0.2.5) - 2026-10-04
+
+### Bug fixes
+
+- Make icons white with black border and fix library path ([4bc5b5](https://github.com/versenilvis/clak/commit/4bc5b577863e422aa54519fb665336cc6ae96746))
+
 ## [v0.2.4](https://github.com/versenilvis/clak/releases/tag/v0.2.4) - 2026-10-04
 
 ### Bug fixes

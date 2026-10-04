@@ -1,17 +1,33 @@
 #ifndef CLAK_ENGINE_H
 #define CLAK_ENGINE_H
 
+#include <fcitx/action.h>
 #include <fcitx/addonfactory.h>
 #include <fcitx/addonmanager.h>
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/instance.h>
+#include <fcitx/statusarea.h>
+#include <fcitx/userinterfacemanager.h>
+#include <fcitx-config/configuration.h>
+#include <fcitx-config/option.h>
 #include "ime/state.h"
 
 namespace clak {
 namespace platform {
 class MouseTracker;
 }
+
+class ClakSettingsAction : public fcitx::SimpleAction {
+public:
+    ClakSettingsAction();
+    void activate(fcitx::InputContext* ic) override;
+};
+
+FCITX_CONFIGURATION(
+    ClakFcitxConfig,
+    fcitx::ExternalOption settings{this, "settings", "Cài đặt Clak", "clak-gui"};
+);
 
 class ClakEngine : public fcitx::InputMethodEngineV2 {
 public:
@@ -26,6 +42,8 @@ public:
     std::string subMode(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) override;
     std::string subModeIconImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) override;
     std::string subModeLabelImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) override;
+
+    const fcitx::Configuration* getConfig() const override { return &fcitx_config_; }
 
     fcitx::Instance* instance() { return instance_; }
 
@@ -59,6 +77,8 @@ private:
     bool global_enabled_{true};
     uint64_t config_version_{0};
     std::unique_ptr<platform::MouseTracker> mouse_tracker_;
+    ClakSettingsAction settings_action_;
+    ClakFcitxConfig fcitx_config_;
 };
 
 class ClakEngineFactory : public fcitx::AddonFactory {

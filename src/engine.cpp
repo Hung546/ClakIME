@@ -8,12 +8,30 @@
 
 namespace clak {
 
+ClakSettingsAction::ClakSettingsAction() {
+    setShortText("Cài đặt Clak...");
+    setLongText("Mở bảng điều khiển cấu hình Clak");
+    setIcon("org.fcitx.Fcitx5.clak");
+}
+
+void ClakSettingsAction::activate(fcitx::InputContext* ic) {
+    FCITX_UNUSED(ic);
+    const char* home = getenv("HOME");
+    std::string local_bin = home ? std::string(home) + "/.local/bin/clak-gui" : "";
+    if (!local_bin.empty() && access(local_bin.c_str(), X_OK) == 0) {
+        fcitx::startProcess({local_bin});
+    } else {
+        fcitx::startProcess({"clak-gui"});
+    }
+}
+
 ClakEngine::ClakEngine(fcitx::Instance* instance)
     : instance_(instance),
       factory_([this](fcitx::InputContext& ic) -> ime::ClakState* {
           return new ime::ClakState(this, &ic);
       }) {
     instance_->inputContextManager().registerProperty("clakState", &factory_);
+    instance_->userInterfaceManager().registerAction("clak-settings", &settings_action_);
     // pre-warm uinput device so kernel and libinput enumerate it before first use
     uinput::UinputTool::instance();
     loadConfig();
@@ -27,6 +45,7 @@ ClakEngine::ClakEngine(fcitx::Instance* instance)
 }
 
 ClakEngine::~ClakEngine() {
+    instance_->userInterfaceManager().unregisterAction(&settings_action_);
     if (mouse_tracker_) {
         mouse_tracker_.reset();
     }
@@ -158,6 +177,10 @@ void ClakEngine::keyEvent(const fcitx::InputMethodEntry& entry, fcitx::KeyEvent&
 void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
     FCITX_UNUSED(entry);
     auto* ic = event.inputContext();
+    if (ic) {
+        ic->statusArea().addAction(fcitx::StatusGroup::InputMethod, &settings_action_);
+        settings_action_.update(ic);
+    }
     auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     std::string app = state ? state->appKey() : (ic ? ic->program() : "");
     utils::clakLog("engine::activate: ic program='" + (ic ? ic->program() : "") + "' app='" + app + "' enabled=" + std::to_string(isAppEnabled(app)));

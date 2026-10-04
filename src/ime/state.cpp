@@ -208,11 +208,11 @@ bool ClakState::isAutofillCertain(const fcitx::SurroundingText& surr) {
     unsigned int cursor = surr.cursor();
     unsigned int anchor = surr.anchor();
 
-    // selection extends past cursor in single-line context (chromium address bar autocomplete)
+    // selection extends past cursor through to line end in single-line context (chromium address bar autocomplete)
     if (cursor != anchor) {
         unsigned int sel_start = std::min(anchor, cursor);
         unsigned int sel_end = std::max(anchor, cursor);
-        if (sel_start >= cursor || (sel_start < cursor && sel_end > cursor)) {
+        if (sel_end == text.length() && sel_start > 0) {
             return true;
         }
     }

@@ -71,6 +71,27 @@ TEST_F(RegressionCorpusTest, test_regression_address_bar_dd_to_d) {
     EXPECT_EQ(ic.commits.back(), "đ");
 }
 
+TEST_F(RegressionCorpusTest, test_regression_hyprland_stale_selection_during_retoning) {
+    // hyprland/niri temporary mid-word selection must not be detected as address bar autocomplete
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ic.setUrlCapability(true);
+    ime::ClakState state(engine_.get(), &ic);
+
+    // cursor and anchor inside "dựng" (length 6) should not trigger autofill
+    ic.setSurrounding("dựng", 3, 4);
+    EXPECT_FALSE(state.isAutofillCertain(ic.surroundingText()));
+    ic.setSurrounding("dựng", 4, 3);
+    EXPECT_FALSE(state.isAutofillCertain(ic.surroundingText()));
+
+    // selection not extending to line end is not autocomplete
+    ic.setSurrounding("google more", 2, 6);
+    EXPECT_FALSE(state.isAutofillCertain(ic.surroundingText()));
+
+    // reverse direction autocomplete extending to end is valid
+    ic.setSurrounding("google", 6, 2);
+    EXPECT_TRUE(state.isAutofillCertain(ic.surroundingText()));
+}
+
 TEST_F(RegressionCorpusTest, test_regression_docs_cascading_chars) {
     // google docs must route to uinput to avoid cascading duplicate characters
     MockInputContext ic(instance_->inputContextManager(), "google-chrome");

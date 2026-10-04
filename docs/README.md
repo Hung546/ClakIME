@@ -1,4 +1,4 @@
-# Tài liệu Kỹ thuật Bộ gõ Tiếng Việt Clak
+# Tài liệu kỹ thuật bộ gõ Clak
 
 > [!IMPORTANT]
 > **Tài liệu này được tạo ra bởi AI**
@@ -9,7 +9,7 @@ Bộ gõ giải quyết dứt điểm các bài toán cố hữu của Wayland n
 
 ---
 
-## 1. Cấu trúc Thư mục
+## 1. Cấu trúc thư mục
 
 ```text
 input-method/
@@ -25,7 +25,7 @@ input-method/
 │       ├── charset.rs          # Bảng mã (Unicode, VNI, TCVN3...)
 │       └── ime.rs              # Mô phỏng tích hợp xung quanh văn bản
 ├── src/                        # Tầng kết nối Fcitx5 bằng C++
-│   ├── engine.h / .cpp         # Điểm khởi động Fcitx5 Addon
+│   ├── engine.h / .cpp         # Điểm khởi động Fcitx5 addon
 │   ├── ime/
 │   │   ├── state.h / .cpp      # Máy trạng thái xử lý phím và điều hướng Surrounding/Uinput
 │   ├── uinput/
@@ -40,7 +40,7 @@ input-method/
 │   ├── utils/
 │   │   ├── log.h / .cpp        # Ghi log gỡ lỗi kèm xoay vòng dung lượng
 │   │   └── text_utils.h / .cpp # Xử lý chuỗi UTF-8, đếm ký tự, tách từ
-│   └── tests/                  # Bộ kiểm thử C++ State Machine và Regression
+│   └── tests/                  # Bộ kiểm thử C++ state machine và regression
 ├── scripts/
 │   └── tests/                  # Bộ script kiểm thử tự động và đo latency
 └── docs/                       # Tài liệu chi tiết từng module
@@ -48,19 +48,19 @@ input-method/
 
 ---
 
-## 2. Kiến trúc & Sơ đồ Luồng Xử lý Dữ liệu
+## 2. Kiến trúc và luồng xử lý dữ liệu
 
 ```text
 Fcitx5 keyEvent
        │
        ▼
  ┌───────────────┐  Có (Vim/Helix NORMAL)
- │ Modal Editor? ├─────────────────────────► Forward phím thô (không gõ dấu)
+ │ Modal editor? ├─────────────────────────► Forward phím thô (không gõ dấu)
  └───────┬───────┘
          │ Không (INSERT / ứng dụng thông thường)
          ▼
  ┌───────────────┐
- │ Rust Engine   ├─────────────────────────► FFI clak_process_key()
+ │ Rust engine   ├─────────────────────────► FFI clak_process_key()
  └───────┬───────┘
          │
          ▼
@@ -71,48 +71,48 @@ Fcitx5 keyEvent
                │
                ├────────────────────────┬────────────────────────┐
                ▼                        ▼                        ▼
-       SurroundingText            Uinput Pacing          Address Bar Fix
-       (Chromium, Brave, Web)    (Gecko, Docs, Term)   (Omnibox Autocomplete)
-       deleteSurroundingText     N+1 Sentinel BS        N+1 BS + 1 BS autofill
+       SurroundingText            Uinput Pacing          Address bar fix
+       (Chromium, Brave, web)    (Gecko, Docs, term)   (Omnibox autocomplete)
+       deleteSurroundingText     N+1 sentinel BS        N+1 BS + 1 BS autofill
        + doCommitString          + loopback check       + doCommitString
 ```
 
 ### Các bước xử lý tuần tự
 
-1. **Fcitx5 Event Loop**: Bắt sự kiện phím bấm trong [state.cpp](./src/ime/state.cpp) `keyEvent`.
-2. **Kiểm tra Modal Editor**: Nếu đang ở trong Vim/Neovim/Helix ở chế độ NORMAL, phím được chuyển thẳng (forward) không qua gõ dấu.
-3. **Rust Engine FFI**: Gọi [clak_process_key](./engine/src/lib.rs) kèm văn bản ngữ cảnh xung quanh (surrounding text).
-4. **Phân nhánh thực thi Action**:
+1. **Fcitx5 event loop**: Bắt sự kiện phím bấm trong [state.cpp](./src/ime/state.cpp) `keyEvent`.
+2. **Kiểm tra modal editor**: Nếu đang ở trong Vim/Neovim/Helix ở chế độ NORMAL, phím được chuyển thẳng (forward) không qua gõ dấu.
+3. **Rust engine FFI**: Gọi [clak_process_key](./engine/src/lib.rs) kèm văn bản ngữ cảnh xung quanh (surrounding text).
+4. **Phân nhánh thực thi action**:
     - `FORWARD`: Không biến đổi, chuyển tiếp phím gốc.
     - `COMMIT`: Nhận diện từ hoàn chỉnh hoặc ký tự đặc biệt, chèn chuỗi ký tự qua Fcitx5.
     - `REPLACE`: Cần xóa $N$ ký tự trước con trỏ và thay thế bằng âm tiết tiếng Việt mới.
-5. **Điều hướng Kênh Xóa Văn bản (Dispatching)**:
+5. **Điều hướng kênh xóa văn bản**:
     - **Kênh SurroundingText**: Áp dụng cho các ô nhập liệu tiêu chuẩn trên Chromium, Brave, mạng xã hội Facebook/Messenger qua `deleteSurroundingText`.
-    - **Kênh Uinput Pacing**: Áp dụng cho Gecko (Zen Browser, Firefox), Google Docs canvas, Terminal, và thanh địa chỉ (Omnibox).
+    - **Kênh Uinput Pacing**: Áp dụng cho Gecko (Zen Browser, Firefox), Google Docs canvas, terminal, và thanh địa chỉ (Omnibox).
 
 ---
 
-## 3. Bảng Phân nhánh Kênh Thực thi (Dispatch Paths)
+## 3. Phân nhánh kênh thực thi
 
-| Kênh thực thi | Ứng dụng áp dụng | Cơ chế hoạt động | Ưu điểm & Bảo vệ |
+| Kênh thực thi | Ứng dụng áp dụng | Cơ chế hoạt động | Ưu điểm và bảo vệ |
 | --- | --- | --- | --- |
 | **SurroundingText** | Chromium, Chrome, Brave, Facebook, Messenger | Gọi trực tiếp `deleteSurroundingText()` của Wayland rồi commit | Độ trễ cực thấp (<0.3ms), bảo toàn cấu trúc DOM và vùng chọn |
-| **Uinput Sentinel Pacing** | Gecko (Zen Browser, Firefox), Google Docs, Terminal | Phát $N+1$ Backspace qua `/dev/uinput`, chờ phím chốt thứ $N+1$ loopback | Khắc phục triệt để lỗi nuốt phím và xung đột bộ đệm của Gecko/Canvas |
+| **Uinput Sentinel Pacing** | Gecko (Zen Browser, Firefox), Google Docs, terminal | Phát $N+1$ Backspace qua `/dev/uinput`, chờ phím chốt thứ $N+1$ loopback | Khắc phục triệt để lỗi nuốt phím và xung đột bộ đệm của Gecko/canvas |
 | **Address Bar Fix** | Thanh địa chỉ Chromium / Brave khi có autocomplete | Phát $N + 1 + 1$ Backspace (thêm 1 Backspace xóa inline autocomplete) | Ngăn mất ký tự đầu hoặc kẹt chuỗi `dđ` khi trình duyệt tự gợi ý URL |
 | **Modal Editor Bypass** | Neovim, Helix, Vim (trong Kitty, Alacritty, WezTerm...) | Đọc IPC Hyprland socket và kiểm tra chế độ NORMAL/INSERT | Không làm phiền khi gõ lệnh Vim, tự bật lại bộ gõ khi vào INSERT |
 
 ---
 
-## 4. Các Bất biến Hệ thống Cốt lõi (System Invariants)
+## 4. Các bất biến hệ thống (Invariants)
 
-- **FIFO Buffer khi Đang Xóa**: Trong lúc Uinput đang phát phím xóa (`is_deleting_ = true`), các phím người dùng gõ tiếp theo được đưa vào hàng đợi `buffered_keys_` và phát lại đúng thứ tự sau khi commit hoàn tất.
-- **Không bao giờ block Main Thread**: Tuyệt đối không dùng `sleep()` trong thread chính của Fcitx5; toàn bộ nhịp pacing, delay và safety timer đều dùng `sd-event` loop bất đồng bộ.
-- **Phím chốt Sentinel $N+1$**: Luôn gửi $N+1$ phím Backspace khi xóa qua uinput; phím thứ $N+1$ được filter để xác nhận chắc chắn $N$ ký tự cũ đã bị xóa trước khi commit ký tự mới.
-- **Safety Timer & Adaptive Latency Scaling**: Hẹn giờ an toàn 50ms (hoặc 100ms trên thanh địa chỉ). Nếu trễ (>35ms), hệ thống tự nâng thời gian chờ an toàn (+10ms) và tự giảm (-10ms) khi ổn định trở lại.
+- **Hàng đợi FIFO khi đang xóa**: Trong lúc uinput đang phát phím xóa (`is_deleting_ = true`), các phím người dùng gõ tiếp theo được đưa vào hàng đợi `buffered_keys_` và phát lại đúng thứ tự sau khi commit hoàn tất.
+- **Không block main thread**: Tuyệt đối không dùng `sleep()` trong thread chính của Fcitx5; toàn bộ nhịp pacing, delay và safety timer đều dùng `sd-event` loop bất đồng bộ.
+- **Phím chốt sentinel $N+1$**: Luôn gửi $N+1$ phím Backspace khi xóa qua uinput; phím thứ $N+1$ được filter để xác nhận chắc chắn $N$ ký tự cũ đã bị xóa trước khi commit ký tự mới.
+- **Bộ đếm an toàn và co giãn độ trễ**: Hẹn giờ an toàn 50ms (hoặc 100ms trên thanh địa chỉ). Nếu trễ (>35ms), hệ thống tự nâng thời gian chờ an toàn (+10ms) và tự giảm (-10ms) khi ổn định trở lại.
 
 ---
 
-## 5. Tùy chọn Cấu hình Nhập liệu (Configuration)
+## 5. Tùy chọn cấu hình nhập liệu
 
 | Tùy chọn | Mặc định | Hành vi khi kích hoạt |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ Fcitx5 keyEvent
 
 ---
 
-## 6. Giao diện FFI C/Rust (API Surface)
+## 6. Giao diện FFI C/Rust
 
 Tầng C++ của Fcitx5 giao tiếp với lõi Rust engine qua FFI ngoại vi [engine/src/lib.rs](./engine/src/lib.rs):
 
@@ -157,13 +157,13 @@ ClakAction clak_process_key(
 
 ---
 
-## 7. Bản đồ Tài liệu Chi tiết
+## 7. Tài liệu chi tiết từng phần
 
 Mỗi module được giải thích cặn kẽ trong các tài liệu sau:
 
-- [Lõi Xử lý Ngôn ngữ Rust (Engine)](./docs/engine.md): Cơ chế Telex, quy tắc đặt dấu, kiểm tra ngữ pháp tiếng Việt và giao tiếp C-FFI.
-- [Quản lý Trạng thái và Điều hướng Phím (IME State)](./docs/ime-state-dispatch.md): Thuật toán chọn kênh Surrounding vs Uinput, cơ chế phím chốt Sentinel Backspace, bộ đệm phím (Buffer & Replay), và bộ đếm an toàn Safety Timer.
-- [Môi trường Cửa sổ và Nhận diện Ứng dụng (Platform)](./docs/platform-window.md): Giao thức IPC Unix Socket với Hyprland, nhận diện domain web, và chuyển đổi trạng thái Vim.
-- [Bộ phát Phím ảo và Nhịp thời gian (Uinput Pacing)](./docs/uinput-pacing.md): Trình điều khiển `/dev/uinput`, kỹ thuật pacing với `post_delay` và `gap_ms` để trình duyệt không bị nuốt phím.
-- [Đo đạc và Tối ưu Độ trễ (Benchmark & Latency)](./docs/benchmark-latency.md): Phương pháp đo latency từ lúc nhận keydown đến khi commit, bảng số liệu p50/p95/p99 của 5 nhóm ứng dụng.
-- [Hệ thống Kiểm thử Tự động (Automated Tests)](./docs/test.md): Danh mục kiểm thử Rust engine, C++ state machine, kịch bản phòng ngừa lỗi (regression corpus) và hướng dẫn chạy test.
+- [Lõi xử lý ngôn ngữ Rust](./docs/engine.md): Cơ chế Telex, quy tắc đặt dấu, kiểm tra ngữ pháp tiếng Việt và giao tiếp C-FFI.
+- [Quản lý trạng thái và điều hướng phím](./docs/ime-state-dispatch.md): Thuật toán chọn kênh Surrounding vs Uinput, cơ chế phím chốt sentinel, bộ đệm phím, và bộ đếm an toàn.
+- [Môi trường cửa sổ và nhận diện ứng dụng](./docs/platform-window.md): Giao tiếp IPC socket với Hyprland, nhận diện domain web, và chuyển đổi trạng thái Vim.
+- [Bộ phát phím ảo và nhịp thời gian uinput](./docs/uinput-pacing.md): Trình điều khiển `/dev/uinput`, kỹ thuật pacing với post_delay và gap_ms để trình duyệt không bị nuốt phím.
+- [Đo đạc và tối ưu độ trễ](./docs/benchmark-latency.md): Phương pháp đo latency từ lúc nhận keydown đến khi commit, bảng số liệu p50/p95/p99 của 5 nhóm ứng dụng.
+- [Hệ thống kiểm thử tự động](./docs/test.md): Danh mục kiểm thử Rust engine, C++ state machine, kịch bản phòng ngừa lỗi và hướng dẫn chạy test.

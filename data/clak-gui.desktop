@@ -1,6 +1,8 @@
 [Desktop Entry]
 Name=Clak Settings
 Name[vi]=Cài đặt Clak
+GenericName=Input Method Settings
+GenericName[vi]=Cài đặt bộ gõ tiếng Việt
 Comment=Configure Clak Vietnamese Input Method
 Comment[vi]=Cấu hình bộ gõ tiếng Việt Clak
 Exec=clak-gui

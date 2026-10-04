@@ -1,7 +1,8 @@
 [Addon]
 Name=Clak
-Name[vi]=Clak
-Comment=Fast Vietnamese input method
+Name[vi]=Bộ gõ tiếng Việt Clak
+Comment=Fast and stable Vietnamese input method for Fcitx5
+Comment[vi]=Bộ gõ tiếng Việt Clak tốc độ cao cho Fcitx5
 Category=InputMethod
 Version=0.1.0
 Enabled=True

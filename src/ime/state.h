@@ -31,6 +31,7 @@ public:
   bool isAutofillCertain(const fcitx::SurroundingText& surr);
 
   bool isDeleting() const { return is_deleting_; }
+  bool isSelectionDeletion() const { return is_selection_deletion_; }
   bool isRichTextEditor() const { return is_rich_text_editor_; }
   int mismatchCount() const { return mismatch_count_; }
   size_t expectedBackspaces() const { return expected_backspaces_; }
@@ -58,6 +59,7 @@ private:
 
   bool is_deleting_{false};
   bool is_address_bar_fix_{false};
+  bool is_selection_deletion_{false};
   size_t expected_backspaces_{0};
   size_t current_backspace_count_{0};
   size_t last_text_len_{0};

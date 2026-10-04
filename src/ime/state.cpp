@@ -70,6 +70,7 @@ void ClakState::reset(bool force) {
     }
     is_deleting_ = false;
     is_address_bar_fix_ = false;
+    is_selection_deletion_ = false;
     expected_backspaces_ = 0;
     current_backspace_count_ = 0;
     pending_commit_string_.clear();
@@ -280,7 +281,8 @@ void ClakState::logLatency(const std::string& group, uint64_t start_us, const st
 
 void ClakState::arm_safety_timer() {
     uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
-    uint64_t timeout_us = is_address_bar_fix_ ? (config::kSafetyTimeoutUs * 2) : config::kSafetyTimeoutUs;
+    uint64_t timeout_us = is_selection_deletion_ ? config::kSelectionDeletionTimeoutUs :
+                          (is_address_bar_fix_ ? (config::kSafetyTimeoutUs * 2) : config::kSafetyTimeoutUs);
     safety_timer_ = engine_->instance()->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
         now_us + timeout_us,
@@ -295,6 +297,7 @@ void ClakState::arm_safety_timer() {
                                " site='" + site + "'");
                 is_deleting_ = false;
                 is_address_bar_fix_ = false;
+                is_selection_deletion_ = false;
                 expected_backspaces_ = 0;
                 current_backspace_count_ = 0;
                 if (!pending_commit_string_.empty()) {
@@ -551,6 +554,10 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 size_t autofill_extra = is_autofill ? 1 : 0;
                 size_t bs_to_send = real_bs + autofill_extra + 1;
                 is_address_bar_fix_ = is_autofill;
+                uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
+                bool recent_selection = (last_selection_time_us_ > 0) && (now_us - last_selection_time_us_ < 1500000);
+                bool has_selection = has_surrounding && surr.isValid() && (surr.cursor() != surr.anchor());
+                is_selection_deletion_ = recent_selection || has_selection;
                 op_group_ = classifyGroup(app, site, is_autofill, true);
 
                 bool is_wps = isWpsOfficeApp(app);
@@ -698,6 +705,7 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
         }
         is_deleting_ = false;
         is_address_bar_fix_ = false;
+        is_selection_deletion_ = false;
         expected_backspaces_ = 0;
         current_backspace_count_ = 0;
 
@@ -719,6 +727,7 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
             }
             is_deleting_ = false;
             is_address_bar_fix_ = false;
+            is_selection_deletion_ = false;
             expected_backspaces_ = 0;
             current_backspace_count_ = 0;
             pending_commit_string_.clear();

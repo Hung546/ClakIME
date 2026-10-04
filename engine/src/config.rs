@@ -18,6 +18,16 @@ pub struct ClakConfig {
     pub macros: MacroConfig,
     #[serde(default)]
     pub advanced: AdvancedConfig,
+    #[serde(default)]
+    pub update: UpdateConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateConfig {
+    #[serde(default = "default_true")]
+    pub auto_update: bool,
+    #[serde(default = "default_poll_index")]
+    pub poll_index: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,12 +94,24 @@ pub struct MacroItem {
     pub replace: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdvancedConfig {
+    #[serde(default = "default_true")]
+    pub autostart: bool,
     #[serde(default)]
     pub uinput_ack: bool,
     #[serde(default)]
     pub debug_log: bool,
+}
+
+impl Default for AdvancedConfig {
+    fn default() -> Self {
+        Self {
+            autostart: default_true(),
+            uinput_ack: false,
+            debug_log: false,
+        }
+    }
 }
 
 fn default_method() -> String {
@@ -182,6 +204,19 @@ impl Default for MacroConfig {
     }
 }
 
+fn default_poll_index() -> i32 {
+    4
+}
+
+impl Default for UpdateConfig {
+    fn default() -> Self {
+        Self {
+            auto_update: default_true(),
+            poll_index: default_poll_index(),
+        }
+    }
+}
+
 pub fn config_path() -> PathBuf {
     if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
         if !dir.is_empty() {
@@ -218,7 +253,84 @@ impl ClakConfig {
             fs::create_dir_all(parent)?;
         }
         let content = toml::to_string_pretty(self).map_err(std::io::Error::other)?;
-        fs::write(path, content)
+        fs::write(path, content)?;
+        let _ = apply_autostart(self.advanced.autostart, &self.general.startup_mode);
+        Ok(())
+    }
+}
+
+// configure autostart entry and environment variables
+pub fn apply_autostart(enabled: bool, startup_mode: &str) -> std::io::Result<()> {
+    let home = match std::env::var("HOME") {
+        Ok(h) if !h.is_empty() => PathBuf::from(h),
+        _ => return Ok(()),
+    };
+
+    let autostart_dir = home.join(".config").join("autostart");
+    let desktop_file = autostart_dir.join("clak-autostart.desktop");
+
+    if enabled {
+        let _ = fs::create_dir_all(&autostart_dir);
+        let content = "[Desktop Entry]\nType=Application\nName=Clak Vietnamese Input Method\nComment=Autostart Fcitx5 with Clak input method\nExec=fcitx5 -d\nIcon=org.fcitx.Fcitx5\nTerminal=false\nCategories=System;Utility;\nStartupNotify=false\nX-GNOME-Autostart-Phase=Applications\nX-GNOME-AutoRestart=true\nX-GNOME-Autostart-Notify=false\nX-KDE-autostart-after=panel\n";
+        let _ = fs::write(&desktop_file, content);
+
+        let env_dir = home.join(".config").join("environment.d");
+        let _ = fs::create_dir_all(&env_dir);
+        let env_file = env_dir.join("99-clak-im.conf");
+        let env_content = "GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\nINPUT_METHOD=fcitx5\nSDL_IM_MODULE=fcitx\n";
+        let _ = fs::write(&env_file, env_content);
+
+        configure_fcitx5_profile(&home, startup_mode);
+    } else if desktop_file.exists() {
+        let _ = fs::remove_file(&desktop_file);
+    }
+    Ok(())
+}
+
+fn configure_fcitx5_profile(home: &std::path::Path, startup_mode: &str) {
+    let profile_path = home.join(".config").join("fcitx5").join("profile");
+    if let Some(parent) = profile_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let default_im = if startup_mode == "english" { "keyboard-us" } else { "clak" };
+
+    if !profile_path.exists() {
+        let content = format!(
+            "[Groups/0]\nName=Default\nDefault Layout=us\nDefaultIM={}\n\n[Groups/0/Items/0]\nName=keyboard-us\n\n[Groups/0/Items/1]\nName=clak\n\n[GroupOrder]\n0=Default\n",
+            default_im
+        );
+        let _ = fs::write(&profile_path, content);
+        return;
+    }
+
+    if let Ok(mut text) = fs::read_to_string(&profile_path) {
+        if text.contains("DefaultIM=") {
+            let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
+            for line in &mut lines {
+                if line.starts_with("DefaultIM=") {
+                    *line = format!("DefaultIM={}", default_im);
+                }
+            }
+            text = lines.join("\n") + "\n";
+        }
+
+        if !text.contains("Name=clak") {
+            let mut count = 0;
+            for line in text.lines() {
+                if line.starts_with("[Groups/0/Items/") {
+                    count += 1;
+                }
+            }
+            let clak_entry = format!("\n[Groups/0/Items/{}]\nName=clak\n", count);
+            if let Some(pos) = text.find("[GroupOrder]") {
+                text.insert_str(pos, &clak_entry);
+            } else {
+                text.push_str(&clak_entry);
+            }
+        }
+
+        let _ = fs::write(&profile_path, text);
     }
 }
 

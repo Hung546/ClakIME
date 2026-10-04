@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.8](https://github.com/versenilvis/clak/releases/tag/v0.2.8) - 2026-10-04
+
+### Bug fixes
+
+- Preserve wayland environment on fcitx5 reload and enable local configuration ([eb18b6](https://github.com/versenilvis/clak/commit/eb18b61a3646af023d6d35e2b9bddf941d05d8ae))
+- Import sf pro text font and increase feature title weight ([020c7a](https://github.com/versenilvis/clak/commit/020c7a3ddb016e89b61fd178fbbc48490d2f0866))
+
 ## [v0.2.7](https://github.com/versenilvis/clak/releases/tag/v0.2.7) - 2026-10-04
 
 ### Bug fixes

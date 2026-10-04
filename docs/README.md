@@ -17,6 +17,7 @@ input-method/
 ├── justfile                    # Phím tắt tác vụ (build, deploy, test)
 ├── engine/                     # Lõi xử lý tiếng Việt bằng Rust
 │   ├── Cargo.toml
+│   ├── tests/                  # Bộ kiểm thử tích hợp và bất biến (proptest)
 │   └── src/
 │       ├── lib.rs              # C-FFI exports (clak_context_new, clak_process_key...)
 │       ├── engine.rs           # Máy trạng thái Telex/VNI
@@ -36,9 +37,10 @@ input-method/
 │   ├── config/
 │   │   ├── config.h            # Các hằng số thời gian và ngưỡng an toàn
 │   │   └── sites.h / .cpp      # Nhận diện nhóm ứng dụng và domain website
-│   └── utils/
-│       ├── log.h / .cpp        # Ghi log gỡ lỗi kèm xoay vòng dung lượng
-│       └── text_utils.h / .cpp # Xử lý chuỗi UTF-8, đếm ký tự, tách từ
+│   ├── utils/
+│   │   ├── log.h / .cpp        # Ghi log gỡ lỗi kèm xoay vòng dung lượng
+│   │   └── text_utils.h / .cpp # Xử lý chuỗi UTF-8, đếm ký tự, tách từ
+│   └── tests/                  # Bộ kiểm thử C++ State Machine và Regression
 ├── scripts/
 │   └── tests/                  # Bộ script kiểm thử tự động và đo latency
 └── docs/                       # Tài liệu chi tiết từng module
@@ -72,3 +74,4 @@ Mỗi module được giải thích cặn kẽ trong các tài liệu sau:
 - [Môi trường Cửa sổ và Nhận diện Ứng dụng (Platform)](./docs/platform-window.md): Giao thức IPC Unix Socket với Hyprland, nhận diện domain web, và chuyển đổi trạng thái Vim.
 - [Bộ phát Phím ảo và Nhịp thời gian (Uinput Pacing)](./docs/uinput-pacing.md): Trình điều khiển `/dev/uinput`, kỹ thuật pacing với `post_delay` và `gap_ms` để trình duyệt không bị nuốt phím.
 - [Đo đạc và Tối ưu Độ trễ (Benchmark & Latency)](./docs/benchmark-latency.md): Phương pháp đo latency từ lúc nhận keydown đến khi commit, bảng số liệu p50/p95/p99 của 5 nhóm ứng dụng.
+- [Hệ thống Kiểm thử Tự động (Automated Tests)](./docs/test.md): Danh mục kiểm thử Rust engine, C++ state machine, kịch bản phòng ngừa lỗi (regression corpus) và hướng dẫn chạy test.

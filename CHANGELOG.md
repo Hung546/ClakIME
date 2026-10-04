@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.6](https://github.com/versenilvis/clak/releases/tag/v0.2.6) - 2026-10-04
+
+### Documentation
+
+- Highlight recommendation to use only Clak with terminal colors ([d2c11a](https://github.com/versenilvis/clak/commit/d2c11a6f144601b485957a46b6d6b54051382c84))
+- Sync notify-send message and guard tag existence ([e20a61](https://github.com/versenilvis/clak/commit/e20a61ecef8e0682833bb761687c945d9d93df5d))
+
+### Features
+
+- Show VI/EN state at input cursor and keep tray icon stable ([380e9a](https://github.com/versenilvis/clak/commit/380e9a57427db587639dcf7fed7d1d6f6246cf7a))
+
 ## [v0.2.5](https://github.com/versenilvis/clak/releases/tag/v0.2.5) - 2026-10-04
 
 ### Bug fixes

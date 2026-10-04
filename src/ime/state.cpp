@@ -81,8 +81,6 @@ void ClakState::reset(bool force) {
     mismatch_count_ = 0;
     cached_site_.clear();
     last_site_check_us_ = 0;
-    ctrl_shift_down_ = false;
-    ctrl_shift_other_key_ = false;
     if (rust_ctx_) {
         clak_context_reset(rust_ctx_);
     }

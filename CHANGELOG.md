@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.4](https://github.com/versenilvis/clak/releases/tag/v0.2.4) - 2026-10-04
+
+### Bug fixes
+
+- Refresh all icons to white contrast and update en mode indicator ([c8f7b1](https://github.com/versenilvis/clak/commit/c8f7b1153517b701259d19d06480b17626aa2ca0))
+- Fix ctrl+shift toggle by preserving modifier state across reset ([ff8253](https://github.com/versenilvis/clak/commit/ff8253cf299838b7a677d7581e2df94d7dd3044a))
+
 ## [v0.2.3](https://github.com/versenilvis/clak/releases/tag/v0.2.3) - 2026-10-04
 
 ### Bug fixes

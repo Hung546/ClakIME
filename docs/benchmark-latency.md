@@ -1,8 +1,8 @@
 # Đo đạc và Tối ưu Độ trễ (Benchmark & Latency)
 
-Thư mục: [scripts/tests/](file:///home/verse/dev/github/input-method/scripts/tests/)
+Thư mục: [scripts/tests/](../scripts/tests/)
 
-File chính: [benchmark_all_groups.sh](file:///home/verse/dev/github/input-method/scripts/tests/benchmark_all_groups.sh), [analyze_latency.py](file:///home/verse/dev/github/input-method/scripts/tests/analyze_latency.py)
+File chính: [benchmark_all_groups.sh](../scripts/tests/benchmark_all_groups.sh), [analyze_latency.py](../scripts/tests/analyze_latency.py)
 
 Để đảm bảo cảm giác gõ mượt mà và không dựa trên phỏng đoán, Clak tích hợp cơ chế đo độ trễ thực thời trên từng hành vi gõ phím.
 

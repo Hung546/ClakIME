@@ -19,7 +19,7 @@ Các nhóm API chính:
 
 ## 2. Giao diện ngữ cảnh nhập liệu (IME Context API)
 
-Tập trung tại [engine/src/ime.rs](file:///home/verse/dev/github/input-method/engine/src/ime.rs).
+Tập trung tại [engine/src/ime.rs](../engine/src/ime.rs).
 
 ### Danh mục hàm
 
@@ -64,7 +64,7 @@ typedef struct {
 
 ## 3. Giao diện biến đổi chuỗi (Core Transform API)
 
-Tập trung tại [engine/src/lib.rs](file:///home/verse/dev/github/input-method/engine/src/lib.rs).
+Tập trung tại [engine/src/lib.rs](../engine/src/lib.rs).
 
 ### Danh mục hàm
 
@@ -88,7 +88,7 @@ Tập trung tại [engine/src/lib.rs](file:///home/verse/dev/github/input-method
 
 ## 4. Giao diện bảng mã và giải mã (Charset API)
 
-Tập trung tại [engine/src/charset.rs](file:///home/verse/dev/github/input-method/engine/src/charset.rs).
+Tập trung tại [engine/src/charset.rs](../engine/src/charset.rs).
 
 ### Danh mục hàm
 
@@ -113,7 +113,7 @@ Tập trung tại [engine/src/charset.rs](file:///home/verse/dev/github/input-me
 
 ## 5. Giao diện đọc cấu hình (Config API)
 
-Tập trung tại [engine/src/config.rs](file:///home/verse/dev/github/input-method/engine/src/config.rs).
+Tập trung tại [engine/src/config.rs](../engine/src/config.rs).
 
 ### Danh mục hàm
 

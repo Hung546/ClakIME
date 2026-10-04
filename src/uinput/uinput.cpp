@@ -93,14 +93,13 @@ bool UinputTool::send_backspace_direct(size_t count, uint32_t post_delay_ms, uin
 
     // paced uinput worker thread prevents blocking fcitx event loop
     std::thread([this, count, post_delay_ms, pre_delay_ms, gap_ms]() {
-        std::lock_guard<std::mutex> lock(uinput_mutex_);
-        if (direct_fd_ < 0) return;
-
         if (pre_delay_ms > 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(pre_delay_ms));
         }
 
         auto emit_bs = [this]() {
+            std::lock_guard<std::mutex> lock(uinput_mutex_);
+            if (direct_fd_ < 0) return;
             struct input_event evs[4]{};
             evs[0] = { {}, EV_KEY, KEY_BACKSPACE, 1 };
             evs[1] = { {}, EV_SYN, SYN_REPORT, 0 };

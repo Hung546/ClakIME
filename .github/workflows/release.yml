@@ -118,18 +118,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate Full CHANGELOG
+      - name: Switch to main branch
+        run: git checkout main
+
+      - name: Update Full CHANGELOG
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --tag ${{ github.ref_name }} --output /tmp/CHANGELOG.md
+          args: --latest --prepend CHANGELOG.md
 
       - name: Commit CHANGELOG.md
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
-          cp /tmp/CHANGELOG.md CHANGELOG.md
           git add CHANGELOG.md
           if git diff --cached --quiet; then
             echo "CHANGELOG.md unchanged, nothing to commit"

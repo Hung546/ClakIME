@@ -135,6 +135,8 @@ jobs:
     name: Deploy to AUR
     needs: publish
     runs-on: ubuntu-latest
+    env:
+      AUR_KEY: ${{ secrets.AUR_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -147,7 +149,7 @@ jobs:
 
       - name: Publish clak to AUR
         if: env.AUR_KEY != ''
-        uses: KSXGitHub/github-actions-deploy-aur@v4
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
         with:
           pkgname: clak
           pkgbuild: packaging/aur/PKGBUILD
@@ -155,5 +157,3 @@ jobs:
           commit_email: "versedev.store@proton.me"
           ssh_private_key: ${{ secrets.AUR_KEY }}
           commit_message: "release: update to ${GITHUB_REF_NAME}"
-        env:
-          AUR_KEY: ${{ secrets.AUR_KEY }}

@@ -63,6 +63,7 @@ jobs:
             cmake \
             extra-cmake-modules \
             fcitx5 \
+            libinput \
             rust \
             git
 

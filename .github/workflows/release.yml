@@ -163,6 +163,7 @@ jobs:
         with:
           pkgname: clak
           pkgbuild: packaging/aur/PKGBUILD
+          assets: packaging/aur/clak.install
           commit_username: "verse"
           commit_email: "versedev.store@proton.me"
           ssh_private_key: ${{ secrets.AUR_KEY }}
@@ -174,6 +175,7 @@ jobs:
         with:
           pkgname: clak-bin
           pkgbuild: packaging/aur-bin/PKGBUILD
+          assets: packaging/aur-bin/clak-bin.install
           commit_username: "verse"
           commit_email: "versedev.store@proton.me"
           ssh_private_key: ${{ secrets.AUR_KEY }}

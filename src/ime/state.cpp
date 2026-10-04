@@ -664,7 +664,10 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
                 if (!ctrl_shift_other_key_) {
                     engine_->toggleAppEnabled(app);
                     reset(/*force=*/true);
-                    ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+                    ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
+                    if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
+                        engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
+                    }
                 }
                 ctrl_shift_down_ = false;
                 ctrl_shift_other_key_ = false;
@@ -683,7 +686,10 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     if (shortcut == "alt_z" && is_alt && !is_ctrl && (key.sym() == FcitxKey_z || key.sym() == FcitxKey_Z)) {
         engine_->toggleAppEnabled(app);
         reset(/*force=*/true);
-        ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
+        ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
+        if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
+            engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
+        }
         keyEvent.filterAndAccept();
         return;
     }

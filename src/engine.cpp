@@ -180,6 +180,7 @@ void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputCont
     if (ic) {
         ic->statusArea().addAction(fcitx::StatusGroup::InputMethod, &settings_action_);
         settings_action_.update(ic);
+        ic->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea);
     }
     auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     std::string app = state ? state->appKey() : (ic ? ic->program() : "");
@@ -225,9 +226,8 @@ std::string ClakEngine::subModeIconImpl(const fcitx::InputMethodEntry& entry, fc
 
 std::string ClakEngine::subModeLabelImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    auto* state = ic.propertyFor(&factory_);
-    std::string app = state ? state->appKey() : ic.program();
-    return isAppEnabled(app) ? "Vi" : "En";
+    FCITX_UNUSED(ic);
+    return "Vi";
 }
 
 } // namespace clak

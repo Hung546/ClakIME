@@ -51,6 +51,7 @@
               cmakeFlags = [
                 "-DCMAKE_BUILD_TYPE=Release"
                 "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
+                "-DENABLE_GUI=OFF"
               ];
 
               meta = with pkgs.lib; {

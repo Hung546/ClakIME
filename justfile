@@ -137,6 +137,11 @@ tag version:
     tag="v${ver}"
     branch=$(git branch --show-current)
 
+    if git rev-parse "${tag}" >/dev/null 2>&1; then
+        echo "error: tag ${tag} already exists, latest tag is $(git describe --tags --abbrev=0 2>/dev/null || echo 'none')"
+        exit 1
+    fi
+
     if ! git diff-index --quiet HEAD --; then
         echo "error: working tree is dirty, please commit or stash changes first"
         exit 1

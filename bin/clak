@@ -310,10 +310,11 @@ X-KDE-autostart-after=panel
             with open(profile_file, "w") as f:
                 f.write("\n".join(lines) + "\n")
 
-        print("✔ Đã kích hoạt tự động chạy Clak Tiếng Việt cùng hệ thống")
-    elif args.action == "disable":
+    elif action == "disable":
         if os.path.exists(desktop_file):
             os.remove(desktop_file)
+        if os.path.exists(env_file):
+            os.remove(env_file)
         print("✔ Đã tắt tự động chạy Clak Tiếng Việt cùng hệ thống")
     else:
         is_enabled = os.path.exists(desktop_file) or os.path.exists("/etc/xdg/autostart/org.fcitx.Fcitx5.desktop")

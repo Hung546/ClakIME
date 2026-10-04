@@ -46,12 +46,15 @@
 
               buildInputs = with pkgs; [
                 fcitx5
+                libinput
+                systemd
               ];
 
               cmakeFlags = [
                 "-DCMAKE_BUILD_TYPE=Release"
                 "-DCMAKE_INSTALL_PREFIX=${placeholder "out"}"
                 "-DENABLE_GUI=OFF"
+                "-DBUILD_TESTING=OFF"
               ];
 
               meta = with pkgs.lib; {

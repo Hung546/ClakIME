@@ -1,4 +1,3 @@
-import { LineEdit } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
 import {
     Divider,
@@ -120,12 +119,41 @@ export component TabGeneral inherits VerticalLayout {
         padding-top: 6px;
         padding-bottom: 4px;
 
-        LineEdit {
-            placeholder-text: "Gõ thử: tieengs vieetj...";
-            text <=> root.playground_input;
-            horizontal-stretch: 1;
-            edited(text) => {
-                root.test_transformed(text);
+        Rectangle {
+            height: 38px;
+            background: #0d0d0d;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: input.has-focus ? #2c2c2c : #191919;
+
+            animate border-color { duration: 150ms; }
+
+            // chu chim / placeholder mo
+            if input.text == "": Text {
+                x: 12px;
+                y: 0px;
+                width: parent.width - 24px;
+                height: parent.height;
+                text: "Gõ thử tiếng Việt...";
+                color: #555555;
+                font-size: 13px;
+                font-weight: 400;
+                vertical-alignment: center;
+            }
+
+            input := TextInput {
+                x: 12px;
+                y: 0px;
+                width: parent.width - 24px;
+                height: parent.height;
+                text <=> root.playground_input;
+                color: Theme.text-primary;
+                font-size: 13px;
+                vertical-alignment: center;
+                single-line: true;
+                edited => {
+                    root.test_transformed(self.text);
+                }
             }
         }
     }
@@ -135,12 +163,20 @@ export component TabGeneral inherits VerticalLayout {
         padding-right: 14px;
         padding-bottom: 6px;
         alignment: start;
+        spacing: 6px;
 
         Text {
-            text: "→ " + root.playground_output;
-            color: #38bdf8;
+            text: "Kết quả:";
+            color: Theme.text-faint;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.playground_output;
+            color: #61ffca;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 500;
             vertical-alignment: center;
         }
     }

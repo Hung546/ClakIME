@@ -123,6 +123,9 @@ void ClakEngine::toggleAppEnabled(const std::string& app) {
     bool current = isAppEnabled(app);
     bool next = !current;
     if (config_ && clak_config_get_remember_state(config_)) {
+        if (app_states_.size() >= kMaxTrackedAppStates) {
+            app_states_.clear();
+        }
         app_states_[app] = next;
     } else {
         global_enabled_ = next;
@@ -132,6 +135,9 @@ void ClakEngine::toggleAppEnabled(const std::string& app) {
 
 void ClakEngine::setAppEnabled(const std::string& app, bool enabled) {
     if (config_ && clak_config_get_remember_state(config_)) {
+        if (app_states_.size() >= kMaxTrackedAppStates) {
+            app_states_.clear();
+        }
         app_states_[app] = enabled;
     } else {
         global_enabled_ = enabled;

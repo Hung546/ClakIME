@@ -54,6 +54,7 @@ private:
     std::unique_ptr<fcitx::EventSourceIO> config_io_;
     int inotify_fd_{-1};
     int inotify_wd_{-1};
+    static constexpr size_t kMaxTrackedAppStates = 256;
     std::unordered_map<std::string, bool> app_states_;
     bool global_enabled_{true};
     uint64_t config_version_{0};

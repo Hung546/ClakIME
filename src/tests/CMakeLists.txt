@@ -1,4 +1,4 @@
-find_package(GTest REQUIRED)
+find_package(GTest QUIET)
 
 add_executable(clak_cpp_tests
     mock_input_context.cpp

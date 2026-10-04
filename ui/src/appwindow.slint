@@ -218,7 +218,7 @@ export component MainWindow inherits Window {
                             ActionButton {
                                 text: "OK";
                                 primary: true;
-                                enabled: true;
+                                enabled: root.has_changes;
                                 clicked => { root.ok_requested(); }
                             }
                         }

@@ -229,7 +229,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let Some(window) = win_ok.upgrade() else {
             return;
         };
-        save_config(&window, &apps_ok, &macros_ok);
+        if window.get_has_changes() {
+            save_config(&window, &apps_ok, &macros_ok);
+        }
         let _ = slint::quit_event_loop();
     });
 

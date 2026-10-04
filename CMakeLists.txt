@@ -128,7 +128,7 @@ configure_file(
 
 file(GENERATE
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/clak-local.conf"
-    CONTENT "[Addon]\nName=Clak\nName[vi]=Clak\nComment=Fast Vietnamese input method\nCategory=InputMethod\nVersion=0.1.0\nEnabled=True\nIcon=org.fcitx.Fcitx5.clak\nLibrary=${CMAKE_CURRENT_BINARY_DIR}/libclak\nType=SharedLibrary\nOnDemand=True\nConfigurable=False\n[Dependencies]\n0=core:5.0.14\n"
+    CONTENT "[Addon]\nName=Clak\nName[vi]=Bộ gõ tiếng Việt Clak\nComment=Fast and stable Vietnamese input method for Fcitx5\nCategory=InputMethod\nVersion=${PROJECT_VERSION}\nEnabled=True\nIcon=org.fcitx.Fcitx5.clak\nLibrary=${CMAKE_CURRENT_BINARY_DIR}/libclak\nType=SharedLibrary\nOnDemand=True\nConfigurable=True\n[Dependencies]\n0=core:5.0.14\n"
 )
 
 install(TARGETS clak DESTINATION "${FCITX_INSTALL_ADDONDIR}")

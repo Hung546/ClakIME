@@ -219,9 +219,8 @@ std::string ClakEngine::subMode(const fcitx::InputMethodEntry& entry, fcitx::Inp
 
 std::string ClakEngine::subModeIconImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    auto* state = ic.propertyFor(&factory_);
-    std::string app = state ? state->appKey() : ic.program();
-    return isAppEnabled(app) ? "org.fcitx.Fcitx5.clak" : "input-keyboard";
+    FCITX_UNUSED(ic);
+    return "org.fcitx.Fcitx5.clak";
 }
 
 std::string ClakEngine::subModeLabelImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {

@@ -1,73 +1,94 @@
 # run "just -l" to view all commands
-
 default:
     @just --list
 
+# build, install and restart fcitx5
+[group("dev")]
+dev: build install restart
+
 # build clak fcitx5 addon
+[group("dev")]
 build:
     cmake --build build
 
 # build in release mode
+[group("dev")]
 build-release:
     cmake -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build
 
 # install addon for current user
+[group("dev")]
 install:
     cmake --build build --target install-user
 
 # restart fcitx5 daemon
+[group("dev")]
 restart:
     fcitx5 -r -d
 
-# build, install and restart fcitx5
-dev: build install restart
+# clean build artifacts
+[group("dev")]
+clean:
+    rm -rf build engine/target vendor clak-vendor.tar.gz clak-vendor.tar.gz.sha256
+
+# run clak settings gui
+[group("gui")]
+gui:
+    cargo run --manifest-path ui/Cargo.toml --release
+
+# build clak settings gui binary
+[group("gui")]
+build-gui:
+    cargo build --manifest-path ui/Cargo.toml --release
+
+# run all automated tests
+[group("test")]
+test: test-unit test-cpp test-scenario
 
 # run all cargo tests
+[group("test")]
 test-unit:
     cargo test --manifest-path engine/Cargo.toml
 
-# run C++ state machine and regression test suites
+# run c++ state machine and regression test suites
+[group("test")]
 test-cpp:
     cmake --build build --target clak_cpp_tests
     ./build/src/tests/clak_cpp_tests
 
+# test user typing scenario
+[group("test")]
+test-scenario:
+    bash scripts/tests/test_user_scenario.sh
+
 # test typing speed and accuracy
+[group("test")]
 test-speed delay="20":
     bash scripts/tests/test_speed.sh {{delay}}
 
 # test chromium address bar typing and backspacing
+[group("test")]
 test-chromium delay="15":
     bash scripts/tests/test_chromium.sh {{delay}}
 
 # test autocomplete selection in address bar
+[group("test")]
 test-autocomplete:
     bash scripts/tests/test_autocomplete_dd.sh
 
-# test user typing scenario
-test-scenario:
-    bash scripts/tests/test_user_scenario.sh
+# test installer simulation flow
+[group("test")]
+test-install mode="":
+    bash scripts/install.sh --dry-run {{mode}}
 
-# run all automated tests
-test: test-unit test-cpp test-scenario
-
-# run latency benchmark analysis and regression assertion
-bench *args:
-    ./bin/clak bench {{args}}
-
-# run environment diagnostics
-doctor:
-    ./bin/clak doctor
-
-# build clak settings gui binary
-build-gui:
-    cargo build --manifest-path ui/Cargo.toml --release
-
-# run clak settings gui
-gui:
-    cargo run --manifest-path ui/Cargo.toml --release
+# test updater simulation flow
+[group("test")]
+test-update args="":
+    bash scripts/update.sh --dry-run {{args}}
 
 # run all fmt, clippy, unit tests and build check before pushing
+[group("quality")]
 check:
     cargo fmt --manifest-path engine/Cargo.toml -- --check
     cargo clippy --manifest-path engine/Cargo.toml -- -D warnings
@@ -78,38 +99,36 @@ check:
     cmake --build build
 
 # install git pre-push hook to run checks before pushing
+[group("quality")]
 install-hooks:
     @echo '#!/bin/sh' > .git/hooks/pre-push
-    @echo 'echo "Running pre-push checks..."' >> .git/hooks/pre-push
+    @echo 'echo "running pre-push checks..."' >> .git/hooks/pre-push
     @echo 'just check || exit 1' >> .git/hooks/pre-push
     @chmod +x .git/hooks/pre-push
     @echo "pre-push hook installed successfully"
 
+# run latency benchmark analysis and regression assertion
+[group("quality")]
+bench *args:
+    ./bin/clak bench {{args}}
+
+# run environment diagnostics
+[group("quality")]
+doctor:
+    ./bin/clak doctor
+
 # tail debug log
+[group("debug")]
 log:
     tail -f /tmp/clak.log
 
 # clear debug log
+[group("debug")]
 clean-log:
     rm -f /tmp/clak.log
 
-# create cargo vendor archive for offline packaging
-vendor:
-    cargo vendor vendor/ --manifest-path engine/Cargo.toml
-    tar -czf clak-vendor.tar.gz vendor/
-    sha256sum clak-vendor.tar.gz > clak-vendor.tar.gz.sha256
-    rm -rf vendor/
-
-# update aur .srcinfo metadata
-pkg-aur:
-    cd packaging/aur && makepkg --printsrcinfo > .SRCINFO
-    cd packaging/aur-bin && makepkg --printsrcinfo > .SRCINFO
-
-# generate changelog with git-cliff
-changelog:
-    git-cliff --unreleased
-
 # release a new version, bump files, commit, tag and push
+[group("release")]
 tag version:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -148,18 +167,26 @@ tag version:
     git push origin "${tag}"
     echo "Successfully released and pushed ${tag}"
 
-# test installer simulation flow
-test-install mode="":
-    bash scripts/install.sh --dry-run {{mode}}
+# generate changelog with git-cliff
+[group("release")]
+changelog:
+    git-cliff --unreleased
+
+# update aur .srcinfo metadata
+[group("release")]
+pkg-aur:
+    cd packaging/aur && makepkg --printsrcinfo > .SRCINFO
+    cd packaging/aur-bin && makepkg --printsrcinfo > .SRCINFO
+
+# create cargo vendor archive for offline packaging
+[group("release")]
+vendor:
+    cargo vendor vendor/ --manifest-path engine/Cargo.toml
+    tar -czf clak-vendor.tar.gz vendor/
+    sha256sum clak-vendor.tar.gz > clak-vendor.tar.gz.sha256
+    rm -rf vendor/
 
 # update clak to latest release
+[group("release")]
 update args="":
     bash scripts/update.sh {{args}}
-
-# test updater simulation flow
-test-update args="":
-    bash scripts/update.sh --dry-run {{args}}
-
-# clean build artifacts
-clean:
-    rm -rf build engine/target vendor clak-vendor.tar.gz clak-vendor.tar.gz.sha256

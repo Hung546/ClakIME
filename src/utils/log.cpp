@@ -3,13 +3,15 @@
 #include <chrono>
 #include <ctime>
 #include <cstdlib>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 namespace clak {
 namespace utils {
 
-constexpr long kMaxLogSizeBytes = 2 * 1024 * 1024;
-static bool s_log_enabled = true;
+constexpr off_t kMaxLogSizeBytes = 2 * 1024 * 1024;
+static bool s_log_enabled = false;
 static bool s_checked_env = false;
 
 void setLogEnabled(bool enabled) {
@@ -21,8 +23,8 @@ bool isLogEnabled() {
     if (!s_checked_env) {
         s_checked_env = true;
         const char* env = getenv("CLAK_LOG");
-        if (env && (std::string(env) == "0" || std::string(env) == "false" || std::string(env) == "off")) {
-            s_log_enabled = false;
+        if (env) {
+            s_log_enabled = (std::string(env) != "0" && std::string(env) != "false" && std::string(env) != "off");
         }
     }
     return s_log_enabled;
@@ -32,15 +34,29 @@ void clakLog(const std::string& msg) {
     if (!isLogEnabled()) return;
 
     const char* path = "/tmp/clak.log";
+    // open with nofollow and strict user permissions to mitigate symlink and info disclosure attacks
+    int fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return;
+
     struct stat st{};
-    if (stat(path, &st) == 0 && st.st_size > kMaxLogSizeBytes) {
-        // truncate when exceeding limit to keep file small
-        FILE* trunc_fp = fopen(path, "w");
-        if (trunc_fp) fclose(trunc_fp);
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode) || st.st_uid != getuid()) {
+        close(fd);
+        return;
     }
 
-    FILE* log_fp = fopen(path, "a");
-    if (!log_fp) return;
+    if (st.st_size > kMaxLogSizeBytes) {
+        // truncate atomically on open fd without reopening path
+        if (ftruncate(fd, 0) != 0) {
+            close(fd);
+            return;
+        }
+    }
+
+    FILE* log_fp = fdopen(fd, "a");
+    if (!log_fp) {
+        close(fd);
+        return;
+    }
 
     auto now = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(now);

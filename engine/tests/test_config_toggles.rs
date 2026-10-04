@@ -175,3 +175,23 @@ fn test_toggle_auto_capitalize() {
     let acts_off = type_text(&mut ctx_off, "a");
     assert_eq!(acts_off[0].0, ACTION_FORWARD);
 }
+
+#[test]
+fn test_debug_log_toggle_and_secure_permissions() {
+    let mut cfg_on = ClakConfig::default();
+    cfg_on.advanced.debug_log = true;
+
+    let mut ctx_on = ClakContext::new(Method::Telex);
+    ctx_on.apply_config(&cfg_on);
+
+    // type a key with debug log on and verify permissions
+    let _ = type_text(&mut ctx_on, "a");
+
+    let path = std::path::Path::new("/tmp/clak.log");
+    if path.exists() {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(path).unwrap();
+        let permissions = meta.mode() & 0o777;
+        assert_eq!(permissions, 0o600);
+    }
+}

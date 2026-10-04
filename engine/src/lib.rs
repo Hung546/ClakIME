@@ -285,12 +285,15 @@ pub unsafe extern "C" fn clak_core_transform(
     if engine.is_null() || input.is_null() {
         return std::ptr::null_mut();
     }
-    let e = unsafe { &*engine };
-    let s = match unsafe { CStr::from_ptr(input) }.to_str() {
-        Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
-    };
-    CString::new(e.transform(s)).unwrap_or_default().into_raw()
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let e = unsafe { &*engine };
+        let s = match unsafe { CStr::from_ptr(input) }.to_str() {
+            Ok(s) => s,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        CString::new(e.transform(s)).unwrap_or_default().into_raw()
+    }));
+    result.unwrap_or(std::ptr::null_mut())
 }
 
 #[unsafe(no_mangle)]
@@ -304,7 +307,12 @@ pub unsafe extern "C" fn clak_charset_encode(
     }
     let s = match unsafe { CStr::from_ptr(input) }.to_str() {
         Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
+        Err(_) => {
+            unsafe {
+                *out_len = 0;
+            }
+            return std::ptr::null_mut();
+        }
     };
     let cs = match charset {
         0 => charset::VietCharset::Unicode,
@@ -316,14 +324,21 @@ pub unsafe extern "C" fn clak_charset_encode(
     };
     let encoded = charset::encode(s, cs);
     let len = encoded.len();
+    if len == 0 {
+        unsafe {
+            *out_len = 0;
+        }
+        return std::ptr::null_mut();
+    }
     let ptr = libc::malloc(len).cast::<u8>();
     if ptr.is_null() {
+        unsafe {
+            *out_len = 0;
+        }
         return std::ptr::null_mut();
     }
     unsafe {
         std::ptr::copy_nonoverlapping(encoded.as_ptr(), ptr, len);
-    }
-    unsafe {
         *out_len = len;
     }
     ptr

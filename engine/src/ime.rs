@@ -30,6 +30,7 @@ pub struct ClakContext {
     sentence_cap_state: SentenceCapState,
     macros_enabled: bool,
     macros: std::collections::HashMap<String, String>,
+    debug_log: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -59,6 +60,7 @@ impl ClakContext {
             sentence_cap_state: SentenceCapState::StartOfInput,
             macros_enabled: true,
             macros: std::collections::HashMap::new(),
+            debug_log: false,
         }
     }
 
@@ -77,6 +79,7 @@ impl ClakContext {
         self.bracket_brackets = cfg.general.bracket_brackets;
         self.double_space_period = cfg.typing.double_space_period;
         self.auto_capitalize = cfg.typing.auto_capitalize;
+        self.debug_log = cfg.advanced.debug_log;
         self.macros_enabled = cfg.macros.enabled;
         self.macros = cfg
             .macros
@@ -744,36 +747,49 @@ pub unsafe extern "C" fn clak_process_key(
 
         let action = c.process_key(key_sym, k_str, has_ctrl_alt, s_text, cursor, anchor);
 
-        // log key action to /tmp/clak.log
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open("/tmp/clak.log")
-        {
+        let log_enabled = c.debug_log
+            || std::env::var("CLAK_LOG")
+                .map(|v| v != "0" && v != "false" && v != "off")
+                .unwrap_or(false);
+        if log_enabled {
             use std::io::Write;
-            let act_name = match action.action_type {
-                0 => "FORWARD",
-                1 => "COMMIT",
-                2 => "REPLACE_SURR",
-                3 => "ADDR_BAR_FIX",
-                4 => "REPLACE",
-                _ => "UNKNOWN",
-            };
-            let commit = if action.commit_str.is_null() {
-                ""
-            } else {
-                CStr::from_ptr(action.commit_str).to_str().unwrap_or("")
-            };
-            let mut surr_preview = String::from("none");
-            if let Some(t) = s_text {
-                let preview: String = t.chars().take(25).collect();
-                surr_preview = format!("'{}'(c={},a={})", preview, cursor, anchor);
+            use std::os::unix::fs::MetadataExt;
+            use std::os::unix::fs::OpenOptionsExt;
+
+            let mut opts = std::fs::OpenOptions::new();
+            opts.create(true)
+                .append(true)
+                .mode(0o600)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+            if let Ok(mut f) = opts.open("/tmp/clak.log") {
+                if let Ok(meta) = f.metadata() {
+                    if meta.uid() == unsafe { libc::getuid() } && meta.file_type().is_file() {
+                        let act_name = match action.action_type {
+                            0 => "FORWARD",
+                            1 => "COMMIT",
+                            2 => "REPLACE_SURR",
+                            3 => "ADDR_BAR_FIX",
+                            4 => "REPLACE",
+                            _ => "UNKNOWN",
+                        };
+                        let commit = if action.commit_str.is_null() {
+                            ""
+                        } else {
+                            CStr::from_ptr(action.commit_str).to_str().unwrap_or("")
+                        };
+                        let mut surr_preview = String::from("none");
+                        if let Some(t) = s_text {
+                            let preview: String = t.chars().take(25).collect();
+                            surr_preview = format!("'{}'(c={},a={})", preview, cursor, anchor);
+                        }
+                        let _ = writeln!(
+                            f,
+                            "Key: '{}' (0x{:x}) | Surr: {} | Act: {} (del={}) -> Commit: '{}' | Raw: '{}' | Composed: '{}'",
+                            k_str, key_sym, surr_preview, act_name, action.delete_count, commit, c.raw_buffer, c.last_composed
+                        );
+                    }
+                }
             }
-            let _ = writeln!(
-                f,
-                "Key: '{}' (0x{:x}) | Surr: {} | Act: {} (del={}) -> Commit: '{}' | Raw: '{}' | Composed: '{}'",
-                k_str, key_sym, surr_preview, act_name, action.delete_count, commit, c.raw_buffer, c.last_composed
-            );
         }
 
         action

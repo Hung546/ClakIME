@@ -72,7 +72,7 @@ WindowInfo getActiveWindow(const std::string& fallback_app) {
                 closedir(d);
             }
         }
-        if (sig.empty()) {
+        if (sig.empty() || sig.find('/') != std::string::npos || sig.find("..") != std::string::npos) {
             if (!fallback_app.empty()) {
                 info.win_class = fallback_app;
             }
@@ -81,7 +81,7 @@ WindowInfo getActiveWindow(const std::string& fallback_app) {
         s_sock_path = std::string(xdg) + "/hypr/" + sig + "/.socket.sock";
     }
 
-    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (fd < 0) {
         if (!fallback_app.empty()) {
             info.win_class = fallback_app;
@@ -91,8 +91,17 @@ WindowInfo getActiveWindow(const std::string& fallback_app) {
 
     struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
+    if (s_sock_path.length() >= sizeof(addr.sun_path)) {
+        close(fd);
+        s_sock_path.clear();
+        if (!fallback_app.empty()) {
+            info.win_class = fallback_app;
+        }
+        return info;
+    }
     strncpy(addr.sun_path, s_sock_path.c_str(), sizeof(addr.sun_path) - 1);
-    socklen_t len = offsetof(struct sockaddr_un, sun_path) + s_sock_path.length() + 1;
+    addr.sun_path[sizeof(addr.sun_path) - 1] = '\0';
+    socklen_t len = offsetof(struct sockaddr_un, sun_path) + strlen(addr.sun_path) + 1;
 
     if (connect(fd, reinterpret_cast<struct sockaddr*>(&addr), len) != 0) {
         close(fd);

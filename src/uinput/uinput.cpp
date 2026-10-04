@@ -34,7 +34,7 @@ UinputTool::~UinputTool() {
 
 bool UinputTool::init_direct_uinput() {
     if (direct_fd_ >= 0) return true;
-    int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+    int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
     int open_err = (fd < 0) ? errno : 0;
     utils::clakLog("uinput direct open(/dev/uinput): ret=" + std::to_string(fd) +
                    (fd < 0 ? (" errno=" + std::to_string(open_err) + " (" + strerror(open_err) + ")") : " (ok)"));
@@ -106,7 +106,8 @@ bool UinputTool::send_backspace_direct(size_t count, uint32_t post_delay_ms, uin
             evs[1] = { {}, EV_SYN, SYN_REPORT, 0 };
             evs[2] = { {}, EV_KEY, KEY_BACKSPACE, 0 };
             evs[3] = { {}, EV_SYN, SYN_REPORT, 0 };
-            write(direct_fd_, evs, sizeof(evs));
+            ssize_t written = write(direct_fd_, evs, sizeof(evs));
+            (void)written;
         };
 
         // send deletion backspaces before the sentinel
@@ -144,7 +145,7 @@ bool UinputTool::send_select(size_t count) {
         struct input_event shift_down[2]{};
         shift_down[0] = { {}, EV_KEY, KEY_LEFTSHIFT, 1 };
         shift_down[1] = { {}, EV_SYN, SYN_REPORT, 0 };
-        write(direct_fd_, shift_down, sizeof(shift_down));
+        (void)write(direct_fd_, shift_down, sizeof(shift_down));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
@@ -155,7 +156,7 @@ bool UinputTool::send_select(size_t count) {
             left_ev[1] = { {}, EV_SYN, SYN_REPORT, 0 };
             left_ev[2] = { {}, EV_KEY, KEY_LEFT, 0 };
             left_ev[3] = { {}, EV_SYN, SYN_REPORT, 0 };
-            write(direct_fd_, left_ev, sizeof(left_ev));
+            (void)write(direct_fd_, left_ev, sizeof(left_ev));
             std::this_thread::sleep_for(std::chrono::milliseconds(3));
         }
 
@@ -165,7 +166,7 @@ bool UinputTool::send_select(size_t count) {
         struct input_event shift_up[2]{};
         shift_up[0] = { {}, EV_KEY, KEY_LEFTSHIFT, 0 };
         shift_up[1] = { {}, EV_SYN, SYN_REPORT, 0 };
-        write(direct_fd_, shift_up, sizeof(shift_up));
+        (void)write(direct_fd_, shift_up, sizeof(shift_up));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
@@ -175,7 +176,7 @@ bool UinputTool::send_select(size_t count) {
         del_ev[1] = { {}, EV_SYN, SYN_REPORT, 0 };
         del_ev[2] = { {}, EV_KEY, KEY_DELETE, 0 };
         del_ev[3] = { {}, EV_SYN, SYN_REPORT, 0 };
-        write(direct_fd_, del_ev, sizeof(del_ev));
+        (void)write(direct_fd_, del_ev, sizeof(del_ev));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
@@ -185,7 +186,7 @@ bool UinputTool::send_select(size_t count) {
         sentinel_ev[1] = { {}, EV_SYN, SYN_REPORT, 0 };
         sentinel_ev[2] = { {}, EV_KEY, KEY_LEFT, 0 };
         sentinel_ev[3] = { {}, EV_SYN, SYN_REPORT, 0 };
-        write(direct_fd_, sentinel_ev, sizeof(sentinel_ev));
+        (void)write(direct_fd_, sentinel_ev, sizeof(sentinel_ev));
     }).detach();
 
     return true;

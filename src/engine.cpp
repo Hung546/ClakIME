@@ -64,6 +64,11 @@ void ClakEngine::loadConfig() {
     config_version_++;
     if (config_) {
         global_enabled_ = (clak_config_get_startup_mode(config_) == 0);
+        bool debug_log = clak_config_get_debug_log(config_);
+        const char* env = getenv("CLAK_LOG");
+        if (!env) {
+            utils::setLogEnabled(debug_log);
+        }
         utils::clakLog("config loaded: version=" + std::to_string(config_version_) +
                        " startup=" + (global_enabled_ ? "vietnamese" : "english"));
     }

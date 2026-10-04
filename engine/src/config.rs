@@ -221,7 +221,8 @@ pub fn config_path() -> PathBuf {
             .join("clak")
             .join("config.toml");
     }
-    PathBuf::from("/tmp/clak_config.toml")
+    let uid = unsafe { libc::getuid() };
+    std::env::temp_dir().join(format!("clak_{}_config.toml", uid))
 }
 
 impl ClakConfig {

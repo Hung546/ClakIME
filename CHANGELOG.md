@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.7](https://github.com/versenilvis/clak/releases/tag/v0.2.7) - 2026-10-04
+
+### Bug fixes
+
+- Restore authentic clak logo icons with high contrast ([7e06d4](https://github.com/versenilvis/clak/commit/7e06d4ec6f1e3263e66d75c6b943723e340fcb75))
+
 ## [v0.2.6](https://github.com/versenilvis/clak/releases/tag/v0.2.6) - 2026-10-04
 
 ### Documentation

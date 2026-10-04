@@ -2,14 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
-## [v0.2.0](https://github.com/versenilvis/clak/releases/tag/v0.2.0) - 2026-10-04
+## [v0.2.1](https://github.com/versenilvis/clak/releases/tag/v0.2.1) - 2026-10-04
 
-<div align="center">
-  <img width="949" height="700" alt="image" src="https://github.com/user-attachments/assets/778c2e42-b4a5-46db-96df-2e1858077601" />
-  
-  <strong>NEW UI</strong>
-  
-</div>
+### Bug fixes
+
+- Set _pkgname to ClakIME for archive root folder ([38c957](https://github.com/versenilvis/clak/commit/38c9578fcb1384bf67c89e8e0b90412578b6df65))
+
+## [v0.2.0](https://github.com/versenilvis/clak/releases/tag/v0.2.0) - 2026-10-04
 
 ### Bug fixes
 
@@ -72,5 +71,10 @@ All notable changes to this project are documented in this file.
 ### Refactors
 
 - Rename bin to cli ([3d1ae8](https://github.com/versenilvis/clak/commit/3d1ae8b07321f11ae10d41dcb2e119f184279952))
+
+### Security
+
+- Auto vuln scan ([226ade](https://github.com/versenilvis/clak/commit/226ade324032876558738d52d1567491f5397813))
+- Verify sha256 checksums before archive extraction ([95c19c](https://github.com/versenilvis/clak/commit/95c19c156b8e9718110b4bbf8bd4da45b2fb3e06))
 
 

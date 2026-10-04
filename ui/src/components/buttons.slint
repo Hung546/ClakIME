@@ -1,0 +1,87 @@
+import { Theme } from "../theme.slint";
+
+// nut bam ghost khong vien
+export component GhostButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> destructive: false;
+    callback clicked();
+
+    height: 28px;
+    border-radius: 6px;
+    background: ta.has-hover ? (root.destructive ? #c5585830 : #383838)
+        : (root.destructive ? #c5585818 : #262626);
+
+    animate background {
+        duration: 120ms;
+        easing: ease-out;
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 1px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.destructive ? (ta.has-hover ? #e57c7c : #c55858)
+                : (ta.has-hover ? #ffffff : #c0c0c0);
+            font-size: 12px;
+            font-weight: 500;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            animate color { duration: 120ms; }
+        }
+    }
+}
+
+// nut hanh dong chinh phu khong vien
+export component ActionButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> destructive: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: 32px;
+    min-width: 78px;
+    border-radius: 7px;
+    background: !root.enabled ? #1a1a1a : (
+        root.destructive ? (btn_ta.has-hover ? #c5585830 : #c558581a)
+        : (root.primary ? (btn_ta.has-hover ? #ffffff : #e6e6e6)
+        : (btn_ta.has-hover ? #363636 : #282828)));
+
+    animate background {
+        duration: 120ms;
+        easing: ease-out;
+    }
+
+    btn_ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { if root.enabled { root.clicked(); } }
+    }
+
+    HorizontalLayout {
+        alignment: center;
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 1px;
+
+        Text {
+            text: root.text;
+            color: !root.enabled ? #505050 : (
+                root.destructive ? (btn_ta.has-hover ? #e57c7c : #c55858)
+                : (root.primary ? #000000 : (btn_ta.has-hover ? #ffffff : #d4d4d4)));
+            font-size: 14px;
+            font-weight: 700;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+            animate color { duration: 120ms; }
+        }
+    }
+}

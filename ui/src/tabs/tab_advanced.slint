@@ -1,0 +1,155 @@
+import { ScrollView, LineEdit } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Divider, SettingItem, SectionHeader } from "../components/controls.slint";
+import { GhostButton } from "../components/buttons.slint";
+
+// tab 2: he thong va danh sach ung dung loai tru
+export component TabAdvanced inherits VerticalLayout {
+    in-out property <bool> autostart_system: true;
+    in-out property <bool> remember_app_state: true;
+    in-out property <[string]> excluded_apps: [];
+    in-out property <string> new_app_name: "";
+    in-out property <bool> uinput_ack: false;
+    in-out property <bool> debug_log: false;
+    callback changed();
+    callback add_excluded_app(string);
+    callback remove_excluded_app(int);
+
+    alignment: start;
+    spacing: 0px;
+
+    SectionHeader {
+        title: "HỆ THỐNG";
+        show-divider: false;
+    }
+
+    SettingItem {
+        title: "Khởi động cùng hệ thống";
+        subtitle: "Tự động chạy bộ gõ Clak Tiếng Việt khi đăng nhập máy tính";
+        checked <=> root.autostart_system;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Nhớ trạng thái theo từng ứng dụng";
+        subtitle: "Tự khôi phục chế độ V/E khi chuyển qua lại giữa các ứng dụng";
+        checked <=> root.remember_app_state;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Xác nhận (ACK) khi gửi phím uinput";
+        subtitle: "Chờ kernel xác nhận để hạn chế race condition";
+        checked <=> root.uinput_ack;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Ghi log vào /tmp/clak.log";
+        subtitle: "Dùng khi cần chẩn đoán lỗi surrounding text / uinput";
+        checked <=> root.debug_log;
+        toggled => { root.changed(); }
+    }
+
+    SectionHeader {
+        title: "LOẠI TRỪ";
+        show-divider: true;
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 6px;
+        padding-bottom: 8px;
+        spacing: 10px;
+
+        LineEdit {
+            placeholder-text: "Nhập WM_CLASS app (vd: steam, code, alacritty)...";
+            text <=> root.new_app_name;
+            horizontal-stretch: 1;
+        }
+
+        GhostButton {
+            text: "Thêm";
+            clicked => {
+                if root.new_app_name != "" {
+                    root.add_excluded_app(root.new_app_name);
+                    root.new_app_name = "";
+                    root.changed();
+                }
+            }
+        }
+    }
+
+    // khung bang cuon doc doc lap
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 2px;
+        padding-bottom: 4px;
+
+        Rectangle {
+            height: 270px;
+            background: #0d0d0f;
+            border-width: 1px;
+            border-color: Theme.border;
+            border-radius: Theme.radius-sm;
+            clip: true;
+
+            if root.excluded_apps.length == 0: VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Chưa có ứng dụng nào trong danh sách loại trừ";
+                    color: Theme.text-faint;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+            }
+
+            if root.excluded_apps.length > 0: ScrollView {
+                VerticalLayout {
+                    padding: 6px;
+                    spacing: 2px;
+                    alignment: start;
+
+                    for app[idx] in root.excluded_apps: Rectangle {
+                        height: 38px;
+                        background: app_row_ta.has-hover ? #ffffff0a : transparent;
+                        border-radius: 6px;
+
+                        app_row_ta := TouchArea { }
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: space-between;
+
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: app;
+                                    color: Theme.text-primary;
+                                    font-size: 13px;
+                                    font-weight: Theme.text-weight;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                GhostButton {
+                                    text: "Xoá";
+                                    destructive: true;
+                                    clicked => {
+                                        root.remove_excluded_app(idx);
+                                        root.changed();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

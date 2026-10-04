@@ -1,0 +1,174 @@
+import { ScrollView, LineEdit } from "std-widgets.slint";
+import { Theme, MacroItemData } from "../theme.slint";
+import { Divider, SettingItem, SectionHeader } from "../components/controls.slint";
+import { GhostButton } from "../components/buttons.slint";
+
+// tab 1: quan ly go tat va tu dong sua van ban
+export component TabTyping inherits VerticalLayout {
+    in-out property <bool> double_space_period: false;
+    in-out property <bool> auto_capitalize: false;
+    in-out property <bool> macros_enabled: true;
+    in-out property <[MacroItemData]> macro_items: [];
+    in-out property <string> new_macro_trigger: "";
+    in-out property <string> new_macro_replace: "";
+    callback changed();
+    callback add_macro(string, string);
+    callback remove_macro(int);
+
+    alignment: start;
+    spacing: 0px;
+
+    SectionHeader {
+        title: "TỰ ĐỘNG";
+        show-divider: false;
+    }
+
+    SettingItem {
+        title: "Nhấn Space 2 lần chèn dấu chấm";
+        subtitle: "Tự động thêm dấu chấm và một khoảng trắng";
+        checked <=> root.double_space_period;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Tự động viết hoa đầu câu";
+        subtitle: "Viết hoa chữ cái đầu tiên sau dấu chấm, chấm hỏi, chấm than";
+        checked <=> root.auto_capitalize;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Bật tính năng gõ tắt (Macro)";
+        subtitle: "Thay thế từ viết tắt thành cụm từ đầy đủ";
+        checked <=> root.macros_enabled;
+        toggled => { root.changed(); }
+    }
+
+    SectionHeader {
+        title: "BẢNG GÕ TẮT";
+        show-divider: true;
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 6px;
+        padding-bottom: 8px;
+        spacing: 10px;
+
+        LineEdit {
+            placeholder-text: "Từ tắt (vd: vn)";
+            text <=> root.new_macro_trigger;
+            width: 140px;
+            enabled: root.macros_enabled;
+        }
+
+        LineEdit {
+            placeholder-text: "Cụm từ thay thế (vd: Việt Nam)";
+            text <=> root.new_macro_replace;
+            horizontal-stretch: 1;
+            enabled: root.macros_enabled;
+        }
+
+        GhostButton {
+            text: "Thêm";
+            clicked => {
+                if root.new_macro_trigger != "" && root.new_macro_replace != "" {
+                    root.add_macro(root.new_macro_trigger, root.new_macro_replace);
+                    root.new_macro_trigger = "";
+                    root.new_macro_replace = "";
+                    root.changed();
+                }
+            }
+        }
+    }
+
+    // khung bang cuon doc doc lap
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 2px;
+        padding-bottom: 4px;
+
+        Rectangle {
+            height: 320px;
+            background: #0d0d0f;
+            border-width: 1px;
+            border-color: Theme.border;
+            border-radius: Theme.radius-sm;
+            clip: true;
+
+            if root.macro_items.length == 0: VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.macros_enabled ? "Chưa có từ viết tắt nào trong bảng" : "Tính năng gõ tắt đang tắt";
+                    color: Theme.text-faint;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+            }
+
+            if root.macro_items.length > 0: ScrollView {
+                VerticalLayout {
+                    padding: 6px;
+                    spacing: 2px;
+                    alignment: start;
+
+                    for item[idx] in root.macro_items: Rectangle {
+                        height: 38px;
+                        background: macro_row_ta.has-hover ? #ffffff0a : transparent;
+                        border-radius: 6px;
+
+                        macro_row_ta := TouchArea { }
+
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: space-between;
+
+                            HorizontalLayout {
+                                spacing: 12px;
+                                alignment: center;
+
+                                Text {
+                                    text: item.trigger;
+                                    color: #ffffff;
+                                    font-weight: 600;
+                                    font-size: 13px;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: "→";
+                                    color: Theme.text-faint;
+                                    font-size: 13px;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: item.replace;
+                                    color: Theme.text-secondary;
+                                    font-size: 13px;
+                                    font-weight: 400;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                GhostButton {
+                                    text: "Xoá";
+                                    destructive: true;
+                                    clicked => {
+                                        root.remove_macro(idx);
+                                        root.changed();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,56 @@
+import "../assets/fonts/SF-Pro-Text-Regular.otf";
+import "../assets/fonts/SF-Pro-Text-Medium.otf";
+import "../assets/fonts/SF-Pro-Text-Semibold.otf";
+import "../assets/fonts/SF-Pro-Text-Bold.otf";
+import "../assets/fonts/SF-Pro-Text-Heavy.otf";
+import "../assets/fonts/SF-Pro-Text-Black.otf";
+
+export struct MacroItemData {
+    trigger: string,
+    replace: string,
+}
+
+// theme clak don sac toi gian
+export global Theme {
+    out property <brush> bg: #000000;
+    out property <brush> glow-top: @linear-gradient(180deg, #ffffff07 0%, #ffffff00 100%);
+
+    out property <brush> sidebar-bg: #000000;
+    out property <brush> bg-card: transparent;
+    out property <brush> bg-card-hover: #ffffff0a;
+    out property <brush> bg-hover: #161616;
+    out property <brush> bg-inset: #080808;
+    out property <brush> bg-row: transparent;
+    out property <brush> tab-active-bg: #181818;
+
+    out property <color> border: #1f1f1f;
+    out property <color> border-subtle: #111111;
+    out property <color> border-hover: #2a2a2a;
+    out property <color> divider: #1c1c1c;
+    out property <color> highlight-line: transparent;
+
+    out property <color> text-primary: #ffffff;
+    out property <color> text-secondary: #dedede;
+    out property <color> text-muted: #b5b5b5;
+    out property <color> text-faint: #888888;
+
+    out property <color> accent: #e0e0e0;
+    out property <color> accent-strong: #ffffff;
+    out property <brush> accent-gradient: #ffffff;
+    out property <brush> accent-hover: #f0f0f0;
+    out property <color> accent-dim: #ffffff12;
+
+    out property <color> destructive: #f26666;
+    out property <color> success: #5fb58a;
+    out property <color> warning: #d1a948;
+
+    out property <length> radius-sm: 8px;
+    out property <length> radius-md: 10px;
+    out property <length> radius-lg: 13px;
+    out property <length> radius-pill: 999px;
+
+    // bien chu dung chung toan bo ung dung
+    out property <int> text-weight: 400; // tat ca cac text deu dung chung bien nay
+    out property <int> section-title-weight: 800; // dac biet: tieu de phan muc (section)
+    out property <color> text-section: #86868b; // dac biet: mau cho tieu de phan muc
+}

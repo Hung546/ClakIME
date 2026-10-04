@@ -1,0 +1,451 @@
+import { Theme } from "../theme.slint";
+
+// cong tac switch chuyen dong muot ma
+export component ToggleSwitch {
+    in-out property <bool> checked: false;
+    callback toggled();
+
+    width: 40px;
+    height: 22px;
+
+    Rectangle {
+        border-radius: 11px;
+        background: root.checked ? #61ffca : (ta.has-hover ? #242424 : #1a1a1a);
+        border-width: 0px;
+
+        animate background {
+            duration: 180ms;
+            easing: ease-out;
+        }
+
+        // vien inside mau toi chi hien thi khi bat tren nen xanh
+        if root.checked: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            border-radius: 11px;
+            border-width: 1px;
+            border-color: #124d3a;
+        }
+
+        ta := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                root.checked = !root.checked;
+                root.toggled();
+            }
+        }
+
+        Rectangle {
+            x: root.checked ? parent.width - self.width - 3px : 3px;
+            y: (parent.height - self.height) / 2;
+            width: ta.pressed ? 19px : 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: root.checked ? #0a0a0a : (ta.pressed ? #d8d8d8 : #ffffff);
+            border-width: 0px;
+
+            animate x, width {
+                duration: 180ms;
+                easing: ease-out;
+            }
+            animate background {
+                duration: 180ms;
+                easing: ease-out;
+            }
+        }
+    }
+}
+
+// duong phan cach giua cac section kem khoang dem
+export component Divider inherits Rectangle {
+    in property <length> pad-y: 8px;
+
+    height: 1px + 2 * root.pad-y;
+    background: transparent;
+
+    Rectangle {
+        y: root.pad-y;
+        width: parent.width;
+        height: 1px;
+        background: Theme.divider;
+    }
+}
+
+// tieu de section: chu nho hon, day hon va mau gray
+export component SectionHeader inherits VerticalLayout {
+    in property <string> title;
+    in property <bool> show-divider: false;
+
+    spacing: 0px;
+    padding: 0px;
+
+    if root.show-divider: Divider {
+        pad-y: 8px;
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: root.show-divider ? 6px : 2px;
+        padding-bottom: 4px;
+
+        Text {
+            text: root.title;
+            color: Theme.text-section;
+            font-size: 11px;
+            font-weight: Theme.section-title-weight;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// khung the gom nhom
+export component Card inherits Rectangle {
+    in property <length> pad: 0px;
+    in property <length> spacing: 0px;
+
+    background: transparent;
+    border-width: 0px;
+
+    VerticalLayout {
+        alignment: start;
+        padding: root.pad;
+        spacing: root.spacing;
+        @children
+    }
+}
+
+// hang cai dat co kem toggle switch
+export component SettingItem {
+    in property <string> title;
+    in property <string> subtitle: "";
+    in-out property <bool> checked: false;
+    callback toggled();
+
+    Rectangle {
+        min-height: 48px;
+        background: area.has-hover ? #ffffff0a : transparent;
+        border-radius: Theme.radius-sm;
+
+        area := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                root.checked = !root.checked;
+                root.toggled();
+            }
+        }
+
+        HorizontalLayout {
+            padding-left: 14px;
+            padding-right: 14px;
+            padding-top: 7px;
+            padding-bottom: 7px;
+            alignment: space-between;
+            spacing: 14px;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 3px;
+                padding-top: 1px;
+
+                Text {
+                    text: root.title;
+                    color: Theme.text-primary;
+                    font-size: 14px;
+                    font-weight: Theme.text-weight;
+                    vertical-alignment: center;
+                }
+
+                if root.subtitle != "": Text {
+                    text: root.subtitle;
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    font-weight: Theme.text-weight;
+                    wrap: word-wrap;
+                    vertical-alignment: center;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                ToggleSwitch {
+                    checked <=> root.checked;
+                    toggled => { root.toggled(); }
+                }
+            }
+        }
+    }
+}
+
+// hang cai dat chua control tuy y
+export component FieldRow {
+    in property <string> title;
+    in property <string> subtitle: "";
+
+    HorizontalLayout {
+        min-height: 48px;
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        alignment: space-between;
+        spacing: 14px;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            min-width: 170px;
+            padding-top: 1px;
+
+            Text {
+                text: root.title;
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.text-weight;
+                vertical-alignment: center;
+            }
+
+            if root.subtitle != "": Text {
+                text: root.subtitle;
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+                vertical-alignment: center;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            @children
+        }
+    }
+}
+
+// tieu de phan muc
+export component SectionTitle {
+    in property <string> text;
+    in property <string> hint: "";
+
+    HorizontalLayout {
+        spacing: 10px;
+        alignment: start;
+
+        Rectangle {
+            width: 3px;
+            border-radius: 2px;
+            background: Theme.accent-gradient;
+        }
+
+        VerticalLayout {
+            spacing: 4px;
+            padding-top: 1px;
+            Text {
+                text: root.text;
+                color: #ffffff;
+                font-size: 16px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+
+            if root.hint != "": Text {
+                text: root.hint;
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+// chi bao trang thai cham tron kem chu
+export component StatusIndicator inherits HorizontalLayout {
+    in property <string> text;
+    in property <color> dot-color: Theme.text-muted;
+    in property <int> weight: 300;
+
+    spacing: 7px;
+    alignment: start;
+
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background: root.dot-color;
+        }
+    }
+
+    VerticalLayout {
+        alignment: center;
+        padding-top: 1px;
+        Text {
+            text: root.text;
+            color: root.dot-color;
+            font-size: 12px;
+            font-weight: root.weight;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// bo chon phan doan dang vien thuoc (segmented control)
+export component SegmentedSwitch inherits Rectangle {
+    in property <[string]> options;
+    in-out property <int> current-index: 0;
+    callback selected(int);
+
+    height: 32px;
+    background: #181818;
+    border-radius: 8px;
+
+    HorizontalLayout {
+        padding: 3px;
+        spacing: 3px;
+
+        for opt[idx] in root.options: Rectangle {
+            border-radius: 6px;
+            background: idx == root.current-index ? (seg_ta.has-hover ? #363636 : #2e2e2e)
+                : (seg_ta.has-hover ? #222222 : transparent);
+
+            animate background {
+                duration: 140ms;
+                easing: ease-out;
+            }
+
+            seg_ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => {
+                    root.current-index = idx;
+                    root.selected(idx);
+                }
+            }
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                alignment: center;
+
+                Text {
+                    text: opt;
+                    color: idx == root.current-index ? #ffffff : (seg_ta.has-hover ? #d0d0d0 : #888888);
+                    font-size: 12px;
+                    font-weight: idx == root.current-index ? 600 : 500;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                    animate color { duration: 140ms; }
+                }
+            }
+        }
+    }
+}
+
+// menu chon tha xuong tuy bien
+export component Dropdown inherits Rectangle {
+    in property <[string]> model;
+    in-out property <int> current-index: 0;
+    in property <bool> enabled: true;
+    callback selected(int);
+
+    height: 34px;
+    background: !root.enabled ? #181818 : (dd_ta.has-hover ? #282828 : #1a1a1a);
+    border-radius: 7px;
+
+    animate background { duration: 120ms; }
+
+    dd_ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            menu_popup.show();
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 10px;
+        alignment: space-between;
+
+        Text {
+            text: root.model[root.current-index];
+            color: !root.enabled ? #555555 : #efefef;
+            font-size: 14px;
+            font-weight: Theme.text-weight;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Image {
+                source: @image-url("../../assets/icons/chevron-down.svg");
+                colorize: dd_ta.has-hover ? #cccccc : #777777;
+                width: 12px;
+                height: 12px;
+                animate colorize { duration: 120ms; }
+            }
+        }
+    }
+
+    menu_popup := PopupWindow {
+        x: 0;
+        y: root.height + 4px;
+        width: root.width;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            background: #141414;
+            border-width: 1px;
+            border-color: #2b2b2b;
+            border-radius: 8px;
+            drop-shadow-blur: 16px;
+            drop-shadow-color: #000000d0;
+            drop-shadow-offset-y: 6px;
+
+            VerticalLayout {
+                padding: 4px;
+                spacing: 2px;
+
+                for item[idx] in root.model: Rectangle {
+                    height: 30px;
+                    border-radius: 6px;
+                    background: item_ta.has-hover ? #252525 : (idx == root.current-index ? #1c1c1c : transparent);
+
+                    animate background { duration: 100ms; }
+
+                    item_ta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.current-index = idx;
+                            root.selected(idx);
+                            menu_popup.close();
+                        }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        alignment: space-between;
+
+                        Text {
+                            text: item;
+                            color: idx == root.current-index ? #ffffff : (item_ta.has-hover ? #ffffff : #bfbfbf);
+                            font-size: 12px;
+                            font-weight: idx == root.current-index ? 600 : 500;
+                            vertical-alignment: center;
+                        }
+
+                        if idx == root.current-index: Text {
+                            text: "✓";
+                            color: #ffffff;
+                            font-size: 12px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,147 @@
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import {
+    Divider,
+    SettingItem,
+    FieldRow,
+    SegmentedSwitch,
+    SectionHeader,
+} from "../components/controls.slint";
+
+// tab 0: cai dat chung ve kieu go va chinh ta
+export component TabGeneral inherits VerticalLayout {
+    in-out property <int> toggle_shortcut_index: 0;
+    in-out property <int> method_index: 0;
+    in-out property <int> charset_index: 0;
+    in-out property <int> startup_mode_index: 0;
+    in-out property <bool> short_w: true;
+    in-out property <bool> bracket_brackets: true;
+    in-out property <bool> spelling_enabled: false;
+    in-out property <bool> auto_restore: false;
+    in-out property <bool> modern_tone: true;
+    in-out property <string> playground_input: "";
+    in-out property <string> playground_output: "";
+    callback test_transformed(string);
+    callback changed();
+
+    alignment: start;
+    spacing: 0px;
+
+    SectionHeader {
+        title: "KIỂU GÕ";
+        show-divider: false;
+    }
+
+    FieldRow {
+        title: "Phím chuyển";
+        SegmentedSwitch {
+            options: ["Ctrl + Shift", "Alt + Z"];
+            current-index <=> root.toggle_shortcut_index;
+            selected => { root.changed(); }
+        }
+    }
+
+    FieldRow {
+        title: "Kiểu gõ";
+        SegmentedSwitch {
+            options: ["Telex", "VNI", "VIQR", "Telex + VNI"];
+            current-index <=> root.method_index;
+            selected => { root.changed(); }
+        }
+    }
+
+    FieldRow {
+        title: "Bảng mã Unicode";
+        SegmentedSwitch {
+            options: ["Dựng sẵn", "Tổ hợp"];
+            current-index <=> root.charset_index;
+            selected => { root.changed(); }
+        }
+    }
+
+    FieldRow {
+        title: "Khi khởi động";
+        SegmentedSwitch {
+            options: ["Tiếng Việt", "Tiếng Anh"];
+            current-index <=> root.startup_mode_index;
+            selected => { root.changed(); }
+        }
+    }
+
+    SectionHeader {
+        title: "CHÍNH TẢ";
+        show-divider: true;
+    }
+
+    SettingItem {
+        title: "Gõ w thành ư";
+        subtitle: "Phím w ra chữ ư ở đầu từ";
+        checked <=> root.short_w;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Gõ [ ] { } thành ơ ư Ơ Ư";
+        subtitle: "Gõ 2 lần ngoặc để trả lại ký tự gốc";
+        checked <=> root.bracket_brackets;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Kiểm tra chính tả";
+        subtitle: "Ngăn từ sai quy tắc tiếng Việt";
+        checked <=> root.spelling_enabled;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Tự phục hồi khi sai (Auto Restore)";
+        subtitle: "Trả về chuỗi gốc khi từ không hợp lệ";
+        checked <=> root.auto_restore;
+        toggled => { root.changed(); }
+    }
+
+    SettingItem {
+        title: "Dấu kiểu mới (oà, uý)";
+        subtitle: "Chuẩn hiện đại theo bộ giáo dục";
+        checked <=> root.modern_tone;
+        toggled => { root.changed(); }
+    }
+
+    SectionHeader {
+        title: "THỬ NGHIỆM";
+        show-divider: true;
+    }
+
+    // o go thu nghiem
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 6px;
+        padding-bottom: 4px;
+
+        LineEdit {
+            placeholder-text: "Gõ thử: tieengs vieetj...";
+            text <=> root.playground_input;
+            horizontal-stretch: 1;
+            edited(text) => {
+                root.test_transformed(text);
+            }
+        }
+    }
+
+    if root.playground_output != "": HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-bottom: 6px;
+        alignment: start;
+
+        Text {
+            text: "→ " + root.playground_output;
+            color: #38bdf8;
+            font-size: 13px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}

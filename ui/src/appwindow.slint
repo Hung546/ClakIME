@@ -1,0 +1,234 @@
+import { Theme, MacroItemData } from "theme.slint";
+import { Card, Divider, StatusIndicator } from "components/controls.slint";
+import { ActionButton } from "components/buttons.slint";
+import { Sidebar } from "components/sidebar.slint";
+import { TabGeneral } from "tabs/tab_general.slint";
+import { TabTyping } from "tabs/tab_typing.slint";
+import { TabAdvanced } from "tabs/tab_advanced.slint";
+import { TabAbout } from "tabs/tab_about.slint";
+
+export { MacroItemData }
+
+// cua so chinh cua ung dung cai dat clak
+export component MainWindow inherits Window {
+    title: "Cấu hình Clak";
+    icon: @image-url("../assets/icons/clak-logo.svg");
+    width: 950px;
+    height: 700px;
+    background: Theme.bg;
+    default-font-family: "SF Pro Text";
+    default-font-size: 14px;
+    default-font-weight: Theme.text-weight;
+
+    in-out property <int> selected_tab: 0;
+    in-out property <bool> has_changes: false;
+    in-out property <bool> saved_toast: false;
+    in-out property <string> app_version: "v0.1.0";
+
+    // kieu go
+    in-out property <int> method_index: 0;
+    in-out property <int> charset_index: 0;
+    in-out property <bool> short_w: true;
+    in-out property <bool> bracket_brackets: true;
+    in-out property <int> startup_mode_index: 0;
+
+    // chinh ta
+    in-out property <bool> spelling_enabled: false;
+    in-out property <bool> auto_restore: false;
+    in-out property <bool> modern_tone: true;
+
+    // go tat va tu dong sua
+    in-out property <bool> double_space_period: false;
+    in-out property <bool> auto_capitalize: false;
+    in-out property <bool> macros_enabled: true;
+    in-out property <[MacroItemData]> macro_items: [];
+    in-out property <string> new_macro_trigger: "";
+    in-out property <string> new_macro_replace: "";
+
+    // phim tat
+    in-out property <int> toggle_shortcut_index: 0;
+    in-out property <int> switch_shortcut_index: 0;
+
+    // theo ung dung
+    in-out property <bool> autostart_system: true;
+    in-out property <bool> remember_app_state: true;
+    in-out property <[string]> excluded_apps: [];
+    in-out property <string> new_app_name: "";
+
+    // nang cao
+    in-out property <bool> uinput_ack: false;
+    in-out property <bool> debug_log: false;
+
+    // gioi thieu
+    in-out property <bool> auto_update_enabled: true;
+    in-out property <string> git_commit_hash: "";
+    in-out property <string> git_commit_note: "";
+    in-out property <string> git_commit_date: "";
+    in-out property <int> update_poll_index: 4;
+    in-out property <string> update_status_text: "";
+    in-out property <bool> is_updating: false;
+
+    // playground
+    in-out property <string> playground_input: "";
+    in-out property <string> playground_output: "";
+
+    callback ok_requested();
+    callback apply_requested();
+    callback cancel_requested();
+    callback escape_requested();
+    callback open_url(string);
+    callback add_excluded_app(string);
+    callback remove_excluded_app(int);
+    callback add_macro(string, string);
+    callback remove_macro(int);
+    callback test_transformed(string);
+    callback reset_defaults_requested();
+    callback check_update_requested();
+
+    forward-focus: fs;
+    fs := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.escape_requested();
+                return accept;
+            }
+            reject
+        }
+
+        HorizontalLayout {
+            // sidebar dieu huong
+            Sidebar {
+                selected-tab <=> root.selected_tab;
+                open-url(url) => { root.open_url(url); }
+            }
+
+            // noi dung cac tab
+            VerticalLayout {
+                padding: 20px;
+                padding-top: 18px;
+                spacing: 12px;
+
+                VerticalLayout {
+                    vertical-stretch: 1;
+                    alignment: start;
+
+                    if root.selected_tab == 0: TabGeneral {
+                        vertical-stretch: 0;
+                        toggle_shortcut_index <=> root.toggle_shortcut_index;
+                        method_index <=> root.method_index;
+                        charset_index <=> root.charset_index;
+                        startup_mode_index <=> root.startup_mode_index;
+                        short_w <=> root.short_w;
+                        bracket_brackets <=> root.bracket_brackets;
+                        spelling_enabled <=> root.spelling_enabled;
+                        auto_restore <=> root.auto_restore;
+                        modern_tone <=> root.modern_tone;
+                        playground_input <=> root.playground_input;
+                        playground_output <=> root.playground_output;
+                        test_transformed(text) => { root.test_transformed(text); }
+                        changed => { root.has_changes = true; }
+                    }
+
+                    if root.selected_tab == 1: TabTyping {
+                        vertical-stretch: 0;
+                        double_space_period <=> root.double_space_period;
+                        auto_capitalize <=> root.auto_capitalize;
+                        macros_enabled <=> root.macros_enabled;
+                        macro_items <=> root.macro_items;
+                        new_macro_trigger <=> root.new_macro_trigger;
+                        new_macro_replace <=> root.new_macro_replace;
+                        changed => { root.has_changes = true; }
+                        add_macro(trigger, replace) => { root.add_macro(trigger, replace); }
+                        remove_macro(idx) => { root.remove_macro(idx); }
+                    }
+
+                    if root.selected_tab == 2: TabAdvanced {
+                        vertical-stretch: 0;
+                        autostart_system <=> root.autostart_system;
+                        remember_app_state <=> root.remember_app_state;
+                        excluded_apps <=> root.excluded_apps;
+                        new_app_name <=> root.new_app_name;
+                        uinput_ack <=> root.uinput_ack;
+                        debug_log <=> root.debug_log;
+                        changed => { root.has_changes = true; }
+                        add_excluded_app(name) => { root.add_excluded_app(name); }
+                        remove_excluded_app(idx) => { root.remove_excluded_app(idx); }
+                    }
+
+                    if root.selected_tab == 3: TabAbout {
+                        vertical-stretch: 0;
+                        app_version: root.app_version;
+                        auto_update_enabled <=> root.auto_update_enabled;
+                        git_commit_hash: root.git_commit_hash;
+                        git_commit_note: root.git_commit_note;
+                        git_commit_date: root.git_commit_date;
+                        update_poll_index <=> root.update_poll_index;
+                        update_status_text: root.update_status_text;
+                        is_updating: root.is_updating;
+                        changed => { root.has_changes = true; }
+                        open_url(url) => { root.open_url(url); }
+                        reset_defaults => { root.reset_defaults_requested(); }
+                        check_update_requested => { root.check_update_requested(); }
+                    }
+                }
+
+                // chan trang va nut bam thao tac
+                Divider { }
+
+                HorizontalLayout {
+                    height: 44px;
+                    alignment: space-between;
+                    spacing: 10px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        if root.saved_toast: StatusIndicator {
+                            text: "Đã lưu cấu hình";
+                            dot-color: Theme.success;
+                            weight: 600;
+                        }
+                        if !root.saved_toast && root.has_changes: StatusIndicator {
+                            text: "Có thay đổi chưa lưu";
+                            dot-color: Theme.warning;
+                            weight: 500;
+                        }
+                        if !root.saved_toast && !root.has_changes: StatusIndicator {
+                            text: "ESC để đóng";
+                            dot-color: Theme.text-muted;
+                            weight: 400;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            alignment: end;
+
+                            ActionButton {
+                                text: "Cancel";
+                                destructive: true;
+                                enabled: true;
+                                clicked => { root.cancel_requested(); }
+                            }
+
+                            ActionButton {
+                                text: "Apply";
+                                enabled: root.has_changes;
+                                clicked => { root.apply_requested(); }
+                            }
+
+                            ActionButton {
+                                text: "OK";
+                                primary: true;
+                                enabled: true;
+                                clicked => { root.ok_requested(); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

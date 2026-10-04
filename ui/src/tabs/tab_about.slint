@@ -1,0 +1,348 @@
+import { Theme } from "../theme.slint";
+import {
+    Divider,
+    ToggleSwitch,
+    Dropdown,
+    SectionHeader,
+} from "../components/controls.slint";
+import { ActionButton, GhostButton } from "../components/buttons.slint";
+
+// tab 2: thong tin ung dung va cap nhat nguon
+export component TabAbout inherits VerticalLayout {
+    in-out property <string> app_version: "v0.1.0";
+    in-out property <bool> auto_update_enabled: true;
+    in-out property <string> git_commit_hash: "";
+    in-out property <string> git_commit_note: "";
+    in-out property <string> git_commit_date: "";
+    in-out property <int> update_poll_index: 4;
+    in-out property <string> update_status_text: "";
+    in-out property <bool> is_updating: false;
+    callback changed();
+    callback open_url(string);
+    callback reset_defaults();
+    callback check_update_requested();
+
+    alignment: start;
+    spacing: 0px;
+
+    SectionHeader {
+        title: "CẬP NHẬT";
+        show-divider: false;
+    }
+
+    // section 1: nhom cap nhat nguon
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        min-height: 48px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: "Cập nhật tự động";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.text-weight;
+            }
+
+            Text {
+                text: "versenilvis/clak (main)";
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            ToggleSwitch {
+                checked <=> root.auto_update_enabled;
+                toggled => { root.changed(); }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        min-height: 48px;
+        alignment: space-between;
+        spacing: 10px;
+
+        VerticalLayout {
+            alignment: center;
+            ActionButton {
+                text: root.is_updating ? "Đang cập nhật..." : "Cập nhật từ nguồn";
+                primary: true;
+                enabled: !root.is_updating;
+                clicked => { root.check_update_requested(); }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: center;
+            spacing: 8px;
+
+            Text {
+                text: "Chu kỳ:";
+                color: Theme.text-muted;
+                font-size: 12px;
+                vertical-alignment: center;
+            }
+
+            Dropdown {
+                width: 120px;
+                model: ["5 phút", "15 phút", "30 phút", "1 giờ", "Hàng ngày"];
+                current-index <=> root.update_poll_index;
+                selected => { root.changed(); }
+            }
+        }
+    }
+
+    if root.update_status_text != "": HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 2px;
+        padding-bottom: 4px;
+        Text {
+            text: root.update_status_text;
+            color: #38bdf8;
+            font-size: 12px;
+            font-weight: 500;
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        min-height: 36px;
+        alignment: space-between;
+
+        Text {
+            text: "Commit mới nhất";
+            color: Theme.text-muted;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.git_commit_hash;
+            color: #38bdf8;
+            font-size: 12px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        min-height: 36px;
+        alignment: space-between;
+        spacing: 12px;
+
+        Text {
+            text: "Ghi chú commit";
+            color: Theme.text-muted;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.git_commit_note;
+            color: #e2e2e2;
+            font-size: 12px;
+            font-weight: 500;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 6px;
+        padding-bottom: 10px;
+        min-height: 36px;
+        alignment: space-between;
+
+        Text {
+            text: "Cập nhật lần cuối";
+            color: Theme.text-muted;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.git_commit_date;
+            color: #e2e2e2;
+            font-size: 12px;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+    }
+
+    SectionHeader {
+        title: "THÔNG TIN";
+        show-divider: true;
+    }
+
+    // section 2: nhom thong tin ung dung
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 10px;
+        padding-bottom: 8px;
+        min-height: 48px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: "Phiên bản";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.text-weight;
+            }
+
+            Text {
+                text: root.app_version;
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        min-height: 48px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: "Tác giả";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.text-weight;
+            }
+
+            Text {
+                text: "versenilvis";
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            profile_ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.open_url("https://github.com/versenilvis"); }
+                Text {
+                    text: "Hồ sơ";
+                    color: profile_ta.has-hover ? #60cdff : #38bdf8;
+                    font-size: 12px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 10px;
+        min-height: 48px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: "Giấy phép";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.text-weight;
+            }
+
+            Text {
+                text: "BSD Zero Clause License";
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: "0BSD";
+                color: Theme.text-secondary;
+                font-size: 12px;
+                font-weight: 600;
+            }
+        }
+    }
+
+    SectionHeader {
+        title: "KHÔI PHỤC";
+        show-divider: true;
+    }
+
+    // section 3: nhom khoi phuc mac dinh
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 10px;
+        padding-bottom: 8px;
+        min-height: 48px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: "Khôi phục mặc định";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.text-weight;
+            }
+
+            Text {
+                text: "Khôi phục toàn bộ cài đặt về cấu hình ban đầu";
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            GhostButton {
+                text: "Khôi phục tất cả";
+                destructive: true;
+                clicked => { root.reset_defaults(); }
+            }
+        }
+    }
+}

@@ -508,6 +508,32 @@ run_install() {
 
     log_step "$lbl_fetch" "Tải về thành công"
 
+    # verify checksum if checksums.txt exists in release
+    local checksums_url
+    checksums_url=$(echo "$releases_json" | grep "browser_download_url" | grep "checksums\.txt" | head -1 | cut -d '"' -f 4 || true)
+    if [ -n "$checksums_url" ]; then
+        (
+            cd "$tmp_dir"
+            if [ "$has_curl" -eq 1 ]; then
+                curl -sLO "$checksums_url"
+            else
+                wget -q "$checksums_url"
+            fi
+        )
+        if [ -f "${tmp_dir}/checksums.txt" ] && command -v sha256sum >/dev/null 2>&1; then
+            local expected_hash
+            expected_hash=$(grep "${archive_name}" "${tmp_dir}/checksums.txt" | awk '{print $1}')
+            if [ -n "$expected_hash" ]; then
+                local actual_hash
+                actual_hash=$(sha256sum "${tmp_dir}/${archive_name}" | awk '{print $1}')
+                if [ "$expected_hash" != "$actual_hash" ]; then
+                    err "Xác thực mã băm SHA256 thất bại! File tải về có thể đã bị can thiệp."
+                fi
+                log_step "$lbl_check" "Xác thực SHA256 thành công (${actual_hash:0:16}...)"
+            fi
+        fi
+    fi
+
     # 5. extract archive
     tar -xzf "${tmp_dir}/${archive_name}" -C "$tmp_dir"
 

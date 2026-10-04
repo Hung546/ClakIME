@@ -123,3 +123,55 @@ fn test_toggle_auto_restore() {
     let acts_off = type_text(&mut ctx_off, "o");
     assert_eq!(acts_off[0].2, "ơ");
 }
+
+#[test]
+fn test_toggle_auto_capitalize() {
+    let mut cfg_on = ClakConfig::default();
+    cfg_on.typing.auto_capitalize = true;
+
+    let mut cfg_off = ClakConfig::default();
+    cfg_off.typing.auto_capitalize = false;
+
+    // auto capitalize on: capitalize after period and space
+    let mut ctx_on = ClakContext::new(Method::Telex);
+    ctx_on.apply_config(&cfg_on);
+    type_text(&mut ctx_on, ".");
+    type_text(&mut ctx_on, " ");
+    let acts_a = type_text(&mut ctx_on, "a");
+    assert_eq!(acts_a[0].0, ACTION_REPLACE);
+    assert_eq!(acts_a[0].2, "A");
+
+    // question mark boundary
+    type_text(&mut ctx_on, "?");
+    type_text(&mut ctx_on, " ");
+    let acts_b = type_text(&mut ctx_on, "b");
+    assert_eq!(acts_b[0].0, ACTION_REPLACE);
+    assert_eq!(acts_b[0].2, "B");
+
+    // no space after period does not capitalize
+    type_text(&mut ctx_on, ".");
+    let acts_c = type_text(&mut ctx_on, "c");
+    assert_eq!(acts_c[0].0, ACTION_FORWARD);
+
+    // backspace cancels capitalization
+    type_text(&mut ctx_on, ".");
+    type_text(&mut ctx_on, " ");
+    ctx_on.process_key(0xff08, "", false, None, 0, 0);
+    let acts_d = type_text(&mut ctx_on, "d");
+    assert_eq!(acts_d[0].0, ACTION_FORWARD);
+
+    // enter cancels capitalization
+    type_text(&mut ctx_on, ".");
+    type_text(&mut ctx_on, " ");
+    ctx_on.process_key(0xff0d, "\n", false, None, 0, 0);
+    let acts_e = type_text(&mut ctx_on, "e");
+    assert_eq!(acts_e[0].0, ACTION_FORWARD);
+
+    // auto capitalize off: always forwards lowercase
+    let mut ctx_off = ClakContext::new(Method::Telex);
+    ctx_off.apply_config(&cfg_off);
+    type_text(&mut ctx_off, ".");
+    type_text(&mut ctx_off, " ");
+    let acts_off = type_text(&mut ctx_off, "a");
+    assert_eq!(acts_off[0].0, ACTION_FORWARD);
+}

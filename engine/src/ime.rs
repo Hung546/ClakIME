@@ -27,8 +27,17 @@ pub struct ClakContext {
     bracket_brackets: bool,
     double_space_period: bool,
     auto_capitalize: bool,
+    sentence_cap_state: SentenceCapState,
     macros_enabled: bool,
     macros: std::collections::HashMap<String, String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SentenceCapState {
+    StartOfInput,
+    SawPunctuation,
+    ReadyToCapitalize,
+    Normal,
 }
 
 impl ClakContext {
@@ -47,6 +56,7 @@ impl ClakContext {
             bracket_brackets: true,
             double_space_period: false,
             auto_capitalize: false,
+            sentence_cap_state: SentenceCapState::StartOfInput,
             macros_enabled: true,
             macros: std::collections::HashMap::new(),
         }
@@ -95,11 +105,13 @@ impl ClakContext {
             self.reset();
             self.just_deleted = false;
             self.stale_surr = None;
+            self.sentence_cap_state = SentenceCapState::Normal;
             return self.forward();
         }
 
         if key_sym == 0xff08 {
             self.just_deleted = true;
+            self.sentence_cap_state = SentenceCapState::Normal;
             if let Some(text) = surrounding_text {
                 self.stale_surr = Some((text.to_string(), cursor));
                 let chars: Vec<char> = text.chars().collect();
@@ -132,6 +144,7 @@ impl ClakContext {
         }
 
         if key_sym == 0xff0d || key_sym == 0xff09 {
+            self.sentence_cap_state = SentenceCapState::Normal;
             // check macro expansion on enter or tab
             if self.macros_enabled && !self.last_composed.is_empty() {
                 if let Some(replacement) = self.lookup_macro() {
@@ -162,6 +175,7 @@ impl ClakContext {
             self.reset();
             self.just_deleted = false;
             self.stale_surr = None;
+            self.sentence_cap_state = SentenceCapState::Normal;
             return self.forward();
         }
 
@@ -201,6 +215,18 @@ impl ClakContext {
 
         let key_ch = key_str.chars().next().unwrap_or('\0');
         if is_word_break(key_ch as u32) {
+            if self.auto_capitalize {
+                if key_ch == '.' || key_ch == '?' || key_ch == '!' {
+                    self.sentence_cap_state = SentenceCapState::SawPunctuation;
+                } else if key_ch == ' '
+                    && (self.sentence_cap_state == SentenceCapState::SawPunctuation
+                        || self.sentence_cap_state == SentenceCapState::ReadyToCapitalize)
+                {
+                    self.sentence_cap_state = SentenceCapState::ReadyToCapitalize;
+                } else {
+                    self.sentence_cap_state = SentenceCapState::Normal;
+                }
+            }
             // check macro expansion before resetting
             if self.macros_enabled && !self.last_composed.is_empty() {
                 if let Some(replacement) = self.lookup_macro() {
@@ -311,7 +337,39 @@ impl ClakContext {
             self.stale_surr = None;
         }
 
-        self.raw_buffer.push_str(key_str);
+        let mut key_str_to_use = key_str;
+        let cap_buf;
+        if self.auto_capitalize && key_ch.is_alphabetic() && key_ch.is_lowercase() {
+            let mut should_cap = self.sentence_cap_state == SentenceCapState::ReadyToCapitalize;
+            if !should_cap {
+                if let Some(text) = surrounding_text {
+                    let chars: Vec<char> = text.chars().collect();
+                    let cur = std::cmp::min(chars.len(), cursor);
+                    if cur == 0 {
+                        should_cap = true;
+                    } else {
+                        let mut i = cur;
+                        let mut saw_sp = false;
+                        while i > 0 && chars[i - 1].is_whitespace() {
+                            saw_sp = true;
+                            i -= 1;
+                        }
+                        if saw_sp && i > 0 && matches!(chars[i - 1], '.' | '?' | '!') {
+                            should_cap = true;
+                        }
+                    }
+                }
+            }
+            if should_cap {
+                cap_buf = key_ch.to_uppercase().to_string();
+                key_str_to_use = &cap_buf;
+            }
+            self.sentence_cap_state = SentenceCapState::Normal;
+        } else if key_ch.is_alphabetic() {
+            self.sentence_cap_state = SentenceCapState::Normal;
+        }
+
+        self.raw_buffer.push_str(key_str_to_use);
         let new_word = self.engine.transform(&self.raw_buffer);
 
         let (deleted_part, added_part) = compare_and_split(&self.last_composed, &new_word);

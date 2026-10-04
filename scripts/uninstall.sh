@@ -129,6 +129,9 @@ run_simulation() {
     local has_system=0
     local has_wps=0
     local has_purge=0
+    local has_profile=0
+    local has_autostart=0
+    local has_config=0
 
     [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] && has_user=1
     [ -f "${HOME}/.local/share/fcitx5/addon/clak.conf" ] && has_user=1
@@ -146,48 +149,69 @@ run_simulation() {
     [ -n "$(find /usr/share/icons -name '*clak*' -print -quit 2>/dev/null)" ] && has_system=1
 
     [ -f "${HOME}/.config/environment.d/99-clak-wps.conf" ] && has_wps=1
-    [ -d "${HOME}/.config/clak" ] && [ "$purge_config" -eq 1 ] && has_purge=1
+    [ -d "${HOME}/.config/clak" ] && [ "$purge_config" -eq 1 ] && has_config=1
+    [ -f "${HOME}/.config/autostart/clak-autostart.desktop" ] && has_autostart=1
+    [ -f "${HOME}/.config/environment.d/99-clak-im.conf" ] && has_autostart=1
+    if [ -f "${HOME}/.config/fcitx5/profile" ] && grep -q "clak" "${HOME}/.config/fcitx5/profile" 2>/dev/null; then
+        has_profile=1
+    fi
+
+    if [ "$has_user" -eq 0 ] && [ "$has_system" -eq 0 ] && [ "$has_profile" -eq 0 ] && [ "$has_autostart" -eq 0 ] && [ "$has_config" -eq 0 ] && [ "$has_wps" -eq 0 ]; then
+        echo ""
+        log_step "$lbl_warn" "Không tìm thấy file cài đặt hoặc cấu hình Clak nào trên hệ thống"
+        return 0
+    fi
 
     echo ""
     echo -e "  ${c_bold}Các mục sẽ được gỡ bỏ:${c_reset}"
-    if [ "$has_user" -eq 1 ] || [ "$target_mode" != "system" ]; then
+    if [ "$has_user" -eq 1 ]; then
         echo -e "  • Thư viện và ứng dụng cá nhân:     ${c_accent}~/.local/lib/fcitx5/libclak.so, ~/.local/bin/clak-gui${c_reset}"
         echo -e "  • Khai báo addon & bộ gõ cá nhân:   ${c_accent}~/.local/share/fcitx5/{addon,inputmethod}/clak.conf${c_reset}"
         echo -e "  • Menu ứng dụng cá nhân:            ${c_accent}~/.local/share/applications/clak-gui.desktop${c_reset}"
         echo -e "  • Dữ liệu phiên bản & icon cá nhân: ${c_accent}~/.local/share/clak/, ~/.local/share/icons/**/clak*${c_reset}"
     fi
 
-    if [ "$has_system" -eq 1 ] || [ "$target_mode" = "system" ]; then
+    if [ "$has_system" -eq 1 ]; then
         echo -e "  • File hệ thống (/usr):             ${c_accent}/usr/lib/fcitx5/libclak.so, /usr/bin/clak-gui${c_reset}"
         echo -e "  • Khai báo addon & bộ gõ hệ thống:  ${c_accent}/usr/share/fcitx5/{addon,inputmethod}/clak.conf${c_reset}"
         echo -e "  • Menu ứng dụng hệ thống:           ${c_accent}/usr/share/applications/clak-gui.desktop${c_reset}"
         echo -e "  • Biểu tượng hệ thống:              ${c_accent}/usr/share/icons/hicolor/**/clak*${c_reset}"
     fi
 
-    if [ "$has_wps" -eq 1 ]; then
-        echo -e "  • Cấu hình tương thích WPS Office:  ${c_accent}~/.config/environment.d/99-clak-wps.conf${c_reset}"
-        echo -e "  • Phím tắt WPS launcher tùy chỉnh:  ~/.local/share/applications/wps-office-*.desktop"
+    if [ "$has_profile" -eq 1 ]; then
+        echo -e "  • Mục Clak trong cấu hình Fcitx5:   ${c_accent}~/.config/fcitx5/profile${c_reset}"
     fi
 
-    if [ "$has_purge" -eq 1 ]; then
+    if [ "$has_autostart" -eq 1 ]; then
+        echo -e "  • Cấu hình khởi động cùng hệ thống: ${c_accent}~/.config/autostart/clak-autostart.desktop${c_reset}"
+        echo -e "  • Cấu hình biến môi trường:         ${c_accent}~/.config/environment.d/99-clak-im.conf${c_reset}"
+    fi
+
+    if [ "$has_wps" -eq 1 ]; then
+        echo -e "  • Cấu hình tương thích WPS Office:  ${c_accent}~/.config/environment.d/99-clak-wps.conf${c_reset}"
+        echo -e "  • Phím tắt WPS launcher tùy chỉnh:  ${c_accent}~/.local/share/applications/wps-office-*.desktop${c_reset}"
+    fi
+
+    if [ "$has_config" -eq 1 ] && [ "$purge_config" -eq 1 ]; then
         echo -e "  • Thư mục cấu hình cá nhân:         ${c_accent}~/.config/clak/${c_reset}"
     fi
 
-    echo -e "  • Cấu hình khởi động cùng hệ thống: ~/.config/autostart/clak-autostart.desktop"
-    echo -e "  • Cấu hình biến môi trường:         ~/.config/environment.d/99-clak-im.conf"
-
     echo ""
-    log_step "$lbl_clean" "[Giả lập] Dọn dẹp cấu hình khởi động cùng hệ thống"
-    log_step "$lbl_fcitx" "[Giả lập] Tự động khởi động lại daemon Fcitx5 để giải phóng bộ nhớ"
+    log_step "$lbl_clean" "[Giả lập] Dọn dẹp cấu hình khởi động và mục Clak trong profile Fcitx5"
+    log_step "$lbl_fcitx" "[Giả lập] Tự động nạp lại daemon Fcitx5 để cập nhật khay hệ thống"
     echo -e "${c_green}✔ Quá trình giả lập gỡ bỏ hoàn tất thành công!${c_reset}"
     echo ""
 }
 
 # execution flow
 run_uninstall() {
-    # 1. detect installed components
+    # 1. detect installed components and configurations
     local has_user_files=0
     local has_sys_files=0
+    local has_profile=0
+    local has_autostart=0
+    local has_config=0
+    local has_wps=0
 
     [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] && has_user_files=1
     [ -f "${HOME}/.local/share/fcitx5/addon/clak.conf" ] && has_user_files=1
@@ -195,8 +219,6 @@ run_uninstall() {
     [ -f "${HOME}/.local/bin/clak-gui" ] && has_user_files=1
     [ -f "${HOME}/.local/share/applications/clak-gui.desktop" ] && has_user_files=1
     [ -d "${HOME}/.local/share/clak" ] && has_user_files=1
-    [ -f "${HOME}/.config/autostart/clak-autostart.desktop" ] && has_user_files=1
-    [ -f "${HOME}/.config/environment.d/99-clak-im.conf" ] && has_user_files=1
     [ -n "$(find "${HOME}/.local/share/icons" -name '*clak*' -print -quit 2>/dev/null)" ] && has_user_files=1
 
     [ -f "/usr/lib/fcitx5/libclak.so" ] && has_sys_files=1
@@ -206,8 +228,16 @@ run_uninstall() {
     [ -f "/usr/share/fcitx5/inputmethod/clak.conf" ] && has_sys_files=1
     [ -n "$(find /usr/share/icons -name '*clak*' -print -quit 2>/dev/null)" ] && has_sys_files=1
 
-    if [ "$has_user_files" -eq 0 ] && [ "$has_sys_files" -eq 0 ] && [ "$target_mode" != "system" ] && [ "$purge_config" -eq 0 ]; then
-        log_step "$lbl_warn" "Không tìm thấy file cài đặt Clak nào trên hệ thống"
+    [ -f "${HOME}/.config/autostart/clak-autostart.desktop" ] && has_autostart=1
+    [ -f "${HOME}/.config/environment.d/99-clak-im.conf" ] && has_autostart=1
+    [ -f "${HOME}/.config/environment.d/99-clak-wps.conf" ] && has_wps=1
+    [ -d "${HOME}/.config/clak" ] && [ "$purge_config" -eq 1 ] && has_config=1
+    if [ -f "${HOME}/.config/fcitx5/profile" ] && grep -q "clak" "${HOME}/.config/fcitx5/profile" 2>/dev/null; then
+        has_profile=1
+    fi
+
+    if [ "$has_user_files" -eq 0 ] && [ "$has_sys_files" -eq 0 ] && [ "$has_profile" -eq 0 ] && [ "$has_autostart" -eq 0 ] && [ "$has_config" -eq 0 ] && [ "$has_wps" -eq 0 ] && [ "$target_mode" != "system" ]; then
+        log_step "$lbl_warn" "Không tìm thấy file cài đặt hoặc cấu hình Clak nào trên hệ thống"
         exit 0
     fi
 
@@ -226,7 +256,7 @@ run_uninstall() {
     fi
 
     # 3. remove user-space binaries, addons, and shortcuts
-    if [ "$target_mode" != "system" ] || [ "$has_user_files" -eq 1 ]; then
+    if [ "$has_user_files" -eq 1 ] && [ "$target_mode" != "system" ]; then
         spin_step "Đang xóa thư viện và cấu hình cá nhân (~/.local)..."
         rm -f "${HOME}/.local/bin/clak-gui"
         rm -f "${HOME}/.local/share/applications/clak-gui.desktop"
@@ -241,7 +271,7 @@ run_uninstall() {
     fi
 
     # 4. remove system binaries if requested or detected
-    if [ "$target_mode" = "system" ] || ([ "$target_mode" = "auto" ] && [ "$has_sys_files" -eq 1 ]); then
+    if [ "$has_sys_files" -eq 1 ] && ([ "$target_mode" = "system" ] || [ "$target_mode" = "auto" ]); then
         spin_step "Đang xóa file Clak toàn hệ thống (/usr)..."
         run_sudo rm -f "/usr/bin/clak-gui"
         run_sudo rm -f "/usr/share/applications/clak-gui.desktop"
@@ -366,12 +396,10 @@ except Exception:
         if [ -n "$user_uid" ]; then
             local user_bus="unix:path=/run/user/${user_uid}/bus"
             sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Refresh >/dev/null 2>&1 || true
-            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save >/dev/null 2>&1 || true
             sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" fcitx5-remote -r >/dev/null 2>&1 || true
         fi
     else
         busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Refresh >/dev/null 2>&1 || true
-        busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save >/dev/null 2>&1 || true
         fcitx5-remote -r >/dev/null 2>&1 || true
     fi
     log_step "$lbl_fcitx" "Đã làm mới danh sách bộ gõ Fcitx5 thành công"

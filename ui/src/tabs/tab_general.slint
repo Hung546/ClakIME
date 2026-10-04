@@ -19,8 +19,6 @@ export component TabGeneral inherits VerticalLayout {
     in-out property <bool> auto_restore: false;
     in-out property <bool> modern_tone: true;
     in-out property <string> playground_input: "";
-    in-out property <string> playground_output: "";
-    callback test_transformed(string);
     callback changed();
 
     alignment: start;
@@ -151,33 +149,7 @@ export component TabGeneral inherits VerticalLayout {
                 font-size: 13px;
                 vertical-alignment: center;
                 single-line: true;
-                edited => {
-                    root.test_transformed(self.text);
-                }
             }
-        }
-    }
-
-    if root.playground_output != "": HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
-        padding-bottom: 6px;
-        alignment: start;
-        spacing: 6px;
-
-        Text {
-            text: "Kết quả:";
-            color: Theme.text-faint;
-            font-size: 12px;
-            vertical-alignment: center;
-        }
-
-        Text {
-            text: root.playground_output;
-            color: #61ffca;
-            font-size: 13px;
-            font-weight: 500;
-            vertical-alignment: center;
         }
     }
 }

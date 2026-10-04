@@ -1,7 +1,6 @@
 slint::include_modules!();
 
 use clak_engine::config::{ClakConfig, MacroItem};
-use clak_engine::{ClakCore, Method};
 use slint::{ComponentHandle, Model, SharedString, VecModel};
 use std::rc::Rc;
 
@@ -220,79 +219,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 w.set_has_changes(true);
             }
         }
-    });
-
-    // live playground test callback
-    let window_weak = main_window.as_weak();
-    let macros_playground = macros_model.clone();
-    main_window.on_test_transformed(move |input_text| {
-        let Some(window) = window_weak.upgrade() else {
-            return;
-        };
-        let m = match window.get_method_index() {
-            1 => Method::Vni,
-            2 => Method::Viqr,
-            3 => Method::TeipVni,
-            _ => Method::Telex,
-        };
-        let mut core = ClakCore::new(m);
-        core.set_modern(window.get_modern_tone());
-        core.set_short_w(window.get_short_w());
-        core.set_auto_restore(window.get_auto_restore());
-        core.set_dict(window.get_spelling_enabled());
-
-        let macros_enabled = window.get_macros_enabled();
-        // transform and expand macros when enabled
-        let mut output = String::new();
-        let mut cur_word = String::new();
-
-        let expand_word = |w: &str| -> String {
-            if w.is_empty() {
-                return String::new();
-            }
-            let transformed = core.transform(w);
-            if macros_enabled {
-                for i in 0..macros_playground.row_count() {
-                    if let Some(item) = macros_playground.row_data(i) {
-                        let trig = item.trigger.as_str();
-                        let repl = item.replace.as_str();
-                        if w.eq_ignore_ascii_case(trig) || transformed.eq_ignore_ascii_case(trig) {
-                            if w.chars().all(|c| !c.is_alphabetic() || c.is_uppercase()) {
-                                return repl.to_uppercase();
-                            } else if w.chars().next().is_some_and(|c| c.is_uppercase()) {
-                                let mut chars = repl.chars();
-                                return match chars.next() {
-                                    Some(first) => {
-                                        first.to_uppercase().collect::<String>() + chars.as_str()
-                                    }
-                                    None => String::new(),
-                                };
-                            } else {
-                                return repl.to_string();
-                            }
-                        }
-                    }
-                }
-            }
-            transformed
-        };
-
-        for ch in input_text.chars() {
-            if ch.is_whitespace() || ch.is_ascii_punctuation() {
-                if !cur_word.is_empty() {
-                    output.push_str(&expand_word(&cur_word));
-                    cur_word.clear();
-                }
-                output.push(ch);
-            } else {
-                cur_word.push(ch);
-            }
-        }
-        if !cur_word.is_empty() {
-            output.push_str(&core.transform(&cur_word));
-        }
-
-        window.set_playground_output(SharedString::from(output));
     });
 
     // action callbacks: ok, apply, cancel, esc

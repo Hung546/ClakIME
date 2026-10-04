@@ -70,7 +70,6 @@ export component MainWindow inherits Window {
 
     // playground
     in-out property <string> playground_input: "";
-    in-out property <string> playground_output: "";
 
     callback ok_requested();
     callback apply_requested();
@@ -81,7 +80,6 @@ export component MainWindow inherits Window {
     callback remove_excluded_app(int);
     callback add_macro(string, string);
     callback remove_macro(int);
-    callback test_transformed(string);
     callback reset_defaults_requested();
     callback check_update_requested();
 
@@ -124,8 +122,6 @@ export component MainWindow inherits Window {
                         auto_restore <=> root.auto_restore;
                         modern_tone <=> root.modern_tone;
                         playground_input <=> root.playground_input;
-                        playground_output <=> root.playground_output;
-                        test_transformed(text) => { root.test_transformed(text); }
                         changed => { root.has_changes = true; }
                     }
 

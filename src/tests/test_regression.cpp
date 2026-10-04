@@ -87,7 +87,93 @@ TEST_F(RegressionCorpusTest, test_regression_docs_cascading_chars) {
 }
 
 TEST_F(RegressionCorpusTest, test_regression_laf_sentinel_timeout) {
-    // when loopback sentinel is lost, safety timer must recover state
+    // when loopback sentinel is lost during standard typing, safety timer recovers fast (~50ms)
+    platform::setMockActiveWindow(platform::WindowInfo{"zen", "Zen Browser", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "zen");
+    ime::ClakState state(engine_.get(), &ic);
+
+    uinput::UinputTool::instance().setMockHandler([](size_t, uint32_t, uint32_t, uint32_t) {
+        return true;
+    });
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    EXPECT_TRUE(state.isDeleting());
+    EXPECT_FALSE(state.isSelectionDeletion());
+
+    auto exit_timer = instance_->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC,
+        fcitx::now(CLOCK_MONOTONIC) + 80000,
+        0,
+        [this](fcitx::EventSourceTime*, uint64_t) {
+            instance_->eventLoop().exit();
+            return true;
+        }
+    );
+    instance_->eventLoop().exec();
+
+    EXPECT_FALSE(state.isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "đ");
+}
+
+TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
+    // rapid selection deletion uses the 250ms timeout scenario to prevent race conditions
+    platform::setMockActiveWindow(platform::WindowInfo{"zen", "Zen Browser", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "zen");
+    ime::ClakState state(engine_.get(), &ic);
+
+    uinput::UinputTool::instance().setMockHandler([](size_t, uint32_t, uint32_t, uint32_t) {
+        return true;
+    });
+
+    // simulate text selection shortcut (shift + left arrow)
+    fcitx::Key shift_left(FcitxKey_Left, fcitx::KeyState::Shift);
+    fcitx::KeyEvent key_event(&ic, shift_left, false);
+    state.keyEvent(key_event);
+
+    ic.setSurrounding("text", 0, 4);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    EXPECT_TRUE(state.isDeleting());
+    EXPECT_TRUE(state.isSelectionDeletion());
+
+    // at 100ms, the 250ms selection timer has not fired yet (unlike standard 50ms timer)
+    bool still_deleting_at_100ms = false;
+    auto mid_timer = instance_->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC,
+        fcitx::now(CLOCK_MONOTONIC) + 100000,
+        0,
+        [&](fcitx::EventSourceTime*, uint64_t) {
+            still_deleting_at_100ms = state.isDeleting();
+            return true;
+        }
+    );
+
+    // at 320ms, the 250ms selection timer has fired and recovered state cleanly
+    auto exit_timer = instance_->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC,
+        fcitx::now(CLOCK_MONOTONIC) + 320000,
+        0,
+        [this](fcitx::EventSourceTime*, uint64_t) {
+            instance_->eventLoop().exit();
+            return true;
+        }
+    );
+    instance_->eventLoop().exec();
+
+    EXPECT_TRUE(still_deleting_at_100ms);
+    EXPECT_FALSE(state.isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "đ");
+}
+
+TEST_F(RegressionCorpusTest, test_regression_safety_timer_self_reset_crash) {
+    // safety timer callback must not call reset() on itself, avoiding sd-event use-after-free crash
+    platform::setMockActiveWindow(platform::WindowInfo{"zen", "Zen Browser", 1234});
     MockInputContext ic(instance_->inputContextManager(), "zen");
     ime::ClakState state(engine_.get(), &ic);
 
@@ -101,16 +187,19 @@ TEST_F(RegressionCorpusTest, test_regression_laf_sentinel_timeout) {
 
     EXPECT_TRUE(state.isDeleting());
 
-    auto exit_timer = instance_->eventLoop().addTimeEvent(
-        CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 300000,
-        0,
-        [this](fcitx::EventSourceTime*, uint64_t) {
-            instance_->eventLoop().exit();
-            return true;
-        }
-    );
-    instance_->eventLoop().exec();
+    // run event loop past the 50ms safety timer timeout without throwing EventLoopException
+    EXPECT_NO_THROW({
+        auto exit_timer = instance_->eventLoop().addTimeEvent(
+            CLOCK_MONOTONIC,
+            fcitx::now(CLOCK_MONOTONIC) + 100000,
+            0,
+            [this](fcitx::EventSourceTime*, uint64_t) {
+                instance_->eventLoop().exit();
+                return true;
+            }
+        );
+        instance_->eventLoop().exec();
+    });
 
     EXPECT_FALSE(state.isDeleting());
     ASSERT_FALSE(ic.commits.empty());

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.2](https://github.com/versenilvis/clak/releases/tag/v0.2.2) - 2026-10-04
+
+### Bug fixes
+
+- Optimize package size and add missing app descriptions ([90d896](https://github.com/versenilvis/clak/commit/90d8966fd13e2f6d5bc6671373c16d7b56ff4284))
+
 ## [v0.2.1](https://github.com/versenilvis/clak/releases/tag/v0.2.1) - 2026-10-04
 
 ### Bug fixes

@@ -295,6 +295,72 @@ EOF
     fi
 }
 
+# configure autostart with system
+configure_autostart() {
+    local is_sim="${1:-0}"
+    if [ "$is_sim" -eq 1 ]; then
+        log_step "$lbl_install" "[Giả lập] Tự động bật khởi động Clak Tiếng Việt cùng hệ thống"
+        return
+    fi
+
+    local autostart_dir="${HOME}/.config/autostart"
+    mkdir -p "$autostart_dir"
+    cat << 'EOF' > "${autostart_dir}/clak-autostart.desktop"
+[Desktop Entry]
+Type=Application
+Name=Clak Vietnamese Input Method
+Comment=Autostart Fcitx5 with Clak input method
+Exec=fcitx5 -d
+Icon=org.fcitx.Fcitx5
+Terminal=false
+Categories=System;Utility;
+StartupNotify=false
+X-GNOME-Autostart-Phase=Applications
+X-GNOME-AutoRestart=true
+X-GNOME-Autostart-Notify=false
+X-KDE-autostart-after=panel
+EOF
+
+    local env_dir="${HOME}/.config/environment.d"
+    mkdir -p "$env_dir"
+    cat << 'EOF' > "${env_dir}/99-clak-im.conf"
+GTK_IM_MODULE=fcitx
+QT_IM_MODULE=fcitx
+XMODIFIERS=@im=fcitx
+INPUT_METHOD=fcitx5
+SDL_IM_MODULE=fcitx
+EOF
+
+    local profile_file="${HOME}/.config/fcitx5/profile"
+    if [ ! -f "$profile_file" ]; then
+        mkdir -p "${HOME}/.config/fcitx5"
+        cat << 'EOF' > "$profile_file"
+[Groups/0]
+Name=Default
+Default Layout=us
+DefaultIM=clak
+
+[Groups/0/Items/0]
+Name=keyboard-us
+
+[Groups/0/Items/1]
+Name=clak
+
+[GroupOrder]
+0=Default
+EOF
+    else
+        if ! grep -q "Name=clak" "$profile_file" 2>/dev/null; then
+            local count
+            count=$(grep -c "\[Groups/0/Items/" "$profile_file" 2>/dev/null || echo "1")
+            sed -i "/\[GroupOrder\]/i \\\n[Groups/0/Items/${count}]\nName=clak\n" "$profile_file" 2>/dev/null || true
+        fi
+        sed -i 's/^DefaultIM=.*/DefaultIM=clak/' "$profile_file" 2>/dev/null || true
+    fi
+
+    log_step "$lbl_install" "Đã kích hoạt tự động chạy Clak Tiếng Việt cùng hệ thống"
+}
+
 # simulation flow
 run_simulation() {
     # 1. detect os and arch
@@ -345,7 +411,10 @@ run_simulation() {
     # 7. check wps compatibility
     configure_wps_compatibility 1
 
-    # 8. reload fcitx5 daemon with final spinner
+    # 8. check and configure autostart
+    configure_autostart 1
+
+    # 9. reload fcitx5 daemon with final spinner
     spin_step "Đang nạp lại daemon Fcitx5..." 0.6
 
     # final line directly after spin completes
@@ -504,7 +573,10 @@ run_install() {
     # 8. check and configure wps compatibility
     configure_wps_compatibility 0
 
-    # 9. reload fcitx5 daemon with final spinner
+    # 9. configure autostart with system
+    configure_autostart 0
+
+    # 10. reload fcitx5 daemon with final spinner
     if command -v fcitx5 >/dev/null 2>&1; then
         (
             fcitx5 -r -d >/dev/null 2>&1 || true

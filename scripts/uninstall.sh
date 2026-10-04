@@ -146,7 +146,10 @@ run_simulation() {
         echo -e "  • Phím tắt WPS launcher tùy chỉnh: ~/.local/share/applications/wps-office-*.desktop"
     fi
 
+    echo -e "  • Cấu hình khởi động cùng hệ thống: ~/.config/autostart/clak-autostart.desktop"
+
     echo ""
+    log_step "$lbl_clean" "[Giả lập] Dọn dẹp cấu hình khởi động cùng hệ thống"
     log_step "$lbl_fcitx" "[Giả lập] Tự động khởi động lại daemon Fcitx5 để giải phóng bộ nhớ"
     echo -e "${c_green}✔ Quá trình giả lập gỡ bỏ hoàn tất thành công!${c_reset}"
     echo ""
@@ -230,7 +233,16 @@ run_uninstall() {
         log_step "$lbl_wps" "Đã dọn dẹp các cấu hình tương thích WPS Office"
     fi
 
-    # 6. cleanup icons
+    # 6. cleanup autostart and environment configuration
+    spin_step "Đang dọn dẹp cấu hình khởi động cùng hệ thống..."
+    rm -f "${HOME}/.config/autostart/clak-autostart.desktop"
+    rm -f "${HOME}/.config/environment.d/99-clak-im.conf"
+    if [ -f "${HOME}/.config/fcitx5/profile" ]; then
+        sed -i 's/^DefaultIM=clak/DefaultIM=keyboard-us/' "${HOME}/.config/fcitx5/profile" 2>/dev/null || true
+    fi
+    log_step "$lbl_clean" "Đã dọn dẹp cấu hình khởi động cùng hệ thống"
+
+    # 7. cleanup icons
     spin_step "Đang dọn dẹp icon Clak..."
     find "${HOME}/.local/share/icons" -type f -name "*clak*" -delete 2>/dev/null || true
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
@@ -238,7 +250,7 @@ run_uninstall() {
     fi
     log_step "$lbl_clean" "Đã dọn dẹp biểu tượng Clak trong hệ thống"
 
-    # 7. reload fcitx5
+    # 8. reload fcitx5
     if command -v fcitx5 >/dev/null 2>&1; then
         (
             fcitx5 -r -d >/dev/null 2>&1 || true

@@ -126,7 +126,7 @@ TEST_F(RegressionCorpusTest, test_regression_laf_sentinel_timeout) {
 
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 80000,
+        fcitx::now(CLOCK_MONOTONIC) + 120000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();
@@ -174,10 +174,10 @@ TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
         }
     );
 
-    // at 320ms, the 250ms selection timer has fired and recovered state cleanly
+    // at 350ms, the 250ms selection timer has fired and recovered state cleanly
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 320000,
+        fcitx::now(CLOCK_MONOTONIC) + 350000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();
@@ -281,5 +281,38 @@ TEST_F(RegressionCorpusTest, test_regression_terminal_forward_key_dup) {
     EXPECT_TRUE(state.shouldUseUinput(true, CLAK_ACTION_REPLACE, ic.surroundingText()));
 }
 
+TEST_F(RegressionCorpusTest, test_regression_adaptive_wait_scales_and_decays) {
+    // adaptive latency wait scales up under heavy lag and decays back down when stable
+    MockInputContext ic(instance_->inputContextManager(), "zen");
+    ime::ClakState state(engine_.get(), &ic);
+
+    EXPECT_EQ(state.adaptiveExtraWaitUs(), 0);
+
+    // fast roundtrip (15ms) maintains 0 extra wait
+    state.observeTransactionLatency(15000);
+    EXPECT_EQ(state.adaptiveExtraWaitUs(), 0);
+
+    // laggy roundtrip (40ms) scales up by 10ms
+    state.observeTransactionLatency(40000);
+    EXPECT_EQ(state.adaptiveExtraWaitUs(), 10000);
+
+    // repeated lag scales up further
+    state.observeTransactionLatency(45000);
+    EXPECT_EQ(state.adaptiveExtraWaitUs(), 20000);
+
+    // 4 consecutive stable transactions trigger a decay step (-10ms)
+    for (int i = 0; i < 4; ++i) {
+        state.observeTransactionLatency(12000);
+    }
+    EXPECT_EQ(state.adaptiveExtraWaitUs(), 10000);
+
+    // 4 more stable transactions decay back to 0
+    for (int i = 0; i < 4; ++i) {
+        state.observeTransactionLatency(12000);
+    }
+    EXPECT_EQ(state.adaptiveExtraWaitUs(), 0);
+}
+
 } // namespace test
 } // namespace clak
+

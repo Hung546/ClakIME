@@ -37,6 +37,8 @@ public:
   size_t expectedBackspaces() const { return expected_backspaces_; }
   size_t bufferedKeysCount() const { return buffered_keys_.size(); }
   const std::string& pendingCommitString() const { return pending_commit_string_; }
+  uint64_t adaptiveExtraWaitUs() const { return adaptive_extra_us_; }
+  void observeTransactionLatency(uint64_t elapsed_us);
 
 private:
   void arm_safety_timer();
@@ -60,6 +62,8 @@ private:
   bool is_deleting_{false};
   bool is_address_bar_fix_{false};
   bool is_selection_deletion_{false};
+  uint64_t adaptive_extra_us_{0};
+  uint32_t stable_transactions_count_{0};
   size_t expected_backspaces_{0};
   size_t current_backspace_count_{0};
   size_t last_text_len_{0};

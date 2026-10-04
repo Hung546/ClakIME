@@ -279,16 +279,43 @@ void ClakState::logLatency(const std::string& group, uint64_t start_us, const st
     utils::clakLog("[LATENCY] group=" + group + " delta_ms=" + std::to_string(delta_ms) + " action=" + action_type);
 }
 
+void ClakState::observeTransactionLatency(uint64_t elapsed_us) {
+    // scale up extra wait when roundtrip latency approaches or exceeds base threshold (35ms)
+    if (elapsed_us >= 35000) {
+        if (adaptive_extra_us_ < 100000) {
+            adaptive_extra_us_ = std::min<uint64_t>(100000, adaptive_extra_us_ + 10000);
+        }
+        stable_transactions_count_ = 0;
+    } else if (elapsed_us <= 20000) {
+        // decay extra wait back towards 0 after 4 consecutive fast transactions
+        stable_transactions_count_++;
+        if (stable_transactions_count_ >= 4) {
+            if (adaptive_extra_us_ >= 10000) {
+                adaptive_extra_us_ -= 10000;
+            } else {
+                adaptive_extra_us_ = 0;
+            }
+            stable_transactions_count_ = 0;
+        }
+    }
+}
+
 void ClakState::arm_safety_timer() {
     uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
     uint64_t timeout_us = is_selection_deletion_ ? config::kSelectionDeletionTimeoutUs :
-                          (is_address_bar_fix_ ? (config::kSafetyTimeoutUs * 2) : config::kSafetyTimeoutUs);
+                          ((is_address_bar_fix_ ? (config::kSafetyTimeoutUs * 2) : config::kSafetyTimeoutUs) + adaptive_extra_us_);
     safety_timer_ = engine_->instance()->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
         now_us + timeout_us,
         0,
         [this, timeout_us](fcitx::EventSourceTime*, uint64_t) {
             if (is_deleting_) {
+                // system lag caused timeout, increase adaptive wait
+                if (adaptive_extra_us_ < 100000) {
+                    adaptive_extra_us_ = std::min<uint64_t>(100000, adaptive_extra_us_ + 20000);
+                }
+                stable_transactions_count_ = 0;
+
                 std::string app = appKey();
                 std::string site = activeSite();
                 utils::clakLog("SENTINEL TIMEOUT (" + std::to_string(timeout_us / 1000) + "ms expired): giving up waiting, only " +
@@ -712,6 +739,11 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
         if (!pending_commit_string_.empty()) {
             doCommitString(pending_commit_string_);
             pending_commit_string_.clear();
+        }
+        if (op_start_us_ > 0) {
+            uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
+            uint64_t roundtrip_us = (now_us > op_start_us_) ? (now_us - op_start_us_) : 0;
+            observeTransactionLatency(roundtrip_us);
         }
         logLatency(op_group_, op_start_us_, "REPLACE");
         op_start_us_ = 0;

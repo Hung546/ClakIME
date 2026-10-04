@@ -210,6 +210,16 @@ def run_doctor(args):
     else:
         print(f"  • File log: Chưa kích hoạt ghi log debug vào {log_path}")
 
+    # check autostart status
+    autostart_file = os.path.expanduser("~/.config/autostart/clak-autostart.desktop")
+    fcitx_autostart = "/etc/xdg/autostart/org.fcitx.Fcitx5.desktop"
+    has_autostart = os.path.exists(autostart_file) or os.path.exists(fcitx_autostart)
+    if has_autostart:
+        print("  • Khởi động cùng hệ thống: [OK] Đã kích hoạt")
+    else:
+        print("  • Khởi động cùng hệ thống: [CẢNH BÁO] Chưa kích hoạt tự động chạy khi đăng nhập")
+        warnings.append("Chưa kích hoạt khởi động cùng hệ thống. Chạy 'clak autostart --enable' hoặc bật trong Cài đặt Clak")
+
     # check running apps with special input requirements (e.g. wps office)
     wps_pids = []
     for p in glob.glob('/proc/[0-9]*/cmdline'):
@@ -245,6 +255,71 @@ def run_doctor(args):
                 print(f"  {i}. {warn}")
     print("=" * 55 + "\n")
 
+def run_autostart(args):
+    home = os.path.expanduser("~")
+    autostart_dir = os.path.join(home, ".config", "autostart")
+    desktop_file = os.path.join(autostart_dir, "clak-autostart.desktop")
+    env_dir = os.path.join(home, ".config", "environment.d")
+    env_file = os.path.join(env_dir, "99-clak-im.conf")
+    profile_file = os.path.join(home, ".config", "fcitx5", "profile")
+
+    action = args.action
+    if getattr(args, 'enable', False):
+        action = "enable"
+    elif getattr(args, 'disable', False):
+        action = "disable"
+    elif getattr(args, 'status', False) or not action:
+        action = "status"
+
+    if action == "enable":
+        os.makedirs(autostart_dir, exist_ok=True)
+        content = """[Desktop Entry]
+Type=Application
+Name=Clak Vietnamese Input Method
+Comment=Autostart Fcitx5 with Clak input method
+Exec=fcitx5 -d
+Icon=org.fcitx.Fcitx5
+Terminal=false
+Categories=System;Utility;
+StartupNotify=false
+X-GNOME-Autostart-Phase=Applications
+X-GNOME-AutoRestart=true
+X-GNOME-Autostart-Notify=false
+X-KDE-autostart-after=panel
+"""
+        with open(desktop_file, "w") as f:
+            f.write(content)
+
+        os.makedirs(env_dir, exist_ok=True)
+        env_content = "GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\nINPUT_METHOD=fcitx5\nSDL_IM_MODULE=fcitx\n"
+        with open(env_file, "w") as f:
+            f.write(env_content)
+
+        if os.path.exists(profile_file):
+            with open(profile_file, "r") as f:
+                prof = f.read()
+            if "Name=clak" not in prof:
+                count = prof.count("[Groups/0/Items/")
+                clak_entry = f"\n[Groups/0/Items/{count}]\nName=clak\n"
+                if "[GroupOrder]" in prof:
+                    idx = prof.find("[GroupOrder]")
+                    prof = prof[:idx] + clak_entry + prof[idx:]
+                else:
+                    prof += clak_entry
+            lines = [f"DefaultIM=clak" if line.startswith("DefaultIM=") else line for line in prof.splitlines()]
+            with open(profile_file, "w") as f:
+                f.write("\n".join(lines) + "\n")
+
+        print("✔ Đã kích hoạt tự động chạy Clak Tiếng Việt cùng hệ thống")
+    elif args.action == "disable":
+        if os.path.exists(desktop_file):
+            os.remove(desktop_file)
+        print("✔ Đã tắt tự động chạy Clak Tiếng Việt cùng hệ thống")
+    else:
+        is_enabled = os.path.exists(desktop_file) or os.path.exists("/etc/xdg/autostart/org.fcitx.Fcitx5.desktop")
+        status_str = "Đang BẬT" if is_enabled else "Đang TẮT"
+        print(f"Trạng thái khởi động cùng hệ thống: {status_str}")
+
 def run_gui(args):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(script_dir, ".."))
@@ -268,6 +343,13 @@ def main():
     bench_parser.add_argument("--run", action="store_true", help="Run benchmark suite before analysis")
 
     subparsers.add_parser("doctor", help="Inspect environment, uinput permissions, fcitx5 daemon, and loaded binary")
+
+    auto_parser = subparsers.add_parser("autostart", help="Configure autostart on system boot/login")
+    auto_parser.add_argument("action", nargs="?", choices=["enable", "disable", "status"], default=None, help="Action to perform")
+    auto_parser.add_argument("--enable", action="store_true", help="Enable autostart on login")
+    auto_parser.add_argument("--disable", action="store_true", help="Disable autostart on login")
+    auto_parser.add_argument("--status", action="store_true", help="Check autostart status")
+
     subparsers.add_parser("gui", help="Launch Clak settings configuration GUI")
 
     args = parser.parse_args()
@@ -275,6 +357,8 @@ def main():
         run_bench(args)
     elif args.command == "doctor":
         run_doctor(args)
+    elif args.command == "autostart":
+        run_autostart(args)
     elif args.command == "gui":
         run_gui(args)
     else:

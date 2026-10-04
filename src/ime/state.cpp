@@ -220,6 +220,11 @@ bool ClakState::isAutofillCertain(const fcitx::SurroundingText& surr) {
 }
 
 void ClakState::setVerifyExpectation(const std::string& wordBefore, size_t delChars, const std::string& added) {
+    // do not verify multi-word or boundary-terminated strings
+    if (added.find(' ') != std::string::npos || added.find('\n') != std::string::npos || added.find('\t') != std::string::npos) {
+        verify_.pending = false;
+        return;
+    }
     verify_.pending = true;
     verify_.preWord = wordBefore;
     verify_.del = delChars;
@@ -434,8 +439,6 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     bool is_cursor_move = key.isCursorMove() || (sym >= FcitxKey_Home && sym <= FcitxKey_End);
     bool is_reset_key = is_cursor_move || sym == FcitxKey_Escape ||
                         sym == FcitxKey_Delete || sym == FcitxKey_KP_Delete ||
-                        sym == FcitxKey_Return || sym == FcitxKey_KP_Enter ||
-                        sym == FcitxKey_Tab || sym == FcitxKey_KP_Tab ||
                         has_ctrl_alt;
 
     if (is_reset_key) {

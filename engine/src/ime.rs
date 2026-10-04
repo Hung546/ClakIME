@@ -131,9 +131,30 @@ impl ClakContext {
             return self.forward();
         }
 
+        if key_sym == 0xff0d || key_sym == 0xff09 {
+            // check macro expansion on enter or tab
+            if self.macros_enabled && !self.last_composed.is_empty() {
+                if let Some(replacement) = self.lookup_macro() {
+                    let del_count = self.last_composed.chars().count();
+                    let mut commit_text = replacement;
+                    if key_sym == 0xff09 {
+                        commit_text.push('\t');
+                    } else {
+                        commit_text.push('\n');
+                    }
+                    self.reset();
+                    self.just_deleted = false;
+                    self.stale_surr = None;
+                    return self.replace(del_count, &commit_text);
+                }
+            }
+            self.reset();
+            self.just_deleted = false;
+            self.stale_surr = None;
+            return self.forward();
+        }
+
         if key_sym == 0xff1b
-            || key_sym == 0xff0d
-            || key_sym == 0xff09
             || key_sym == 0xffff
             || key_sym == 0xff9f
             || (0xff50..=0xff57).contains(&key_sym)
@@ -182,9 +203,9 @@ impl ClakContext {
         if is_word_break(key_ch as u32) {
             // check macro expansion before resetting
             if self.macros_enabled && !self.last_composed.is_empty() {
-                if let Some(replacement) = self.macros.get(&self.last_composed) {
+                if let Some(replacement) = self.lookup_macro() {
                     let del_count = self.last_composed.chars().count();
-                    let mut commit_text = replacement.clone();
+                    let mut commit_text = replacement;
                     commit_text.push_str(key_str);
                     self.reset();
                     self.just_deleted = false;
@@ -328,6 +349,23 @@ impl ClakContext {
         }
     }
 
+    fn lookup_macro(&self) -> Option<String> {
+        if !self.macros_enabled {
+            return None;
+        }
+        if !self.last_composed.is_empty() {
+            if let Some(repl) = match_macro(&self.macros, &self.last_composed) {
+                return Some(repl);
+            }
+        }
+        if !self.raw_buffer.is_empty() && self.raw_buffer != self.last_composed {
+            if let Some(repl) = match_macro(&self.macros, &self.raw_buffer) {
+                return Some(repl);
+            }
+        }
+        None
+    }
+
     fn replace(&mut self, delete_count: usize, text: &str) -> ImeAction {
         self.commit_buf = CString::new(text).unwrap_or_default();
         ImeAction {
@@ -336,6 +374,52 @@ impl ClakContext {
             commit_str: self.commit_buf.as_ptr(),
         }
     }
+}
+
+fn match_macro(macros: &std::collections::HashMap<String, String>, target: &str) -> Option<String> {
+    if target.is_empty() {
+        return None;
+    }
+
+    // exact match
+    if let Some(repl) = macros.get(target) {
+        return Some(repl.clone());
+    }
+
+    // case insensitive match
+    let target_lower = target.to_lowercase();
+    for (trigger, repl) in macros {
+        if trigger.to_lowercase() == target_lower {
+            let is_all_upper = target
+                .chars()
+                .all(|c| !c.is_alphabetic() || c.is_uppercase());
+            let is_capitalized = {
+                let mut chars = target.chars();
+                match chars.next() {
+                    Some(first) => {
+                        first.is_uppercase()
+                            && chars.all(|c| !c.is_alphabetic() || c.is_lowercase())
+                    }
+                    None => false,
+                }
+            };
+
+            if is_all_upper {
+                return Some(repl.to_uppercase());
+            } else if is_capitalized {
+                let mut repl_chars = repl.chars();
+                let formatted = match repl_chars.next() {
+                    Some(f) => f.to_uppercase().collect::<String>() + repl_chars.as_str(),
+                    None => String::new(),
+                };
+                return Some(formatted);
+            } else {
+                return Some(repl.clone());
+            }
+        }
+    }
+
+    None
 }
 
 fn is_word_break(ucs4: u32) -> bool {
@@ -1050,5 +1134,58 @@ mod tests {
         assert_eq!(act.delete_count, 2);
         let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
         assert_eq!(commit, "Việt Nam ");
+    }
+
+    #[test]
+    fn test_macro_case_uppercase() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        ctx.macros.insert("vn".to_string(), "Việt Nam".to_string());
+        ctx.process_key(b'V' as u32, "V", false, None, 0, 0);
+        ctx.process_key(b'N' as u32, "N", false, None, 1, 1);
+        let act = ctx.process_key(0x20, " ", false, None, 2, 2);
+        assert_eq!(act.action_type, ACTION_REPLACE);
+        assert_eq!(act.delete_count, 2);
+        let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
+        assert_eq!(commit, "VIỆT NAM ");
+    }
+
+    #[test]
+    fn test_macro_case_capitalized() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        ctx.macros.insert("ko".to_string(), "không".to_string());
+        ctx.process_key(b'K' as u32, "K", false, None, 0, 0);
+        ctx.process_key(b'o' as u32, "o", false, None, 1, 1);
+        let act = ctx.process_key(0x20, " ", false, None, 2, 2);
+        assert_eq!(act.action_type, ACTION_REPLACE);
+        assert_eq!(act.delete_count, 2);
+        let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
+        assert_eq!(commit, "Không ");
+    }
+
+    #[test]
+    fn test_macro_enter_trigger() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        ctx.macros.insert("vn".to_string(), "Việt Nam".to_string());
+        ctx.process_key(b'v' as u32, "v", false, None, 0, 0);
+        ctx.process_key(b'n' as u32, "n", false, None, 1, 1);
+        let act = ctx.process_key(0xff0d, "\n", false, None, 2, 2);
+        assert_eq!(act.action_type, ACTION_REPLACE);
+        assert_eq!(act.delete_count, 2);
+        let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
+        assert_eq!(commit, "Việt Nam\n");
+    }
+
+    #[test]
+    fn test_macro_raw_buffer_trigger() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        ctx.macros.insert("ddc".to_string(), "được".to_string());
+        ctx.process_key(b'd' as u32, "d", false, None, 0, 0);
+        ctx.process_key(b'd' as u32, "d", false, None, 1, 1);
+        ctx.process_key(b'c' as u32, "c", false, None, 2, 2);
+        let act = ctx.process_key(0x20, " ", false, None, 2, 2);
+        assert_eq!(act.action_type, ACTION_REPLACE);
+        assert_eq!(act.delete_count, 2);
+        let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
+        assert_eq!(commit, "được ");
     }
 }

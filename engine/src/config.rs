@@ -293,7 +293,11 @@ fn configure_fcitx5_profile(home: &std::path::Path, startup_mode: &str) {
         let _ = fs::create_dir_all(parent);
     }
 
-    let default_im = if startup_mode == "english" { "keyboard-us" } else { "clak" };
+    let default_im = if startup_mode == "english" {
+        "keyboard-us"
+    } else {
+        "clak"
+    };
 
     if !profile_path.exists() {
         let content = format!(

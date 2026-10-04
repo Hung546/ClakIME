@@ -1,8 +1,8 @@
 # Module Bộ phát Phím ảo và Nhịp thời gian (Uinput & Pacing)
 
-Thư mục: [src/uinput/](./src/uinput/)
+Thư mục: [src/uinput/](../src/uinput/)
 
-File chính: [uinput.h](./src/uinput/uinput.h), [uinput.cpp](./src/uinput/uinput.cpp)
+File chính: [uinput.h](../src/uinput/uinput.h), [uinput.cpp](../src/uinput/uinput.cpp)
 
 Module Uinput cung cấp khả năng phát các sự kiện phím mức nhân Linux (kernel input event) trực tiếp thông qua thiết bị `/dev/uinput`. Đây là cứu cánh quan trọng nhất để vượt qua các hạn chế và lỗi của giao thức Wayland text-input trên nhiều ứng dụng phức tạp.
 

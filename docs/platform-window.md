@@ -1,8 +1,8 @@
 # Module Nền tảng và Nhận diện Ứng dụng (Platform & Window Info)
 
-Thư mục: [src/platform/](./src/platform/), [src/config/](./src/config/)
+Thư mục: [src/platform/](../src/platform/), [src/config/](../src/config/)
 
-Các file chính: [hyprland.cpp](./src/platform/hyprland.cpp), [window_info.h](./src/platform/window_info.h), [modal_editor.cpp](./src/platform/modal_editor.cpp), [sites.cpp](./src/config/sites.cpp)
+Các file chính: [hyprland.cpp](../src/platform/hyprland.cpp), [window_info.h](../src/platform/window_info.h), [modal_editor.cpp](../src/platform/modal_editor.cpp), [sites.cpp](../src/config/sites.cpp)
 
 Module này thu thập ngữ cảnh của ứng dụng đang được người dùng tương tác để Clak tự động cấu hình hành vi thích hợp mà không cần người dùng phải bấm phím chuyển chế độ thủ công.
 
@@ -14,18 +14,18 @@ Trên Wayland, vì lý do bảo mật, ứng dụng thông thường không th�
 
 `$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock`
 
-Trong file [hyprland.cpp](./src/platform/hyprland.cpp):
+Trong file [hyprland.cpp](../src/platform/hyprland.cpp):
 
 1. Clak mở kết nối Non-blocking Socket tới socket của Hyprland.
 2. Gửi lệnh ngắn `j/activewindow`.
 3. Dùng `poll` với timeout cực nhanh (15ms) để nhận JSON phản hồi chứa `class`, `title`, và `pid`.
 4. **Bộ nhớ đệm (Cache 500ms)**: Kết quả truy vấn được lưu lại trong 500ms. Trong thời gian này, mọi phím gõ liên tiếp đều dùng lại kết quả cũ, giảm tải 100% việc tạo socket lặp đi lặp lại.
 
----đ
+---
 
 ## 2. Nhận diện Domain Website và Nhóm Ứng dụng
 
-File [sites.cpp](./src/config/sites.cpp) phân tích tiêu đề cửa sổ trình duyệt để trích xuất domain đang hoạt động:
+File [sites.cpp](../src/config/sites.cpp) phân tích tiêu đề cửa sổ trình duyệt để trích xuất domain đang hoạt động:
 
 - **Họ Gecko (isGeckoApp)**: Firefox, Zen Browser, Librewolf, Floorp, Waterfox...
 - **Họ Chromium (isChromiumApp)**: Chrome, Chromium, Brave, Helium, Edge, Vivaldi, Thorium...
@@ -37,7 +37,7 @@ File [sites.cpp](./src/config/sites.cpp) phân tích tiêu đề cửa sổ trì
 
 ## 3. Nhận diện Trình soạn thảo Modal (Modal Editors)
 
-File [modal_editor.cpp](./src/platform/modal_editor.cpp):
+File [modal_editor.cpp](../src/platform/modal_editor.cpp):
 
 Khi người dùng làm việc trong Neovim, Vim, Kakoune, hoặc Helix (chạy trong Terminal hoặc bản GUI như Neovide):
 

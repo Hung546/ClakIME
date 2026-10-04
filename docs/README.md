@@ -79,9 +79,9 @@ Fcitx5 keyEvent
 
 ### Các bước xử lý tuần tự
 
-1. **Fcitx5 event loop**: Bắt sự kiện phím bấm trong [state.cpp](./src/ime/state.cpp) `keyEvent`.
+1. **Fcitx5 event loop**: Bắt sự kiện phím bấm trong [state.cpp](../src/ime/state.cpp) `keyEvent`.
 2. **Kiểm tra modal editor**: Nếu đang ở trong Vim/Neovim/Helix ở chế độ NORMAL, phím được chuyển thẳng (forward) không qua gõ dấu.
-3. **Rust engine FFI**: Gọi [clak_process_key](./engine/src/lib.rs) kèm văn bản ngữ cảnh xung quanh (surrounding text).
+3. **Rust engine FFI**: Gọi [clak_process_key](../engine/src/lib.rs) kèm văn bản ngữ cảnh xung quanh (surrounding text).
 4. **Phân nhánh thực thi action**:
     - `FORWARD`: Không biến đổi, chuyển tiếp phím gốc.
     - `COMMIT`: Nhận diện từ hoàn chỉnh hoặc ký tự đặc biệt, chèn chuỗi ký tự qua Fcitx5.
@@ -126,7 +126,7 @@ Fcitx5 keyEvent
 
 ## 6. Giao diện FFI C/Rust
 
-Tầng C++ của Fcitx5 giao tiếp với lõi Rust engine qua FFI ngoại vi [engine/src/lib.rs](./engine/src/lib.rs):
+Tầng C++ của Fcitx5 giao tiếp với lõi Rust engine qua FFI ngoại vi [engine/src/lib.rs](../engine/src/lib.rs):
 
 ```c
 ClakContext* clak_context_new(uint32_t method);

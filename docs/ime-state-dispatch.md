@@ -1,8 +1,8 @@
 # Module Điều hướng Trạng thái Gõ (IME State & Dispatch)
 
-Thư mục: [src/ime/](./src/ime/)
+Thư mục: [src/ime/](../src/ime/)
 
-File chính: [state.h](./src/ime/state.h), [state.cpp](./src/ime/state.cpp)
+File chính: [state.h](../src/ime/state.h), [state.cpp](../src/ime/state.cpp)
 
 Đây là khối điều khiển trung tâm của Clak trên Fcitx5, quản lý toàn bộ vòng đời phím bấm, quyết định sử dụng kênh Wayland SurroundingText hay Uinput, và đảm bảo tính toàn vẹn (correctness) của văn bản hiển thị.
 

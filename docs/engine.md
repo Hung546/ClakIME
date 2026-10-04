@@ -1,6 +1,6 @@
 # Module Lõi Xử lý Ngôn ngữ (Engine)
 
-Thư mục: [engine/](./engine/)
+Thư mục: [engine/](../engine/)
 
 Lõi xử lý tiếng Việt của Clak được viết hoàn toàn bằng Rust để đảm bảo an toàn bộ nhớ và tốc độ xử lý nano-giây. Module này chịu trách nhiệm biến chuỗi phím người dùng gõ thành từ tiếng Việt có nghĩa theo quy tắc Telex hoặc VNI.
 
@@ -8,18 +8,18 @@ Lõi xử lý tiếng Việt của Clak được viết hoàn toàn bằng Rust 
 
 ## 1. Kiến trúc Module Rust
 
-- [lib.rs](./engine/src/lib.rs): Cung cấp giao diện C-FFI để tầng C++ của Fcitx5 gọi vào.
-- [engine.rs](./engine/src/engine.rs): Máy trạng thái máy gõ (Telex, VNI, VIQR), logic tích hợp ký tự, xóa lùi, và khôi phục từ nguyên bản.
-- [spelling.rs](./engine/src/spelling.rs): Quy tắc chính tả tiếng Việt chuẩn, nhận diện phụ âm đầu, nguyên âm đơn/đôi/ba, phụ âm cuối, và từ điển tiếng Việt rút gọn.
-- [charset.rs](./engine/src/charset.rs): Bảng mã biến đổi giữa Unicode dựng sẵn, Unicode tổ hợp, VNI-Windows, và TCVN3.
-- [tables.rs](./engine/src/tables.rs): Bảng tra cứu nguyên âm và dấu thanh tiếng Việt nhanh.
-- [ime.rs](./engine/src/ime.rs): Trình mô phỏng tích hợp trực tiếp kiểm tra tính hợp lệ của ngữ cảnh xung quanh văn bản (surrounding text).
+- [lib.rs](../engine/src/lib.rs): Cung cấp giao diện C-FFI để tầng C++ của Fcitx5 gọi vào.
+- [engine.rs](../engine/src/engine.rs): Máy trạng thái máy gõ (Telex, VNI, VIQR), logic tích hợp ký tự, xóa lùi, và khôi phục từ nguyên bản.
+- [spelling.rs](../engine/src/spelling.rs): Quy tắc chính tả tiếng Việt chuẩn, nhận diện phụ âm đầu, nguyên âm đơn/đôi/ba, phụ âm cuối, và từ điển tiếng Việt rút gọn.
+- [charset.rs](../engine/src/charset.rs): Bảng mã biến đổi giữa Unicode dựng sẵn, Unicode tổ hợp, VNI-Windows, và TCVN3.
+- [tables.rs](../engine/src/tables.rs): Bảng tra cứu nguyên âm và dấu thanh tiếng Việt nhanh.
+- [ime.rs](../engine/src/ime.rs): Trình mô phỏng tích hợp trực tiếp kiểm tra tính hợp lệ của ngữ cảnh xung quanh văn bản (surrounding text).
 
 ---
 
 ## 2. Giao diện FFI (C-Interface)
 
-Tầng C++ giao tiếp với Rust qua các hàm ngoại vi trong [lib.rs](./engine/src/lib.rs):
+Tầng C++ giao tiếp với Rust qua các hàm ngoại vi trong [lib.rs](../engine/src/lib.rs):
 
 ```c
 ClakContext* clak_context_new(uint32_t method);

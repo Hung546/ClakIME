@@ -58,3 +58,4 @@ moc_*.cpp
 Thumbs.db
 desktop.ini
 
+.agents

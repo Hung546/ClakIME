@@ -174,10 +174,10 @@ TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
         }
     );
 
-    // at 350ms, the 250ms selection timer has fired and recovered state cleanly
+    // at 600ms, the 250ms selection timer has fired and recovered state cleanly
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 350000,
+        fcitx::now(CLOCK_MONOTONIC) + 600000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();

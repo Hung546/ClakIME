@@ -139,19 +139,11 @@ fn default_switch_shortcut() -> String {
 }
 
 fn default_excluded_apps() -> Vec<String> {
-    vec![
-        "kitty".to_string(),
-        "alacritty".to_string(),
-        "foot".to_string(),
-        "wezterm".to_string(),
-    ]
+    Vec::new()
 }
 
 fn default_macro_items() -> Vec<MacroItem> {
-    vec![MacroItem {
-        trigger: "vn".to_string(),
-        replace: "Việt Nam".to_string(),
-    }]
+    Vec::new()
 }
 
 impl Default for GeneralConfig {
@@ -349,7 +341,8 @@ mod tests {
         let parsed: ClakConfig = toml::from_str(&toml_str).expect("deserialize");
         assert_eq!(parsed.general.method, "telex");
         assert_eq!(parsed.shortcuts.toggle_vietnamese, "ctrl_shift");
-        assert_eq!(parsed.per_app.excluded_apps.len(), 4);
+        assert_eq!(parsed.per_app.excluded_apps.len(), 0);
+        assert_eq!(parsed.macros.items.len(), 0);
     }
 
     #[test]

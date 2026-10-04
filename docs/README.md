@@ -48,24 +48,116 @@ input-method/
 
 ---
 
-## 2. Luồng Xử lý Dữ liệu Tổng thể
+## 2. Kiến trúc & Sơ đồ Luồng Xử lý Dữ liệu
 
-Khi người dùng nhấn một phím:
+```text
+Fcitx5 keyEvent
+       │
+       ▼
+ ┌───────────────┐  Có (Vim/Helix NORMAL)
+ │ Modal Editor? ├─────────────────────────► Forward phím thô (không gõ dấu)
+ └───────┬───────┘
+         │ Không (INSERT / ứng dụng thông thường)
+         ▼
+ ┌───────────────┐
+ │ Rust Engine   ├─────────────────────────► FFI clak_process_key()
+ └───────┬───────┘
+         │
+         ▼
+   ClakAction
+   ├── FORWARD               ──► Chuyển tiếp phím gốc cho frontend
+   ├── COMMIT                ──► Chèn chuỗi ký tự trực tiếp (doCommitString)
+   └── REPLACE / SURROUNDING ──► Cần xóa N ký tự và chèn chuỗi tiếng Việt mới
+               │
+               ├────────────────────────┬────────────────────────┐
+               ▼                        ▼                        ▼
+       SurroundingText            Uinput Pacing          Address Bar Fix
+       (Chromium, Brave, Web)    (Gecko, Docs, Term)   (Omnibox Autocomplete)
+       deleteSurroundingText     N+1 Sentinel BS        N+1 BS + 1 BS autofill
+       + doCommitString          + loopback check       + doCommitString
+```
 
-1. **Fcitx5 Event Loop**: Bắt sự kiện trong [state.cpp](./src/ime/state.cpp) `keyEvent`.
-2. **Kiểm tra Modal Editor**: Nếu đang ở trong Vim/Neovim ở chế độ NORMAL, phím được chuyển thẳng (forward) không qua gõ dấu.
-3. **Rust Engine FFI**: Gọi [clak_process_key](./engine/src/lib.rs) cùng văn bản ngữ cảnh xung quanh (surrounding text).
+### Các bước xử lý tuần tự
+
+1. **Fcitx5 Event Loop**: Bắt sự kiện phím bấm trong [state.cpp](./src/ime/state.cpp) `keyEvent`.
+2. **Kiểm tra Modal Editor**: Nếu đang ở trong Vim/Neovim/Helix ở chế độ NORMAL, phím được chuyển thẳng (forward) không qua gõ dấu.
+3. **Rust Engine FFI**: Gọi [clak_process_key](./engine/src/lib.rs) kèm văn bản ngữ cảnh xung quanh (surrounding text).
 4. **Phân nhánh thực thi Action**:
     - `FORWARD`: Không biến đổi, chuyển tiếp phím gốc.
     - `COMMIT`: Nhận diện từ hoàn chỉnh hoặc ký tự đặc biệt, chèn chuỗi ký tự qua Fcitx5.
     - `REPLACE`: Cần xóa $N$ ký tự trước con trỏ và thay thế bằng âm tiết tiếng Việt mới.
-5. **Kênh Xóa Văn bản (Dispatching)**:
+5. **Điều hướng Kênh Xóa Văn bản (Dispatching)**:
     - **Kênh SurroundingText**: Áp dụng cho các ô nhập liệu tiêu chuẩn trên Chromium, Brave, mạng xã hội Facebook/Messenger qua `deleteSurroundingText`.
-    - **Kênh Uinput Pacing**: Áp dụng cho Gecko (Zen Browser, Firefox), Google Docs canvas, và thanh địa chỉ (Omnibox) đang hiện gợi ý tìm kiếm.
+    - **Kênh Uinput Pacing**: Áp dụng cho Gecko (Zen Browser, Firefox), Google Docs canvas, Terminal, và thanh địa chỉ (Omnibox).
 
 ---
 
-## 3. Bản đồ Tài liệu Chi tiết
+## 3. Bảng Phân nhánh Kênh Thực thi (Dispatch Paths)
+
+| Kênh thực thi | Ứng dụng áp dụng | Cơ chế hoạt động | Ưu điểm & Bảo vệ |
+| --- | --- | --- | --- |
+| **SurroundingText** | Chromium, Chrome, Brave, Facebook, Messenger | Gọi trực tiếp `deleteSurroundingText()` của Wayland rồi commit | Độ trễ cực thấp (<0.3ms), bảo toàn cấu trúc DOM và vùng chọn |
+| **Uinput Sentinel Pacing** | Gecko (Zen Browser, Firefox), Google Docs, Terminal | Phát $N+1$ Backspace qua `/dev/uinput`, chờ phím chốt thứ $N+1$ loopback | Khắc phục triệt để lỗi nuốt phím và xung đột bộ đệm của Gecko/Canvas |
+| **Address Bar Fix** | Thanh địa chỉ Chromium / Brave khi có autocomplete | Phát $N + 1 + 1$ Backspace (thêm 1 Backspace xóa inline autocomplete) | Ngăn mất ký tự đầu hoặc kẹt chuỗi `dđ` khi trình duyệt tự gợi ý URL |
+| **Modal Editor Bypass** | Neovim, Helix, Vim (trong Kitty, Alacritty, WezTerm...) | Đọc IPC Hyprland socket và kiểm tra chế độ NORMAL/INSERT | Không làm phiền khi gõ lệnh Vim, tự bật lại bộ gõ khi vào INSERT |
+
+---
+
+## 4. Các Bất biến Hệ thống Cốt lõi (System Invariants)
+
+- **FIFO Buffer khi Đang Xóa**: Trong lúc Uinput đang phát phím xóa (`is_deleting_ = true`), các phím người dùng gõ tiếp theo được đưa vào hàng đợi `buffered_keys_` và phát lại đúng thứ tự sau khi commit hoàn tất.
+- **Không bao giờ block Main Thread**: Tuyệt đối không dùng `sleep()` trong thread chính của Fcitx5; toàn bộ nhịp pacing, delay và safety timer đều dùng `sd-event` loop bất đồng bộ.
+- **Phím chốt Sentinel $N+1$**: Luôn gửi $N+1$ phím Backspace khi xóa qua uinput; phím thứ $N+1$ được filter để xác nhận chắc chắn $N$ ký tự cũ đã bị xóa trước khi commit ký tự mới.
+- **Safety Timer & Adaptive Latency Scaling**: Hẹn giờ an toàn 50ms (hoặc 100ms trên thanh địa chỉ). Nếu trễ (>35ms), hệ thống tự nâng thời gian chờ an toàn (+10ms) và tự giảm (-10ms) khi ổn định trở lại.
+
+---
+
+## 5. Tùy chọn Cấu hình Nhập liệu (Configuration)
+
+| Tùy chọn | Mặc định | Hành vi khi kích hoạt |
+| --- | --- | --- |
+| `auto_capitalize` | `true` | Tự động viết hoa chữ cái đầu câu sau `. `, `? `, `! `, Enter hoặc đầu văn bản |
+| `double_space_period` | `true` | Nhấn 2 lần Space liên tiếp sẽ tự động chuyển thành `. ` |
+| `macro_expansion` | `true` | Mở rộng bảng gõ tắt (khớp hoa/thường) khi nhấn Space, Enter hoặc Tab |
+| `auto_restore` | `true` | Tự phục hồi từ tiếng Anh khi từ gõ vào vi phạm quy tắc chính tả tiếng Việt |
+| `modern_tone` | `true` | Đặt dấu thanh kiểu mới (`hoá`, `oà`, `uý`) thay vì kiểu cũ (`hóa`, `òa`, `úy`) |
+
+---
+
+## 6. Giao diện FFI C/Rust (API Surface)
+
+Tầng C++ của Fcitx5 giao tiếp với lõi Rust engine qua FFI ngoại vi [engine/src/lib.rs](./engine/src/lib.rs):
+
+```c
+ClakContext* clak_context_new(uint32_t method);
+void clak_context_free(ClakContext* ctx);
+void clak_context_reset(ClakContext* ctx);
+
+ClakAction clak_process_key(
+    ClakContext* ctx,
+    uint32_t key_sym,
+    const char* key_str,
+    bool has_ctrl_alt,
+    const char* surrounding_text,
+    size_t cursor_pos,
+    size_t anchor_pos
+);
+```
+
+### Cấu trúc ClakAction
+
+- `action_type`:
+    - `0 (CLAK_ACTION_FORWARD)`: Phím thô không đổi, chuyển tiếp cho ứng dụng.
+    - `1 (CLAK_ACTION_COMMIT)`: Chèn chuỗi ký tự mới mà không cần lùi xóa.
+    - `2 (CLAK_ACTION_REPLACE)`: Xóa `delete_count` ký tự trước con trỏ và chèn `commit_str`.
+    - `3 (CLAK_ACTION_REPLACE_SURROUNDING)`: Thay thế dựa trên văn bản ngữ cảnh xung quanh.
+    - `4 (CLAK_ACTION_ADDRESS_BAR_FIX)`: Tín hiệu xóa bù cho thanh địa chỉ trình duyệt.
+- `delete_count`: Số ký tự UTF-8 cần xóa lùi.
+- `commit_str`: Chuỗi tiếng Việt cần chèn vào.
+
+---
+
+## 7. Bản đồ Tài liệu Chi tiết
 
 Mỗi module được giải thích cặn kẽ trong các tài liệu sau:
 

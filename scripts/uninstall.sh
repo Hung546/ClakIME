@@ -287,18 +287,66 @@ run_uninstall() {
 
     # 6. cleanup autostart and environment configuration
     spin_step "Đang dọn dẹp cấu hình khởi động cùng hệ thống..."
-    rm -f "${HOME}/.config/autostart/clak-autostart.desktop"
-    rm -f "${HOME}/.config/environment.d/99-clak-im.conf"
-    if [ -f "${HOME}/.config/fcitx5/profile" ]; then
-        sed -i 's/^DefaultIM=clak/DefaultIM=keyboard-us/' "${HOME}/.config/fcitx5/profile" 2>/dev/null || true
+    local target_home="${HOME}"
+    local target_user="${USER:-$(id -un)}"
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        target_user="$SUDO_USER"
+        target_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    fi
+
+    rm -f "${target_home}/.config/autostart/clak-autostart.desktop"
+    rm -f "${target_home}/.config/environment.d/99-clak-im.conf"
+
+    local prof="${target_home}/.config/fcitx5/profile"
+    if [ -f "$prof" ]; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 -c '
+import sys, re
+path = sys.argv[1]
+try:
+    with open(path, "r") as f:
+        content = f.read()
+    content = re.sub(r"^DefaultIM=clak", "DefaultIM=keyboard-us", content, flags=re.MULTILINE)
+    sections = [s.strip() for s in re.split(r"(?=\n?\[[^\]]+\])", content) if s.strip()]
+    groups = {}
+    new_sections = []
+    for s in sections:
+        m = re.match(r"\[([^\]]+)\]", s)
+        if not m: continue
+        sec_name = m.group(1)
+        if sec_name.startswith("Groups/") and "/Items/" in sec_name:
+            grp = sec_name.split("/Items/")[0]
+            if grp not in groups: groups[grp] = []
+            if not re.search(r"Name=clak\b", s):
+                groups[grp].append(s)
+        else:
+            new_sections.append(s)
+    final_output = []
+    for sec in new_sections:
+        final_output.append(sec)
+        m = re.match(r"\[(Groups/\d+)\]", sec)
+        if m:
+            grp = m.group(1)
+            if grp in groups:
+                for idx, item_sec in enumerate(groups[grp]):
+                    renumbered = re.sub(r"\[Groups/\d+/Items/\d+\]", f"[{grp}/Items/{idx}]", item_sec)
+                    final_output.append(renumbered)
+    with open(path, "w") as f:
+        f.write("\n\n".join(final_output) + "\n")
+except Exception:
+    pass
+' "$prof" 2>/dev/null || true
+        else
+            sed -i 's/^DefaultIM=clak/DefaultIM=keyboard-us/' "$prof" 2>/dev/null || true
+        fi
     fi
     log_step "$lbl_clean" "Đã dọn dẹp cấu hình khởi động cùng hệ thống"
 
     # 7. cleanup icons
     spin_step "Đang dọn dẹp icon Clak..."
-    find "${HOME}/.local/share/icons" -type f -name "*clak*" -delete 2>/dev/null || true
+    find "${target_home}/.local/share/icons" -type f -name "*clak*" -delete 2>/dev/null || true
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-        for icondir in "${HOME}/.local/share/icons"/*; do
+        for icondir in "${target_home}/.local/share/icons"/*; do
             [ -d "$icondir" ] && gtk-update-icon-cache -f -q -t "$icondir" 2>/dev/null || true
         done
     fi
@@ -306,21 +354,27 @@ run_uninstall() {
 
     # 7b. cleanup user configuration if purge requested
     if [ "$purge_config" -eq 1 ]; then
-        rm -rf "${HOME}/.config/clak"
+        rm -rf "${target_home}/.config/clak"
         log_step "$lbl_clean" "Đã xóa thư mục cấu hình cá nhân (~/.config/clak)"
     fi
 
-    # 8. reload fcitx5
-    if command -v fcitx5 >/dev/null 2>&1; then
-        (
-            fcitx5 -r -d >/dev/null 2>&1 || true
-            sleep 0.4
-        ) &
-        local reload_pid=$!
-        spin_pid "$reload_pid" "Đang khởi động lại daemon Fcitx5..."
-        wait "$reload_pid" 2>/dev/null || true
-        log_step "$lbl_fcitx" "Đã khởi động lại Fcitx5 thành công"
+    # 8. reload fcitx5 via dbus controller
+    spin_step "Đang làm mới cấu hình Fcitx5..."
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        local user_uid
+        user_uid="$(id -u "$target_user" 2>/dev/null || true)"
+        if [ -n "$user_uid" ]; then
+            local user_bus="unix:path=/run/user/${user_uid}/bus"
+            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Refresh >/dev/null 2>&1 || true
+            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save >/dev/null 2>&1 || true
+            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" fcitx5-remote -r >/dev/null 2>&1 || true
+        fi
+    else
+        busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Refresh >/dev/null 2>&1 || true
+        busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save >/dev/null 2>&1 || true
+        fcitx5-remote -r >/dev/null 2>&1 || true
     fi
+    log_step "$lbl_fcitx" "Đã làm mới danh sách bộ gõ Fcitx5 thành công"
 
     printf "\r\033[K\n"
     echo -e "${c_green}✔ Đã gỡ bỏ hoàn toàn bộ gõ Clak khỏi hệ thống!${c_reset}"

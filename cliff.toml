@@ -34,6 +34,7 @@ commit_parsers = [
     { message = "(?i)^fix\\(ci\\)", skip = true },
     { message = "(?i)^fix\\(release\\)", skip = true },
     { message = "(?i)^fix", group = "Bug fixes" },
+    { message = "(?i)^sec(urity)?", group = "Security" },
     { message = "(?i)^perf", group = "Performance" },
     { message = "(?i)^refactor", group = "Refactors" },
     { message = "(?i)^docs\\(changelog\\)", skip = true },

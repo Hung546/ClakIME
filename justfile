@@ -110,12 +110,12 @@ install-hooks:
 # run latency benchmark analysis and regression assertion
 [group("quality")]
 bench *args:
-    ./bin/clak bench {{args}}
+    ./cli/clak bench {{args}}
 
 # run environment diagnostics
 [group("quality")]
 doctor:
-    ./bin/clak doctor
+    ./cli/clak doctor
 
 # tail debug log
 [group("debug")]

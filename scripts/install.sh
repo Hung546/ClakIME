@@ -540,6 +540,9 @@ run_install() {
     local lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
     local addon_src="${tmp_dir}/usr/share/fcitx5/addon/clak.conf"
     local im_src="${tmp_dir}/usr/share/fcitx5/inputmethod/clak.conf"
+    local gui_src="${tmp_dir}/usr/bin/clak-gui"
+    local desktop_src="${tmp_dir}/usr/share/applications/clak-gui.desktop"
+    local icons_src="${tmp_dir}/usr/share/icons"
 
     if [ ! -f "$lib_src" ]; then
         err "Gói cài đặt bị lỗi: không tìm thấy file libclak.so"
@@ -562,6 +565,24 @@ run_install() {
         run_sudo cp "$im_src" "${im_dest}/clak.conf"
         run_sudo chmod 755 "${lib_dest}/libclak.so"
         run_sudo chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
+
+        if [ -f "$gui_src" ]; then
+            run_sudo mkdir -p "/usr/bin"
+            run_sudo cp "$gui_src" "/usr/bin/clak-gui"
+            run_sudo chmod 755 "/usr/bin/clak-gui"
+        fi
+        if [ -f "$desktop_src" ]; then
+            run_sudo mkdir -p "/usr/share/applications"
+            run_sudo cp "$desktop_src" "/usr/share/applications/clak-gui.desktop"
+            run_sudo chmod 644 "/usr/share/applications/clak-gui.desktop"
+            command -v update-desktop-database >/dev/null 2>&1 && run_sudo update-desktop-database "/usr/share/applications" 2>/dev/null || true
+        fi
+        if [ -d "$icons_src" ]; then
+            run_sudo cp -r "$icons_src"/* /usr/share/icons/ 2>/dev/null || true
+            if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+                run_sudo gtk-update-icon-cache -f -q -t "/usr/share/icons/hicolor" 2>/dev/null || true
+            fi
+        fi
     else
         lib_dest="${HOME}/.local/lib/fcitx5"
         addon_dest="${HOME}/.local/share/fcitx5/addon"
@@ -573,11 +594,33 @@ run_install() {
         cp "$im_src" "${im_dest}/clak.conf"
         chmod 755 "${lib_dest}/libclak.so"
         chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
+
+        if [ -f "$gui_src" ]; then
+            mkdir -p "${HOME}/.local/bin"
+            cp "$gui_src" "${HOME}/.local/bin/clak-gui"
+            chmod 755 "${HOME}/.local/bin/clak-gui"
+        fi
+        if [ -f "$desktop_src" ]; then
+            mkdir -p "${HOME}/.local/share/applications"
+            cp "$desktop_src" "${HOME}/.local/share/applications/clak-gui.desktop"
+            chmod 644 "${HOME}/.local/share/applications/clak-gui.desktop"
+            command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+        fi
+        if [ -d "$icons_src" ]; then
+            mkdir -p "${HOME}/.local/share/icons"
+            cp -r "$icons_src"/* "${HOME}/.local/share/icons/" 2>/dev/null || true
+            if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+                for icondir in "${HOME}/.local/share/icons"/*; do
+                    [ -d "$icondir" ] && gtk-update-icon-cache -f -q -t "$icondir" 2>/dev/null || true
+                done
+            fi
+        fi
     fi
 
     log_step "$lbl_install" "Đã chép ${c_accent}${lib_dest}/libclak.so${c_reset}"
     log_step "$lbl_install" "Đã chép ${c_accent}${addon_dest}/clak.conf${c_reset}"
     log_step "$lbl_install" "Đã chép ${c_accent}${im_dest}/clak.conf${c_reset}"
+    [ -f "$gui_src" ] && log_step "$lbl_install" "Đã cài đặt giao diện điều khiển cấu hình clak-gui"
 
     # save installed version for updater
     mkdir -p "${HOME}/.local/share/clak"

@@ -5,6 +5,7 @@ set -euo pipefail
 dry_run=0
 target_mode="auto"
 assume_yes=0
+purge_config=0
 
 # parse command-line arguments
 for arg in "$@"; do
@@ -18,6 +19,9 @@ for arg in "$@"; do
         --user|-u)
             target_mode="user"
             ;;
+        --purge|-p)
+            purge_config=1
+            ;;
         --yes|-y)
             assume_yes=1
             ;;
@@ -27,8 +31,9 @@ for arg in "$@"; do
             echo ""
             echo "Tùy chọn:"
             echo "  -d, --dry-run, --simulate  Chạy giả lập kiểm tra các mục sẽ gỡ bỏ (không xóa file)"
-            echo "  -u, --user                 Chỉ gỡ bỏ bản cài đặt cá nhân (~/.local) [mặc định]"
+            echo "  -u, --user                 Chỉ gỡ bỏ bản cài đặt cá nhân (~/.local)"
             echo "  -s, --system               Gỡ bỏ cả bản cài đặt toàn hệ thống (/usr) [cần sudo]"
+            echo "  -p, --purge                Gỡ bỏ toàn bộ bao gồm cả cấu hình (~/.config/clak)"
             echo "  -y, --yes                  Tự động đồng ý mọi thao tác gỡ bỏ"
             echo "  -h, --help                 Hiển thị trợ giúp này"
             exit 0
@@ -123,30 +128,53 @@ run_simulation() {
     local has_user=0
     local has_system=0
     local has_wps=0
+    local has_purge=0
 
     [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] && has_user=1
+    [ -f "${HOME}/.local/share/fcitx5/addon/clak.conf" ] && has_user=1
+    [ -f "${HOME}/.local/share/fcitx5/inputmethod/clak.conf" ] && has_user=1
+    [ -f "${HOME}/.local/bin/clak-gui" ] && has_user=1
+    [ -f "${HOME}/.local/share/applications/clak-gui.desktop" ] && has_user=1
+    [ -d "${HOME}/.local/share/clak" ] && has_user=1
+    [ -n "$(find "${HOME}/.local/share/icons" -name '*clak*' -print -quit 2>/dev/null)" ] && has_user=1
+
     [ -f "/usr/lib/fcitx5/libclak.so" ] && has_system=1
+    [ -f "/usr/bin/clak-gui" ] && has_system=1
+    [ -f "/usr/share/applications/clak-gui.desktop" ] && has_system=1
+    [ -f "/usr/share/fcitx5/addon/clak.conf" ] && has_system=1
+    [ -f "/usr/share/fcitx5/inputmethod/clak.conf" ] && has_system=1
+    [ -n "$(find /usr/share/icons -name '*clak*' -print -quit 2>/dev/null)" ] && has_system=1
+
     [ -f "${HOME}/.config/environment.d/99-clak-wps.conf" ] && has_wps=1
+    [ -d "${HOME}/.config/clak" ] && [ "$purge_config" -eq 1 ] && has_purge=1
 
     echo ""
     echo -e "  ${c_bold}Các mục sẽ được gỡ bỏ:${c_reset}"
     if [ "$has_user" -eq 1 ] || [ "$target_mode" != "system" ]; then
-        echo -e "  • Thư viện và cấu hình người dùng: ${c_accent}~/.local/lib/fcitx5/libclak.so${c_reset}"
-        echo -e "  • Khai báo addon Fcitx5:            ${c_accent}~/.local/share/fcitx5/addon/clak.conf${c_reset}"
-        echo -e "  • Khai báo bộ gõ Fcitx5:           ${c_accent}~/.local/share/fcitx5/inputmethod/clak.conf${c_reset}"
-        echo -e "  • Dữ liệu phiên bản & icon:        ${c_accent}~/.local/share/clak/${c_reset}"
+        echo -e "  • Thư viện và ứng dụng cá nhân:     ${c_accent}~/.local/lib/fcitx5/libclak.so, ~/.local/bin/clak-gui${c_reset}"
+        echo -e "  • Khai báo addon & bộ gõ cá nhân:   ${c_accent}~/.local/share/fcitx5/{addon,inputmethod}/clak.conf${c_reset}"
+        echo -e "  • Menu ứng dụng cá nhân:            ${c_accent}~/.local/share/applications/clak-gui.desktop${c_reset}"
+        echo -e "  • Dữ liệu phiên bản & icon cá nhân: ${c_accent}~/.local/share/clak/, ~/.local/share/icons/**/clak*${c_reset}"
     fi
 
     if [ "$has_system" -eq 1 ] || [ "$target_mode" = "system" ]; then
-        echo -e "  • File hệ thống (/usr):             ${c_accent}/usr/lib/fcitx5/libclak.so${c_reset}"
+        echo -e "  • File hệ thống (/usr):             ${c_accent}/usr/lib/fcitx5/libclak.so, /usr/bin/clak-gui${c_reset}"
+        echo -e "  • Khai báo addon & bộ gõ hệ thống:  ${c_accent}/usr/share/fcitx5/{addon,inputmethod}/clak.conf${c_reset}"
+        echo -e "  • Menu ứng dụng hệ thống:           ${c_accent}/usr/share/applications/clak-gui.desktop${c_reset}"
+        echo -e "  • Biểu tượng hệ thống:              ${c_accent}/usr/share/icons/hicolor/**/clak*${c_reset}"
     fi
 
     if [ "$has_wps" -eq 1 ]; then
-        echo -e "  • Cấu hình tương thích WPS Office: ${c_accent}~/.config/environment.d/99-clak-wps.conf${c_reset}"
-        echo -e "  • Phím tắt WPS launcher tùy chỉnh: ~/.local/share/applications/wps-office-*.desktop"
+        echo -e "  • Cấu hình tương thích WPS Office:  ${c_accent}~/.config/environment.d/99-clak-wps.conf${c_reset}"
+        echo -e "  • Phím tắt WPS launcher tùy chỉnh:  ~/.local/share/applications/wps-office-*.desktop"
+    fi
+
+    if [ "$has_purge" -eq 1 ]; then
+        echo -e "  • Thư mục cấu hình cá nhân:         ${c_accent}~/.config/clak/${c_reset}"
     fi
 
     echo -e "  • Cấu hình khởi động cùng hệ thống: ~/.config/autostart/clak-autostart.desktop"
+    echo -e "  • Cấu hình biến môi trường:         ~/.config/environment.d/99-clak-im.conf"
 
     echo ""
     log_step "$lbl_clean" "[Giả lập] Dọn dẹp cấu hình khởi động cùng hệ thống"
@@ -163,12 +191,22 @@ run_uninstall() {
 
     [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] && has_user_files=1
     [ -f "${HOME}/.local/share/fcitx5/addon/clak.conf" ] && has_user_files=1
-    [ -f "${HOME}/.local/share/clak/version" ] && has_user_files=1
+    [ -f "${HOME}/.local/share/fcitx5/inputmethod/clak.conf" ] && has_user_files=1
+    [ -f "${HOME}/.local/bin/clak-gui" ] && has_user_files=1
+    [ -f "${HOME}/.local/share/applications/clak-gui.desktop" ] && has_user_files=1
+    [ -d "${HOME}/.local/share/clak" ] && has_user_files=1
+    [ -f "${HOME}/.config/autostart/clak-autostart.desktop" ] && has_user_files=1
+    [ -f "${HOME}/.config/environment.d/99-clak-im.conf" ] && has_user_files=1
+    [ -n "$(find "${HOME}/.local/share/icons" -name '*clak*' -print -quit 2>/dev/null)" ] && has_user_files=1
 
     [ -f "/usr/lib/fcitx5/libclak.so" ] && has_sys_files=1
+    [ -f "/usr/bin/clak-gui" ] && has_sys_files=1
+    [ -f "/usr/share/applications/clak-gui.desktop" ] && has_sys_files=1
     [ -f "/usr/share/fcitx5/addon/clak.conf" ] && has_sys_files=1
+    [ -f "/usr/share/fcitx5/inputmethod/clak.conf" ] && has_sys_files=1
+    [ -n "$(find /usr/share/icons -name '*clak*' -print -quit 2>/dev/null)" ] && has_sys_files=1
 
-    if [ "$has_user_files" -eq 0 ] && [ "$has_sys_files" -eq 0 ] && [ "$target_mode" != "system" ]; then
+    if [ "$has_user_files" -eq 0 ] && [ "$has_sys_files" -eq 0 ] && [ "$target_mode" != "system" ] && [ "$purge_config" -eq 0 ]; then
         log_step "$lbl_warn" "Không tìm thấy file cài đặt Clak nào trên hệ thống"
         exit 0
     fi
@@ -187,22 +225,36 @@ run_uninstall() {
         esac
     fi
 
-    # 3. remove user-space binaries and addons
+    # 3. remove user-space binaries, addons, and shortcuts
     if [ "$target_mode" != "system" ] || [ "$has_user_files" -eq 1 ]; then
         spin_step "Đang xóa thư viện và cấu hình cá nhân (~/.local)..."
+        rm -f "${HOME}/.local/bin/clak-gui"
+        rm -f "${HOME}/.local/share/applications/clak-gui.desktop"
         rm -f "${HOME}/.local/lib/fcitx5/libclak.so"
         rm -f "${HOME}/.local/share/fcitx5/addon/clak.conf"
         rm -f "${HOME}/.local/share/fcitx5/inputmethod/clak.conf"
         rm -rf "${HOME}/.local/share/clak"
-        log_step "$lbl_remove" "Đã xóa file thư viện Clak trong ~/.local"
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+        fi
+        log_step "$lbl_remove" "Đã xóa file thư viện và ứng dụng Clak trong ~/.local"
     fi
 
     # 4. remove system binaries if requested or detected
     if [ "$target_mode" = "system" ] || ([ "$target_mode" = "auto" ] && [ "$has_sys_files" -eq 1 ]); then
         spin_step "Đang xóa file Clak toàn hệ thống (/usr)..."
+        run_sudo rm -f "/usr/bin/clak-gui"
+        run_sudo rm -f "/usr/share/applications/clak-gui.desktop"
         run_sudo rm -f "/usr/lib/fcitx5/libclak.so"
         run_sudo rm -f "/usr/share/fcitx5/addon/clak.conf"
         run_sudo rm -f "/usr/share/fcitx5/inputmethod/clak.conf"
+        run_sudo find "/usr/share/icons" -type f -name "*clak*" -delete 2>/dev/null || true
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            run_sudo gtk-update-icon-cache -f -q -t "/usr/share/icons/hicolor" 2>/dev/null || true
+        fi
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            run_sudo update-desktop-database "/usr/share/applications" 2>/dev/null || true
+        fi
         log_step "$lbl_remove" "Đã xóa file Clak trong hệ thống (/usr)"
     fi
 
@@ -246,9 +298,17 @@ run_uninstall() {
     spin_step "Đang dọn dẹp icon Clak..."
     find "${HOME}/.local/share/icons" -type f -name "*clak*" -delete 2>/dev/null || true
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-        gtk-update-icon-cache -f -q -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
+        for icondir in "${HOME}/.local/share/icons"/*; do
+            [ -d "$icondir" ] && gtk-update-icon-cache -f -q -t "$icondir" 2>/dev/null || true
+        done
     fi
     log_step "$lbl_clean" "Đã dọn dẹp biểu tượng Clak trong hệ thống"
+
+    # 7b. cleanup user configuration if purge requested
+    if [ "$purge_config" -eq 1 ]; then
+        rm -rf "${HOME}/.config/clak"
+        log_step "$lbl_clean" "Đã xóa thư mục cấu hình cá nhân (~/.config/clak)"
+    fi
 
     # 8. reload fcitx5
     if command -v fcitx5 >/dev/null 2>&1; then

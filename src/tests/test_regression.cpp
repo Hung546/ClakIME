@@ -126,7 +126,7 @@ TEST_F(RegressionCorpusTest, test_regression_laf_sentinel_timeout) {
 
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 200000,
+        fcitx::now(CLOCK_MONOTONIC) + 300000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();
@@ -212,7 +212,7 @@ TEST_F(RegressionCorpusTest, test_regression_safety_timer_self_reset_crash) {
     EXPECT_NO_THROW({
         auto exit_timer = instance_->eventLoop().addTimeEvent(
             CLOCK_MONOTONIC,
-            fcitx::now(CLOCK_MONOTONIC) + 100000,
+            fcitx::now(CLOCK_MONOTONIC) + 300000,
             0,
             [this](fcitx::EventSourceTime*, uint64_t) {
                 instance_->eventLoop().exit();

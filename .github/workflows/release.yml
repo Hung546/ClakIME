@@ -102,20 +102,27 @@ jobs:
           name: release-dist
           path: dist
 
-      - name: Generate CHANGELOG
+      - name: Generate Release Notes
+        id: release-notes
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --tag ${{ github.ref_name }} --output /tmp/CHANGELOG.md
+          args: --latest --strip header
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: /tmp/CHANGELOG.md
+          body: ${{ steps.release-notes.outputs.content }}
           files: |
             dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Full CHANGELOG
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --output /tmp/CHANGELOG.md
 
       - name: Commit CHANGELOG.md
         run: |

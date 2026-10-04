@@ -420,7 +420,8 @@ run_simulation() {
     # final line directly after spin completes
     printf "\r\033[K\n"
     echo -e "${c_green}✔ Cài đặt Clak thành công vào hệ thống Fcitx5!${c_reset}"
-    echo -e "  Vào cấu hình Fcitx5 để thêm Clak vào danh sách bộ gõ"
+    echo -e "  ${c_cyan}::${c_reset} Vào cấu hình Fcitx5 (${c_cyan}fcitx5-configtool${c_reset}) để thêm Clak vào danh sách bộ gõ"
+    echo -e "  ${c_yellow}:: Lưu ý:${c_reset} ${c_bold}Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó đã hỗ trợ sẵn gõ cả tiếng Anh và tiếng Việt${c_reset}"
     echo ""
 }
 
@@ -659,10 +660,11 @@ run_install() {
     # final line directly after spin completes
     printf "\r\033[K\n"
     echo -e "${c_green}✔ Cài đặt Clak thành công vào hệ thống Fcitx5!${c_reset}"
-    echo -e "  Vào cấu hình Fcitx5 để thêm Clak vào danh sách bộ gõ để sử dụng"
+    echo -e "  ${c_cyan}::${c_reset} Vào cấu hình Fcitx5 (${c_cyan}fcitx5-configtool${c_reset}) để thêm Clak vào danh sách bộ gõ để sử dụng"
+    echo -e "  ${c_yellow}:: Lưu ý:${c_reset} ${c_bold}Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó hỗ trợ gõ cả tiếng Anh và tiếng Việt${c_reset}"
     echo ""
     if command -v notify-send >/dev/null 2>&1; then
-        notify-send -i org.fcitx.Fcitx5.clak "Clak" "Cài đặt thành công! Hãy vào cấu hình Fcitx5 thêm Clak vào bộ gõ để sử dụng" 2>/dev/null || true
+        notify-send -i org.fcitx.Fcitx5.clak "Clak" "Cài đặt thành công! Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak" 2>/dev/null || true
     fi
 }
 

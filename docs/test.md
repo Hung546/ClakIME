@@ -11,7 +11,7 @@ Hệ thống kiểm thử của Clak được phân tách thành 3 tầng độc
 | Tầng kiểm thử | Vị trí mã nguồn | Công nghệ | Mục đích | Số lượng test |
 | --- | --- | --- | --- | --- |
 | **Rust engine unit và fuzzing** | `engine/src/`, `engine/tests/` | `cargo test`, `proptest` | Kiểm thử bảng mã, quy tắc ghép âm Telex/VNI, từ điển, tối thiểu hoá diff và fuzzing bất biến | 114 tests |
-| **C++ state machine và regression** | `src/tests/` | GoogleTest, Fcitx5 mock | Kiểm thử máy trạng thái C++, bẫy sentinel, race condition, rò rỉ bộ đệm và tương thích compositor | 15 tests |
+| **C++ state machine và regression** | `src/tests/` | GoogleTest, Fcitx5 mock | Kiểm thử máy trạng thái C++, bẫy sentinel, race condition, rò rỉ bộ đệm và tương thích compositor | 17 tests |
 | **E2E desktop scripts** | `scripts/tests/` | Bash, `just` | Mô phỏng phím gõ thực tế trên browser, đo latency và kiểm tra tải | 4 kịch bản |
 
 ---
@@ -29,6 +29,8 @@ Tầng này kế thừa trực tiếp từ các class thật của Fcitx5 (`fcit
 | `GivenSentinelNeverArrives_SafetyTimerFires_RecoversAndCommits` | Sentinel Backspace bị mất do compositor hoặc app nuốt | Safety timer 50ms tự kích hoạt, cam kết text đang chờ và giải phóng trạng thái kẹt |
 | `GivenKeysBufferedDuringDelete_ReplaysInOriginalOrder` | Người dùng gõ cực nhanh (>120 WPM) trong lúc uinput đang xoá | Các phím bấm sau được đưa vào hàng đợi và phát lại đúng thứ tự sau khi xoá xong |
 | `GivenChromiumNormalPage_UsesSurroundingText` | Trang web thông thường trên Chromium/Brave | Ưu tiên dùng SurroundingText trực tiếp để đạt độ trễ thấp nhất (zero perceptible latency) |
+| `GivenGnomeFallbackApp_DetectsGuiEditorWithoutCompositorPid` | Trình soạn thảo GUI (Neovide, GVim) trên môi trường không có socket compositor (GNOME) | Tự động nhận diện modal editor qua tên chương trình fallback từ Fcitx5 |
+| `GivenGnomeFallbackApp_PopulatesTerminalClass` | Terminal trên GNOME (gnome-terminal-server) khi không có IPC Hyprland | Điền class từ fallback để quét tiến trình con trong /proc |
 
 ### Danh mục test case phòng ngừa lỗi (`test_regression.cpp`)
 

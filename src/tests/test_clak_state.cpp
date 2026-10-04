@@ -7,6 +7,7 @@
 #include "core.h"
 #include "uinput/uinput.h"
 #include "platform/window_info.h"
+#include "platform/modal_editor.h"
 
 namespace clak {
 namespace test {
@@ -191,6 +192,22 @@ TEST_F(ClakStateTest, GivenChromiumNormalPage_UsesSurroundingText) {
     EXPECT_EQ(ic.deletions[0].second, 1);
     ASSERT_FALSE(ic.commits.empty());
     EXPECT_EQ(ic.commits[0], "đ");
+}
+
+TEST_F(ClakStateTest, GivenGnomeFallbackApp_DetectsGuiEditorWithoutCompositorPid) {
+    // gui editors like neovide or gvim on gnome should be detected even without window pid
+    platform::setMockActiveWindow(platform::WindowInfo{"", "", 0});
+    platform::WindowInfo win = platform::getActiveWindow("neovide");
+    EXPECT_EQ(win.win_class, "neovide");
+    EXPECT_EQ(win.pid, 0);
+    EXPECT_TRUE(platform::isEditorActive(win));
+}
+
+TEST_F(ClakStateTest, GivenGnomeFallbackApp_PopulatesTerminalClass) {
+    // fallback app should populate terminal class when hyprland socket is absent
+    platform::setMockActiveWindow(platform::WindowInfo{"", "", 0});
+    platform::WindowInfo win = platform::getActiveWindow("gnome-terminal-server");
+    EXPECT_EQ(win.win_class, "gnome-terminal-server");
 }
 
 } // namespace test

@@ -40,6 +40,57 @@ bool isProcessDescendantOf(pid_t child, pid_t target_parent) {
     return false;
 }
 
+bool hasAncestorMatching(pid_t child, const std::string& target_class) {
+    if (child <= 1 || target_class.empty()) return false;
+    pid_t cur = child;
+    int limit = 16;
+    while (cur > 1 && limit-- > 0) {
+        std::string comm_path = "/proc/" + std::to_string(cur) + "/comm";
+        std::ifstream f(comm_path);
+        if (f.is_open()) {
+            std::string comm;
+            if (f >> comm) {
+                for (char& c : comm) c = tolower(c);
+                if (target_class.find(comm) != std::string::npos || comm.find(target_class) != std::string::npos) {
+                    return true;
+                }
+            }
+        }
+        pid_t ppid = getProcessPpid(cur);
+        if (ppid <= 1 || ppid == cur) break;
+        cur = ppid;
+    }
+    return false;
+}
+
+bool isForegroundTerminalProcess(pid_t pid) {
+    std::string path = "/proc/" + std::to_string(pid) + "/stat";
+    std::ifstream f(path);
+    if (!f.is_open()) return false;
+    std::string s;
+    if (!std::getline(f, s)) return false;
+    size_t rp = s.rfind(')');
+    if (rp == std::string::npos || rp + 2 >= s.size()) return false;
+    const char* ptr = s.c_str() + rp + 2;
+
+    while (*ptr && *ptr != ' ') ptr++;
+    while (*ptr == ' ') ptr++;
+    while (*ptr && *ptr != ' ') ptr++;
+    while (*ptr == ' ') ptr++;
+    char* end = nullptr;
+    long pgrp = strtol(ptr, &end, 10);
+    ptr = end;
+    while (*ptr == ' ') ptr++;
+    while (*ptr && *ptr != ' ') ptr++;
+    while (*ptr == ' ') ptr++;
+    long tty_nr = strtol(ptr, &end, 10);
+    ptr = end;
+    while (*ptr == ' ') ptr++;
+    long tpgid = strtol(ptr, &end, 10);
+
+    return (tty_nr != 0 && pgrp > 0 && pgrp == tpgid);
+}
+
 } // namespace
 
 bool isEditorActive(const WindowInfo& win) {
@@ -69,8 +120,6 @@ bool isEditorActive(const WindowInfo& win) {
             return true;
         }
     }
-
-    if (win.pid <= 1) return false;
 
     // check if tmux is running an editor in active pane
     pid_t tmux_pane_pid = 0;
@@ -116,8 +165,16 @@ bool isEditorActive(const WindowInfo& win) {
         std::string comm;
         f >> comm;
         if (editor_comms.count(comm) > 0) {
-            if ((win.pid > 1 && isProcessDescendantOf(p, win.pid)) ||
-                (tmux_pane_pid > 1 && isProcessDescendantOf(p, tmux_pane_pid))) {
+            if (win.pid > 1 && isProcessDescendantOf(p, win.pid)) {
+                found = true;
+                break;
+            }
+            if (tmux_pane_pid > 1 && isProcessDescendantOf(p, tmux_pane_pid)) {
+                found = true;
+                break;
+            }
+            // fallback for desktop environments without window pid (e.g. gnome)
+            if (win.pid <= 1 && isForegroundTerminalProcess(p) && hasAncestorMatching(p, lower_class)) {
                 found = true;
                 break;
             }

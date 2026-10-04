@@ -21,9 +21,13 @@ void clearMockActiveWindow() {
     s_mock_window_info = std::nullopt;
 }
 
-WindowInfo getActiveWindow() {
+WindowInfo getActiveWindow(const std::string& fallback_app) {
     if (s_mock_window_info.has_value()) {
-        return *s_mock_window_info;
+        WindowInfo info = *s_mock_window_info;
+        if (info.win_class.empty() && !fallback_app.empty()) {
+            info.win_class = fallback_app;
+        }
+        return info;
     }
     static WindowInfo s_cached_info;
     static int64_t s_last_ms = 0;
@@ -32,15 +36,22 @@ WindowInfo getActiveWindow() {
     auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
 
-    // cache window info for 500ms to avoid querying hyprland on every keystroke
+    // cache window info for 500ms to avoid querying compositor on every keystroke
     if (now_ms - s_last_ms < 500 && !s_cached_info.win_class.empty()) {
-        return s_cached_info;
+        if (fallback_app.empty() || s_cached_info.win_class == fallback_app) {
+            return s_cached_info;
+        }
     }
     s_last_ms = now_ms;
 
     WindowInfo info;
     const char* xdg = getenv("XDG_RUNTIME_DIR");
-    if (!xdg) return info;
+    if (!xdg) {
+        if (!fallback_app.empty()) {
+            info.win_class = fallback_app;
+        }
+        return info;
+    }
 
     if (s_sock_path.empty()) {
         std::string sig;
@@ -61,12 +72,22 @@ WindowInfo getActiveWindow() {
                 closedir(d);
             }
         }
-        if (sig.empty()) return info;
+        if (sig.empty()) {
+            if (!fallback_app.empty()) {
+                info.win_class = fallback_app;
+            }
+            return info;
+        }
         s_sock_path = std::string(xdg) + "/hypr/" + sig + "/.socket.sock";
     }
 
     int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
-    if (fd < 0) return info;
+    if (fd < 0) {
+        if (!fallback_app.empty()) {
+            info.win_class = fallback_app;
+        }
+        return info;
+    }
 
     struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
@@ -76,6 +97,9 @@ WindowInfo getActiveWindow() {
     if (connect(fd, reinterpret_cast<struct sockaddr*>(&addr), len) != 0) {
         close(fd);
         s_sock_path.clear();
+        if (!fallback_app.empty()) {
+            info.win_class = fallback_app;
+        }
         return info;
     }
 
@@ -115,6 +139,10 @@ WindowInfo getActiveWindow() {
         while (*p == ' ' || *p == '\t' || *p == '\"') p++;
         const char* end = strchr(p, '\"');
         if (end) info.win_title = std::string(p, end - p);
+    }
+
+    if (info.win_class.empty() && !fallback_app.empty()) {
+        info.win_class = fallback_app;
     }
 
     if (!info.win_class.empty()) {

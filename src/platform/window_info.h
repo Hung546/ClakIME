@@ -14,7 +14,7 @@ struct WindowInfo {
     pid_t pid{0};
 };
 
-WindowInfo getActiveWindow();
+WindowInfo getActiveWindow(const std::string& fallback_app = "");
 void setMockActiveWindow(std::optional<WindowInfo> info);
 void clearMockActiveWindow();
 

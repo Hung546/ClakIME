@@ -105,7 +105,8 @@ std::string ClakState::activeSite() {
         return cached_site_;
     }
     last_site_check_us_ = now_us;
-    platform::WindowInfo win = platform::getActiveWindow();
+    std::string fallback = (ic_ && !ic_->program().empty()) ? ic_->program() : "";
+    platform::WindowInfo win = platform::getActiveWindow(fallback);
     cached_site_ = config::extractDomain(win.win_class, win.win_title);
     return cached_site_;
 }
@@ -391,7 +392,8 @@ void ClakState::updateModalEditorStatus() {
     }
     last_editor_check_us_ = now_us;
 
-    platform::WindowInfo win = platform::getActiveWindow();
+    std::string fallback = (ic_ && !ic_->program().empty()) ? ic_->program() : "";
+    platform::WindowInfo win = platform::getActiveWindow(fallback);
     bool was_editor = is_modal_editor_;
     is_modal_editor_ = platform::isEditorActive(win);
     if (!was_editor && is_modal_editor_) {

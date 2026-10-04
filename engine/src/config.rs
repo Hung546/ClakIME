@@ -274,8 +274,17 @@ pub fn apply_autostart(enabled: bool, startup_mode: &str) -> std::io::Result<()>
         let _ = fs::write(&env_file, env_content);
 
         configure_fcitx5_profile(&home, startup_mode);
-    } else if desktop_file.exists() {
-        let _ = fs::remove_file(&desktop_file);
+    } else {
+        if desktop_file.exists() {
+            let _ = fs::remove_file(&desktop_file);
+        }
+        let env_file = home
+            .join(".config")
+            .join("environment.d")
+            .join("99-clak-im.conf");
+        if env_file.exists() {
+            let _ = fs::remove_file(&env_file);
+        }
     }
     Ok(())
 }

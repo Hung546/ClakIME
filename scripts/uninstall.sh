@@ -388,21 +388,21 @@ except Exception:
         log_step "$lbl_clean" "Đã xóa thư mục cấu hình cá nhân (~/.config/clak)"
     fi
 
-    # 8. reload fcitx5 via dbus controller
-    spin_step "Đang làm mới cấu hình Fcitx5..."
+    # 8. restart fcitx5 via dbus controller to flush in-memory im list
+    spin_step "Đang làm mới và khởi động lại Fcitx5..."
     if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
         local user_uid
         user_uid="$(id -u "$target_user" 2>/dev/null || true)"
         if [ -n "$user_uid" ]; then
             local user_bus="unix:path=/run/user/${user_uid}/bus"
-            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Refresh >/dev/null 2>&1 || true
-            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" fcitx5-remote -r >/dev/null 2>&1 || true
+            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Restart >/dev/null 2>&1 || \
+            sudo -u "$target_user" env DBUS_SESSION_BUS_ADDRESS="$user_bus" fcitx5 -r -d >/dev/null 2>&1 || true
         fi
     else
-        busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Refresh >/dev/null 2>&1 || true
-        fcitx5-remote -r >/dev/null 2>&1 || true
+        busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Restart >/dev/null 2>&1 || \
+        fcitx5 -r -d >/dev/null 2>&1 || true
     fi
-    log_step "$lbl_fcitx" "Đã làm mới danh sách bộ gõ Fcitx5 thành công"
+    log_step "$lbl_fcitx" "Đã khởi động lại Fcitx5 và làm mới danh sách bộ gõ thành công"
 
     printf "\r\033[K\n"
     echo -e "${c_green}✔ Đã gỡ bỏ hoàn toàn bộ gõ Clak khỏi hệ thống!${c_reset}"

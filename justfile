@@ -103,6 +103,7 @@ vendor:
 # update aur .srcinfo metadata
 pkg-aur:
     cd packaging/aur && makepkg --printsrcinfo > .SRCINFO
+    cd packaging/aur-bin && makepkg --printsrcinfo > .SRCINFO
 
 # generate changelog with git-cliff
 changelog:
@@ -131,12 +132,15 @@ tag version:
     sed -i "0,/^version = \"[0-9.]\+\"/s//version = \"${ver}\"/" ui/Cargo.toml
     sed -i "s/^pkgver=[0-9.]\+/pkgver=${ver}/" packaging/aur/PKGBUILD
     sed -i "s/^pkgrel=[0-9]\+/pkgrel=1/" packaging/aur/PKGBUILD
+    sed -i "s/^pkgver=[0-9.]\+/pkgver=${ver}/" packaging/aur-bin/PKGBUILD
+    sed -i "s/^pkgrel=[0-9]\+/pkgrel=1/" packaging/aur-bin/PKGBUILD
 
     cargo check --manifest-path engine/Cargo.toml --quiet
     cargo check --manifest-path ui/Cargo.toml --quiet
     (cd packaging/aur && makepkg --printsrcinfo > .SRCINFO)
+    (cd packaging/aur-bin && makepkg --printsrcinfo > .SRCINFO)
 
-    git add CMakeLists.txt data/clak-addon.conf.in engine/Cargo.toml engine/Cargo.lock ui/Cargo.toml ui/Cargo.lock packaging/aur/PKGBUILD packaging/aur/.SRCINFO
+    git add CMakeLists.txt data/clak-addon.conf.in engine/Cargo.toml engine/Cargo.lock ui/Cargo.toml ui/Cargo.lock packaging/aur/PKGBUILD packaging/aur/.SRCINFO packaging/aur-bin/PKGBUILD packaging/aur-bin/.SRCINFO
     git commit -m "chore: release ${tag}"
     git tag -a "${tag}" -m "release: ${tag}"
 

@@ -1,0 +1,12 @@
+post_install() {
+    echo ":: Cài đặt Clak thành công"
+    echo ":: Hãy khởi động lại Fcitx5 để sử dụng: fcitx5 -r -d"
+}
+
+post_upgrade() {
+    echo ":: Đã update Clak lên phiên bản mới"
+    if pgrep -x fcitx5 >/dev/null 2>&1; then
+        echo ":: Đang nạp lại daemon Fcitx5..."
+        fcitx5 -r -d >/dev/null 2>&1 || true
+    fi
+}

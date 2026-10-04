@@ -149,11 +149,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Update PKGBUILD version
+      - name: Update PKGBUILD versions
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur/PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" packaging/aur/PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur-bin/PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" packaging/aur-bin/PKGBUILD
 
       - name: Publish clak to AUR
         if: env.AUR_KEY != ''
@@ -161,6 +163,17 @@ jobs:
         with:
           pkgname: clak
           pkgbuild: packaging/aur/PKGBUILD
+          commit_username: "verse"
+          commit_email: "versedev.store@proton.me"
+          ssh_private_key: ${{ secrets.AUR_KEY }}
+          commit_message: "release: update to ${GITHUB_REF_NAME}"
+
+      - name: Publish clak-bin to AUR
+        if: env.AUR_KEY != ''
+        uses: KSXGitHub/github-actions-deploy-aur@v4.2.0
+        with:
+          pkgname: clak-bin
+          pkgbuild: packaging/aur-bin/PKGBUILD
           commit_username: "verse"
           commit_email: "versedev.store@proton.me"
           ssh_private_key: ${{ secrets.AUR_KEY }}

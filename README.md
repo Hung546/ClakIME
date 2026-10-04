@@ -17,8 +17,12 @@ curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/insta
 Arch Linux (AUR):
 
 ```bash
+# bản prebuilt binary dựng sẵn (khuyên dùng)
+yay -S clak-bin
+# hoặc paru -S clak-bin
+
+# hoặc tự build từ source
 yay -S clak
-# hoặc paru -S clak
 ```
 
 Nix Flake:

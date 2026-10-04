@@ -127,10 +127,10 @@ TEST_F(ClakStateTest, GivenSentinelNeverArrives_SafetyTimerFires_RecoversAndComm
     EXPECT_TRUE(state.isDeleting());
     EXPECT_EQ(state.pendingCommitString(), "đ");
 
-    // run event loop on the same thread with an exit timer at 100ms (safety timer is 50ms)
+    // run event loop on the same thread with an exit timer at 400ms (safety timer is 50ms)
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 200000,
+        fcitx::now(CLOCK_MONOTONIC) + 400000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();

@@ -1,0 +1,197 @@
+#include <gtest/gtest.h>
+#include <fcitx/instance.h>
+#include <fcitx-utils/event.h>
+#include "mock_input_context.h"
+#include "ime/state.h"
+#include "engine.h"
+#include "core.h"
+#include "uinput/uinput.h"
+#include "platform/window_info.h"
+
+namespace clak {
+namespace test {
+
+class ClakStateTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        int argc = 1;
+        char arg0[] = "clak_test";
+        char* argv[] = {arg0, nullptr};
+        instance_ = std::make_unique<fcitx::Instance>(argc, argv);
+        engine_ = std::make_unique<ClakEngine>(instance_.get());
+        engine_->setConfigForTest(clak_config_default());
+        uinput::UinputTool::instance().setMockHandler([](size_t, uint32_t, uint32_t, uint32_t) {
+            return true;
+        });
+        platform::setMockActiveWindow(platform::WindowInfo{"google-chrome", "Standard Page", 1234});
+    }
+
+    void TearDown() override {
+        uinput::UinputTool::instance().clearMockHandler();
+        platform::clearMockActiveWindow();
+        engine_.reset();
+        instance_.reset();
+    }
+
+    std::unique_ptr<fcitx::Instance> instance_;
+    std::unique_ptr<ClakEngine> engine_;
+};
+
+TEST_F(ClakStateTest, GivenGeckoApp_AlwaysRoutesToUinput) {
+    // gecko apps like zen must always route deletions to uinput
+    platform::setMockActiveWindow(platform::WindowInfo{"zen", "Zen Browser", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "zen");
+    ime::ClakState state(engine_.get(), &ic);
+
+    EXPECT_TRUE(state.isGecko());
+
+    size_t uinput_bs_sent = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t count, uint32_t, uint32_t, uint32_t) {
+        uinput_bs_sent = count;
+        return true;
+    });
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    // expect 2 backspaces: 1 real + 1 sentinel loopback
+    EXPECT_EQ(uinput_bs_sent, 2);
+    EXPECT_TRUE(ic.deletions.empty());
+    EXPECT_TRUE(state.isDeleting());
+
+    // feed 2 sentinel backspaces to complete the uinput deletion
+    ic.sendCleanBackspace(&state);
+    ic.sendCleanBackspace(&state);
+
+    EXPECT_FALSE(state.isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "đ");
+}
+
+TEST_F(ClakStateTest, GivenStaleSurroundingText3TimesInRow_FallsBackToUinput) {
+    // rich text editors with stale surrounding text must switch to uinput after 3 mismatches
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ime::ClakState state(engine_.get(), &ic);
+
+    EXPECT_FALSE(state.isGecko());
+    EXPECT_FALSE(state.isRichTextEditor());
+    EXPECT_EQ(state.mismatchCount(), 0);
+
+    size_t uinput_calls = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t, uint32_t, uint32_t, uint32_t) {
+        uinput_calls++;
+        return true;
+    });
+
+    for (int i = 0; i < 3; ++i) {
+        state.reset();
+        ic.clearHistory();
+        ic.setSurrounding("", 0, 0);
+        ic.typeChar('d', &state);
+        ic.typeChar('d', &state);
+        // editor provides stale text instead of composed đ
+        ic.setSurrounding("stale", 5, 5);
+        ic.typeChar(' ', &state);
+        EXPECT_EQ(state.mismatchCount(), i + 1);
+    }
+
+    EXPECT_TRUE(state.isRichTextEditor());
+
+    // 4th replacement should automatically use uinput instead of surrounding text
+    state.reset();
+    ic.clearHistory();
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    EXPECT_GT(uinput_calls, 0);
+    EXPECT_TRUE(ic.deletions.empty());
+}
+
+TEST_F(ClakStateTest, GivenSentinelNeverArrives_SafetyTimerFires_RecoversAndCommits) {
+    // lost sentinel backspace should recover via safety timer without deadlock
+    platform::setMockActiveWindow(platform::WindowInfo{"zen", "Zen Browser", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "zen");
+    ime::ClakState state(engine_.get(), &ic);
+
+    uinput::UinputTool::instance().setMockHandler([](size_t, uint32_t, uint32_t, uint32_t) {
+        return true;
+    });
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    EXPECT_TRUE(state.isDeleting());
+    EXPECT_EQ(state.pendingCommitString(), "đ");
+
+    // run event loop on the same thread with an exit timer at 300ms (safety timer is 250ms)
+    auto exit_timer = instance_->eventLoop().addTimeEvent(
+        CLOCK_MONOTONIC,
+        fcitx::now(CLOCK_MONOTONIC) + 300000,
+        0,
+        [this](fcitx::EventSourceTime*, uint64_t) {
+            instance_->eventLoop().exit();
+            return true;
+        }
+    );
+    instance_->eventLoop().exec();
+
+    EXPECT_FALSE(state.isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "đ");
+}
+
+TEST_F(ClakStateTest, GivenKeysBufferedDuringDelete_ReplaysInOriginalOrder) {
+    // keystrokes typed while uinput is deleting must buffer and replay in order
+    platform::setMockActiveWindow(platform::WindowInfo{"zen", "Zen Browser", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "zen");
+    ime::ClakState state(engine_.get(), &ic);
+
+    uinput::UinputTool::instance().setMockHandler([](size_t, uint32_t, uint32_t, uint32_t) {
+        return true;
+    });
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    EXPECT_TRUE(state.isDeleting());
+
+    // type while deleting is in progress
+    ic.typeChar(' ', &state);
+    ic.typeChar('b', &state);
+    ic.typeChar('a', &state);
+
+    EXPECT_EQ(state.bufferedKeysCount(), 3);
+    EXPECT_TRUE(ic.commits.empty());
+
+    // sentinels arrive, completing deletion and triggering replay
+    ic.sendCleanBackspace(&state);
+    ic.sendCleanBackspace(&state);
+
+    EXPECT_FALSE(state.isDeleting());
+    ASSERT_EQ(ic.commits.size(), 2);
+    EXPECT_EQ(ic.commits[0], "đ");
+    EXPECT_EQ(ic.commits[1], " ba");
+}
+
+TEST_F(ClakStateTest, GivenChromiumNormalPage_UsesSurroundingText) {
+    // normal browser page with valid surrounding text should use surrounding text deletion
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ime::ClakState state(engine_.get(), &ic);
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', &state);
+    ic.typeChar('d', &state);
+
+    EXPECT_FALSE(ic.deletions.empty());
+    EXPECT_EQ(ic.deletions[0].first, -1);
+    EXPECT_EQ(ic.deletions[0].second, 1);
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits[0], "đ");
+}
+
+} // namespace test
+} // namespace clak

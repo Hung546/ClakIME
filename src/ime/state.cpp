@@ -305,7 +305,6 @@ void ClakState::arm_safety_timer() {
                 op_start_us_ = 0;
                 replayBufferedKeys();
             }
-            safety_timer_.reset();
             return true;
         }
     );

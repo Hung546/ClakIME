@@ -192,6 +192,9 @@ bool UinputTool::send_select(size_t count) {
 }
 
 bool UinputTool::send_backspace(size_t count, uint32_t post_delay_ms, uint32_t pre_delay_ms, uint32_t gap_ms) {
+    if (mock_handler_) {
+        return mock_handler_(count, post_delay_ms, pre_delay_ms, gap_ms);
+    }
     if (direct_fd_ < 0) {
         init_direct_uinput();
     }

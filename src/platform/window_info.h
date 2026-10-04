@@ -2,6 +2,7 @@
 #define CLAK_PLATFORM_WINDOW_INFO_H
 
 #include <string>
+#include <optional>
 #include <sys/types.h>
 
 namespace clak {
@@ -14,6 +15,8 @@ struct WindowInfo {
 };
 
 WindowInfo getActiveWindow();
+void setMockActiveWindow(std::optional<WindowInfo> info);
+void clearMockActiveWindow();
 
 } // namespace platform
 } // namespace clak

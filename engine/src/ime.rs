@@ -597,7 +597,7 @@ pub fn decompose_to_telex(word: &str) -> String {
     result
 }
 
-fn compare_and_split(a: &str, b: &str) -> (String, String) {
+pub fn compare_and_split(a: &str, b: &str) -> (String, String) {
     let a_chars: Vec<char> = a.chars().collect();
     let b_chars: Vec<char> = b.chars().collect();
 

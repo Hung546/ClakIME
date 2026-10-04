@@ -75,7 +75,25 @@ set(CLAK_SOURCES
     src/engine.cpp
 )
 
-add_library(clak MODULE ${CLAK_SOURCES})
+add_library(clak_core OBJECT ${CLAK_SOURCES})
+set_target_properties(clak_core PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+)
+target_include_directories(clak_core PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/engine
+)
+target_link_libraries(clak_core PUBLIC
+    Fcitx5::Core
+    clak_rust_engine
+    input
+    udev
+    pthread
+    dl
+    m
+)
+
+add_library(clak MODULE $<TARGET_OBJECTS:clak_core>)
 set_target_properties(clak PROPERTIES
     OUTPUT_NAME "clak"
     PREFIX "lib"
@@ -129,3 +147,6 @@ add_custom_target(install-user
     COMMAND gtk-update-icon-cache -f -t "$ENV{HOME}/.local/share/icons/hicolor" || true
     DEPENDS clak clak_gui_build
 )
+
+enable_testing()
+add_subdirectory(src/tests)

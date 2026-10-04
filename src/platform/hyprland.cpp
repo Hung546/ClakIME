@@ -11,7 +11,20 @@
 namespace clak {
 namespace platform {
 
+static std::optional<WindowInfo> s_mock_window_info;
+
+void setMockActiveWindow(std::optional<WindowInfo> info) {
+    s_mock_window_info = std::move(info);
+}
+
+void clearMockActiveWindow() {
+    s_mock_window_info = std::nullopt;
+}
+
 WindowInfo getActiveWindow() {
+    if (s_mock_window_info.has_value()) {
+        return *s_mock_window_info;
+    }
     static WindowInfo s_cached_info;
     static int64_t s_last_ms = 0;
     static std::string s_sock_path;

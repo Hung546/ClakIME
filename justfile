@@ -27,6 +27,11 @@ dev: build install restart
 test-unit:
     cargo test --manifest-path engine/Cargo.toml
 
+# run C++ state machine and regression test suites
+test-cpp:
+    cmake --build build --target clak_cpp_tests
+    ./build/src/tests/clak_cpp_tests
+
 # test typing speed and accuracy
 test-speed delay="20":
     bash scripts/tests/test_speed.sh {{delay}}
@@ -44,7 +49,7 @@ test-scenario:
     bash scripts/tests/test_user_scenario.sh
 
 # run all automated tests
-test: test-unit test-scenario
+test: test-unit test-cpp test-scenario
 
 # run latency benchmark analysis and regression assertion
 bench *args:
@@ -68,6 +73,8 @@ check:
     cargo clippy --manifest-path engine/Cargo.toml -- -D warnings
     cargo test --manifest-path engine/Cargo.toml
     cargo test --manifest-path ui/Cargo.toml
+    cmake --build build --target clak_cpp_tests
+    ./build/src/tests/clak_cpp_tests
     cmake --build build
 
 # install git pre-push hook to run checks before pushing

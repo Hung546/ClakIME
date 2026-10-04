@@ -27,14 +27,21 @@ public:
   bool isGecko() const;
   std::string appKey();
   void syncConfig();
+  bool shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr);
+  bool isAutofillCertain(const fcitx::SurroundingText& surr);
+
+  bool isDeleting() const { return is_deleting_; }
+  bool isRichTextEditor() const { return is_rich_text_editor_; }
+  int mismatchCount() const { return mismatch_count_; }
+  size_t expectedBackspaces() const { return expected_backspaces_; }
+  size_t bufferedKeysCount() const { return buffered_keys_.size(); }
+  const std::string& pendingCommitString() const { return pending_commit_string_; }
 
 private:
   void arm_safety_timer();
   bool handleKey(const fcitx::Key& key);
   void replayBufferedKeys();
-  bool shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr);
   bool isCursorNearWord(const fcitx::SurroundingText& surr);
-  bool isAutofillCertain(const fcitx::SurroundingText& surr);
   std::string activeSite();
   void setVerifyExpectation(const std::string& wordBefore, size_t delChars, const std::string& added);
   void verifySurrounding(const fcitx::SurroundingText& surr);

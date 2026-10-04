@@ -62,7 +62,8 @@ typedef void ClakConfig;
 
 char       *clak_config_path(void);
 ClakConfig *clak_config_load(void);
-void        clak_config_free(ClakConfig *cfg);
+ClakConfig *clak_config_default(void);
+ClakConfig *clak_config_free(ClakConfig *cfg);
 bool        clak_config_is_app_excluded(const ClakConfig *cfg, const char *app_name);
 bool        clak_config_get_remember_state(const ClakConfig *cfg);
 bool        clak_config_get_uinput_ack(const ClakConfig *cfg);

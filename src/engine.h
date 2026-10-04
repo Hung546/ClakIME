@@ -33,6 +33,13 @@ public:
     void setupConfigWatcher();
     const ClakConfig* config() const { return config_; }
     uint64_t configVersion() const { return config_version_; }
+    void setConfigForTest(ClakConfig* config) {
+        if (config_) {
+            clak_config_free(config_);
+        }
+        config_ = config;
+        config_version_++;
+    }
 
     bool isAppEnabled(const std::string& app);
     void toggleAppEnabled(const std::string& app);

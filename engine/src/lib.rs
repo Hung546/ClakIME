@@ -411,6 +411,11 @@ pub unsafe extern "C" fn clak_config_load() -> *mut config::ClakConfig {
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_config_default() -> *mut config::ClakConfig {
+    Box::into_raw(Box::new(config::ClakConfig::default()))
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_config_free(cfg: *mut config::ClakConfig) {
     if !cfg.is_null() {
         drop(Box::from_raw(cfg));

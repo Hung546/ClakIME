@@ -28,18 +28,34 @@ jobs:
           pacman -Syu --noconfirm --needed \
             base-devel \
             cmake \
+            ninja \
             extra-cmake-modules \
             fcitx5 \
             libinput \
             rust \
-            git
+            git \
+            nodejs
+
+      - name: Cache Cargo & build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            build/engine-target/
+            build/ui-target/
+          key: ${{ runner.os }}-build-arch-${{ hashFiles('engine/Cargo.lock', 'ui/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-build-arch-
 
       - name: Run engine tests
         run: cargo test --manifest-path engine/Cargo.toml --verbose
 
       - name: Build Clak
         run: |
-          cmake -B build \
+          cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr
           cmake --build build -j$(nproc)
@@ -122,6 +138,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Update PKGBUILD version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur/PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" packaging/aur/PKGBUILD
 
       - name: Publish clak to AUR
         if: env.AUR_KEY != ''

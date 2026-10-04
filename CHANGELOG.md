@@ -25,6 +25,29 @@ All notable changes to this project are documented in this file.
 
 - Organize recipes into logical groups ([91ca79](https://github.com/versenilvis/clak/commit/91ca793661c557db4d077deae1acd2d3840c09cd))
 
+## [v0.2.3](https://github.com/versenilvis/clak/releases/tag/v0.2.3) - 2026-10-04
+
+### Bug fixes
+
+- Detect and clean residual fcitx5 profile and config in uninstall ([98f723](https://github.com/versenilvis/clak/commit/98f7238343c3286845c9449cf553fc01bfcb698c))
+- Restart fcitx5 on uninstall to immediately flush tray icon ([95b416](https://github.com/versenilvis/clak/commit/95b41629e406b71c724c19c5920797365fd398e6))
+- Use white fill for status icons and add post-install notification ([0511a1](https://github.com/versenilvis/clak/commit/0511a15a18b9377000756d8aefb4c4c32f012de8))
+- Add subtle dark contrast border to status icons ([524e76](https://github.com/versenilvis/clak/commit/524e76a318b17f7ae745bbdc42a327ead62cff0a))
+
+### Documentation
+
+- Fix file path ([e62505](https://github.com/versenilvis/clak/commit/e62505cb4d8a07bde3612e1d8ea4006894efcb7e))
+- Fix relative file paths from docs directory ([ed9f15](https://github.com/versenilvis/clak/commit/ed9f15129a61ae00ac777ecb22f75435d971504b))
+
+### Features
+
+- Add tag recipe for automated release bumping ([70ac42](https://github.com/versenilvis/clak/commit/70ac426a64c66931f29225b9db47afa7348d1223))
+- Add clak-bin package and update readme ([213681](https://github.com/versenilvis/clak/commit/213681f2306ce643ffafdcc7a60847d203f26cc5))
+
+### Refactors
+
+- Organize recipes into logical groups ([91ca79](https://github.com/versenilvis/clak/commit/91ca793661c557db4d077deae1acd2d3840c09cd))
+
 ## [v0.2.2](https://github.com/versenilvis/clak/releases/tag/v0.2.2) - 2026-10-04
 
 ### Bug fixes

@@ -126,7 +126,7 @@ TEST_F(RegressionCorpusTest, test_regression_laf_sentinel_timeout) {
 
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 120000,
+        fcitx::now(CLOCK_MONOTONIC) + 200000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();

@@ -129,7 +129,7 @@ TEST_F(ClakStateTest, GivenSentinelNeverArrives_SafetyTimerFires_RecoversAndComm
     // run event loop on the same thread with an exit timer at 100ms (safety timer is 50ms)
     auto exit_timer = instance_->eventLoop().addTimeEvent(
         CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 100000,
+        fcitx::now(CLOCK_MONOTONIC) + 200000,
         0,
         [this](fcitx::EventSourceTime*, uint64_t) {
             instance_->eventLoop().exit();

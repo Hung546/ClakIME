@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [v0.2.0](https://github.com/versenilvis/clak/releases/tag/v0.2.0) - 2026-10-04
 
+<div align="center">
+  <img width="949" height="700" alt="image" src="https://github.com/user-attachments/assets/778c2e42-b4a5-46db-96df-2e1858077601" />
+  
+  <strong>NEW UI</strong>
+  
+</div>
+
 ### Bug fixes
 
 - Detect wayland and gtk4 terminals ([d648d1](https://github.com/versenilvis/clak/commit/d648d188d17f8fec4a567e27f3148e30d761a7a5))

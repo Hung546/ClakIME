@@ -253,18 +253,108 @@ get_arch() {
     esac
 }
 
-# print install hint for fcitx5
-print_fcitx5_missing_hint() {
-    if command -v apt-get >/dev/null 2>&1; then
-        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo apt install fcitx5 fcitx5-config-qt"
+# ensure fcitx5 is installed or prompt user to install it
+ensure_fcitx5() {
+    local is_sim="${1:-0}"
+    if command -v fcitx5 >/dev/null 2>&1; then
+        local f_ver
+        f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
+        log_step "$lbl_check" "Đã phát hiện Fcitx5: ${c_cyan}${f_ver}${c_reset}"
+        return 0
+    fi
+
+    log_step "$lbl_warn" "Chưa tìm thấy Fcitx5 trên hệ thống"
+
+    local pkg_manager=""
+    local pkg_cmd=""
+    local pkg_hint=""
+
+    if command -v pacman >/dev/null 2>&1; then
+        pkg_manager="pacman"
+        pkg_cmd="pacman -S --noconfirm fcitx5 fcitx5-configtool"
+        pkg_hint="sudo pacman -S fcitx5 fcitx5-configtool"
+    elif command -v apt-get >/dev/null 2>&1; then
+        pkg_manager="apt"
+        pkg_cmd="apt-get install -y fcitx5 fcitx5-config-qt"
+        pkg_hint="sudo apt install fcitx5 fcitx5-config-qt"
     elif command -v dnf >/dev/null 2>&1; then
-        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo dnf install fcitx5 fcitx5-configtool"
-    elif command -v pacman >/dev/null 2>&1; then
-        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo pacman -S fcitx5 fcitx5-configtool"
+        pkg_manager="dnf"
+        pkg_cmd="dnf install -y fcitx5 fcitx5-configtool"
+        pkg_hint="sudo dnf install fcitx5 fcitx5-configtool"
     elif command -v zypper >/dev/null 2>&1; then
-        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo zypper install fcitx5"
+        pkg_manager="zypper"
+        pkg_cmd="zypper install -y fcitx5"
+        pkg_hint="sudo zypper install fcitx5"
+    fi
+
+    if [ "$is_sim" -eq 1 ]; then
+        if [ -n "$pkg_hint" ]; then
+            log_step "$lbl_check" "[Giả lập] Sẽ hỏi người dùng có muốn cài đặt Fcitx5 qua ${pkg_manager} không [y/N]"
+        else
+            log_step "$lbl_warn" "Cần cài đặt Fcitx5 bằng trình quản lý gói của hệ thống trước khi cài Clak"
+        fi
+        return 0
+    fi
+
+    # check if interactive terminal is available
+    local can_prompt=0
+    local prompt_from_tty=0
+    if [ -t 0 ]; then
+        can_prompt=1
+    elif [ -t 1 ] && [ -e /dev/tty ] && [ -r /dev/tty ]; then
+        can_prompt=1
+        prompt_from_tty=1
+    fi
+
+    if [ "$can_prompt" -eq 1 ] && [ -n "$pkg_cmd" ]; then
+        echo -e "  ${c_yellow}• Clak là bộ gõ hoạt động trên nền Fcitx5 (framework quản lý input method)${c_reset}"
+        echo -e "  ${c_yellow}• Để sử dụng Clak, hệ thống cần được cài đặt Fcitx5 trước${c_reset}"
+        local install_f5="n"
+        if [ "$prompt_from_tty" -eq 1 ]; then
+            read -r -p "  Bạn có muốn cài đặt Fcitx5 ngay bây giờ không? [y/N]: " install_f5 < /dev/tty || install_f5="n"
+        else
+            read -r -p "  Bạn có muốn cài đặt Fcitx5 ngay bây giờ không? [y/N]: " install_f5 || install_f5="n"
+        fi
+        case "$install_f5" in
+            [yY][eE][sS]|[yY])
+                log_step "$lbl_install" "Đang cài đặt Fcitx5 qua ${pkg_manager}..."
+                if [ "$pkg_manager" = "pacman" ]; then
+                    run_sudo pacman -S --noconfirm fcitx5 fcitx5-configtool || true
+                elif [ "$pkg_manager" = "apt" ]; then
+                    run_sudo apt-get update -y 2>/dev/null || true
+                    run_sudo apt-get install -y fcitx5 fcitx5-config-qt || true
+                elif [ "$pkg_manager" = "dnf" ]; then
+                    run_sudo dnf install -y fcitx5 fcitx5-configtool || true
+                elif [ "$pkg_manager" = "zypper" ]; then
+                    run_sudo zypper install -y fcitx5 || true
+                fi
+
+                # verify after install
+                if command -v fcitx5 >/dev/null 2>&1; then
+                    local f_ver
+                    f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
+                    log_step "$lbl_check" "Cài đặt Fcitx5 thành công: ${c_cyan}${f_ver}${c_reset}"
+                    return 0
+                else
+                    err "Cài đặt Fcitx5 không thành công hoặc bị hủy. Vui lòng cài thủ công: ${pkg_hint}"
+                fi
+                ;;
+            *)
+                echo -e "  ${c_dim}Bạn đã chọn không cài Fcitx5. Quá trình cài đặt Clak dừng lại tại đây.${c_reset}"
+                if [ -n "$pkg_hint" ]; then
+                    echo -e "  ${c_yellow}Gợi ý cài đặt khi bạn sẵn sàng:${c_reset} ${c_bold}${pkg_hint}${c_reset}"
+                fi
+                exit 0
+                ;;
+        esac
     else
-        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} Hãy cài đặt gói fcitx5 bằng trình quản lý gói của hệ thống"
+        echo -e "  ${c_yellow}• Clak là bộ gõ hoạt động trên nền Fcitx5, không thể hoạt động độc lập${c_reset}"
+        if [ -n "$pkg_hint" ]; then
+            echo -e "  ${c_yellow}Vui lòng cài Fcitx5 trước:${c_reset} ${c_bold}${pkg_hint}${c_reset}"
+        else
+            echo -e "  ${c_yellow}Vui lòng cài gói fcitx5 bằng trình quản lý gói của hệ thống trước khi cài Clak${c_reset}"
+        fi
+        exit 1
     fi
 }
 
@@ -434,10 +524,12 @@ disable_ibus_conflict() {
         fi
 
         local can_prompt=0
+        local prompt_from_tty=0
         if [ -t 0 ]; then
             can_prompt=1
-        elif [ -e /dev/tty ] && [ -r /dev/tty ]; then
+        elif [ -t 1 ] && [ -e /dev/tty ] && [ -r /dev/tty ]; then
             can_prompt=1
+            prompt_from_tty=1
         fi
 
         if [ "$can_prompt" -eq 1 ]; then
@@ -445,7 +537,11 @@ disable_ibus_conflict() {
             echo -e "  ${c_yellow}• Cả IBus và Fcitx5 cùng chạy có thể gây xung đột bộ gõ${c_reset}"
             echo -e "  ${c_yellow}• Nếu bạn đang dùng IBus cho bộ gõ khác (như ibus-mozc, ibus-hangul), bạn có thể giữ lại${c_reset}"
             local switch_ibus="n"
-            read -r -p "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " switch_ibus < /dev/tty || switch_ibus="n"
+            if [ "$prompt_from_tty" -eq 1 ]; then
+                read -r -p "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " switch_ibus < /dev/tty || switch_ibus="n"
+            else
+                read -r -p "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " switch_ibus || switch_ibus="n"
+            fi
             case "$switch_ibus" in
                 [yY][eE][sS]|[yY])
                     if pidof ibus-daemon >/dev/null 2>&1; then
@@ -656,13 +752,7 @@ run_simulation() {
     log_step "$lbl_check" "Hệ thống hợp lệ: ${c_purple}linux-${arch}${c_reset}"
 
     # 2. check fcitx5 and ibus
-    if command -v fcitx5 >/dev/null 2>&1; then
-        local f_ver
-        f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
-        log_step "$lbl_check" "Đã phát hiện Fcitx5: ${c_cyan}${f_ver}${c_reset}"
-    else
-        log_step "$lbl_warn" "Chưa tìm thấy Fcitx5. Vui lòng cài đặt: ${c_yellow}sudo pacman -S fcitx5${c_reset}"
-    fi
+    ensure_fcitx5 1
     disable_ibus_conflict 1
 
     # 3. simulated version tag
@@ -722,14 +812,7 @@ run_install() {
     log_step "$lbl_check" "Kiến trúc phần cứng: ${c_purple}${arch}${c_reset}"
 
     # 2. check fcitx5 and ibus
-    if command -v fcitx5 >/dev/null 2>&1; then
-        local f_ver
-        f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
-        log_step "$lbl_check" "Đã phát hiện Fcitx5: ${c_cyan}${f_ver}${c_reset}"
-    else
-        log_step "$lbl_warn" "Chưa tìm thấy Fcitx5 trên hệ thống"
-        print_fcitx5_missing_hint
-    fi
+    ensure_fcitx5 0
     disable_ibus_conflict 0
 
     # 3. check curl or wget

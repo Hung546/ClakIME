@@ -41,6 +41,10 @@ yay -S clak
 nix profile install github:versenilvis/clak
 ```
 
+> [!NOTE]
+> Clak có sẵn bàn phím tiếng Anh, bạn không cần thêm bất cứ bàn phím nào khác ngoài Clak cả  `
+> Sử dụng tổ hợp phím `Ctrl + Shift` để chuyển đổi ngôn ngữ
+
 ## Các điểm chính
 
 - Clak giúp bạn gõ trên Twitter/X mượt mà btw

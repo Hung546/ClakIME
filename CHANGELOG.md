@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.3.0](https://github.com/versenilvis/clak/releases/tag/v0.3.0) - 2026-10-05
+
+### Bug fixes
+
+- Fix duplicate characters by restoring backspace release events and delay pacing ([270f1c](https://github.com/versenilvis/clak/commit/270f1c41e6d33577fafbd7dec0cbd7a9c791c1ae))
+- Restore classic 950x700 floating window size ([a8a9b9](https://github.com/versenilvis/clak/commit/a8a9b9ba8998fa748fa16ce51194340d7af6e248))
+
+### Documentation
+
+- Small note ([91d3d8](https://github.com/versenilvis/clak/commit/91d3d8f6d876cd47448e1206c9b3cf2c02dd048a))
+- Add image to uninstall ([9ae079](https://github.com/versenilvis/clak/commit/9ae0798878fd2656d6908b288a22e79f52610267))
+
 ## [v0.2.11](https://github.com/versenilvis/clak/releases/tag/v0.2.11) - 2026-10-05
 
 ### Bug fixes

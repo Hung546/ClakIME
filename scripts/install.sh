@@ -266,24 +266,19 @@ ensure_fcitx5() {
     log_step "$lbl_warn" "Chưa tìm thấy Fcitx5 trên hệ thống"
 
     local pkg_manager=""
-    local pkg_cmd=""
     local pkg_hint=""
 
     if command -v pacman >/dev/null 2>&1; then
         pkg_manager="pacman"
-        pkg_cmd="pacman -S --noconfirm fcitx5 fcitx5-configtool"
         pkg_hint="sudo pacman -S fcitx5 fcitx5-configtool"
     elif command -v apt-get >/dev/null 2>&1; then
         pkg_manager="apt"
-        pkg_cmd="apt-get install -y fcitx5 fcitx5-config-qt"
         pkg_hint="sudo apt install fcitx5 fcitx5-config-qt"
     elif command -v dnf >/dev/null 2>&1; then
         pkg_manager="dnf"
-        pkg_cmd="dnf install -y fcitx5 fcitx5-configtool"
         pkg_hint="sudo dnf install fcitx5 fcitx5-configtool"
     elif command -v zypper >/dev/null 2>&1; then
         pkg_manager="zypper"
-        pkg_cmd="zypper install -y fcitx5"
         pkg_hint="sudo zypper install fcitx5"
     fi
 
@@ -306,7 +301,7 @@ ensure_fcitx5() {
         prompt_from_tty=1
     fi
 
-    if [ "$can_prompt" -eq 1 ] && [ -n "$pkg_cmd" ]; then
+    if [ "$can_prompt" -eq 1 ] && [ -n "$pkg_manager" ]; then
         echo -e "  ${c_yellow}• Clak là bộ gõ hoạt động trên nền Fcitx5 (framework quản lý input method)${c_reset}"
         echo -e "  ${c_yellow}• Để sử dụng Clak, hệ thống cần được cài đặt Fcitx5 trước${c_reset}"
         local install_f5="n"

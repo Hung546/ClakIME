@@ -84,6 +84,8 @@ nix profile install github:versenilvis/clak
 
 Clak Settings > Giới thiệu > Gỡ cài đặt
 
+<img width="702" height="157" alt="image" src="https://github.com/user-attachments/assets/f1395d5a-8428-49df-95db-8cf508aa7c92" />
+
 ## Feedback
 
 - [Email](mailto:versedev.store@proton.me)

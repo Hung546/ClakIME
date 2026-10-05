@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(clak VERSION 0.2.11 LANGUAGES C CXX)
+project(clak VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)

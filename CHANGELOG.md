@@ -9,6 +9,25 @@ All notable changes to this project are documented in this file.
 - Resolve installer hangs, dynamic download size, and optimize install flow ([8b7325](https://github.com/versenilvis/clak/commit/8b7325670cd5126e14a973211258078f4341f2ea))
 - Always restore original fcitx5 config backup on uninstall ([927c5e](https://github.com/versenilvis/clak/commit/927c5ec8e651f387639335886051de697a454d09))
 - Resolve ubuntu compatibility, desktop path, and multiarch paths ([9855fa](https://github.com/versenilvis/clak/commit/9855fa32d787e1957ac25c8ee48e2f9f04d030dd))
+- Enable window resizing, fix sidebar clipping and add tab scrollview ([e7ee95](https://github.com/versenilvis/clak/commit/e7ee9592de04a5200e8df68b789c3ac1bc95d0ab))
+- Adjust default floating window size to 880x560 ([2e49c4](https://github.com/versenilvis/clak/commit/2e49c47000a5bd0ee2ab98f4347903c664f5de13))
+
+### Features
+
+- Prompt user to install fcitx5 if missing and stop if declined ([f42173](https://github.com/versenilvis/clak/commit/f42173df2d12b48d1276435376da0b8b575f7d8a))
+
+### Refactors
+
+- Apply safe installer enhancements and avoid invasive system changes ([1b293f](https://github.com/versenilvis/clak/commit/1b293f9b18a3dbc5417a14393e445b1960eb7c54))
+- Remove dead pkg_cmd variable and streamline ensure_fcitx5 ([4f291a](https://github.com/versenilvis/clak/commit/4f291a83d1af5820764b61ad97e239605677097c))
+
+## [v0.2.9](https://github.com/versenilvis/clak/releases/tag/v0.2.9) - 2026-10-05
+
+### Bug fixes
+
+- Resolve installer hangs, dynamic download size, and optimize install flow ([8b7325](https://github.com/versenilvis/clak/commit/8b7325670cd5126e14a973211258078f4341f2ea))
+- Always restore original fcitx5 config backup on uninstall ([927c5e](https://github.com/versenilvis/clak/commit/927c5ec8e651f387639335886051de697a454d09))
+- Resolve ubuntu compatibility, desktop path, and multiarch paths ([9855fa](https://github.com/versenilvis/clak/commit/9855fa32d787e1957ac25c8ee48e2f9f04d030dd))
 
 ### Features
 

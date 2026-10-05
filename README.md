@@ -42,8 +42,8 @@ nix profile install github:versenilvis/clak
 ```
 
 > [!NOTE]
-> Clak có sẵn bàn phím tiếng Anh, bạn không cần thêm bất cứ bàn phím nào khác ngoài Clak cả  
-> Sử dụng tổ hợp phím `Ctrl + Shift` để chuyển đổi ngôn ngữ  
+> Clak có sẵn bàn phím tiếng Anh, bạn không cần thêm bất cứ bàn phím nào khác ngoài Clak cả
+> Sử dụng tổ hợp phím `Ctrl + Shift` để chuyển đổi ngôn ngữ
 > Clak mang lại trải nghiệm gõ giống hệt như trên Windows
 
 ## Các điểm chính
@@ -79,6 +79,10 @@ nix profile install github:versenilvis/clak
 - Clak giúp bạn gõ trên WPS Office/LibreOffice mượt mà btw
 
 <img src="assets/proof/wps.webp" width="100%" alt="WPS" />
+
+- Clak giúp bạn gõ trên các IDE JetBrains mượt mà btw
+
+<img src="assets/proof/jetbrains.webp" width="100%" alt="Jetbrains" />
 
 ## Gỡ cài đặt
 

@@ -76,6 +76,8 @@ lbl_fetch="${c_yellow}TẢI VỀ  ${c_reset}"
 lbl_install="${c_green}CÀI ĐẶT ${c_reset}"
 lbl_uinput="${c_purple}UINPUT  ${c_reset}"
 lbl_fcitx="${c_cyan}FCITX5  ${c_reset}"
+lbl_de="${c_purple}MÔI TRƯỜNG${c_reset}"
+lbl_jb="${c_cyan}JETBRAINS ${c_reset}"
 lbl_wps="${c_yellow}WPS     ${c_reset}"
 lbl_warn="${c_yellow}LƯU Ý   ${c_reset}"
 lbl_err="${c_red}LỖI     ${c_reset}"
@@ -204,6 +206,46 @@ spin_pid() {
     printf "\r\033[K"
 }
 
+# prompt user for y/n with fallback to /dev/tty
+prompt_yn() {
+    local prompt_msg="$1"
+    local default_ans="${2:-n}"
+
+    if [ "${dry_run:-0}" -eq 1 ]; then
+        echo -e "  ${c_dim}[Giả lập] Mặc định chọn: [${default_ans}]${c_reset}"
+        [ "$default_ans" = "y" ] && return 0 || return 1
+    fi
+
+    local can_prompt=0
+    local prompt_from_tty=0
+    if [ -t 0 ]; then
+        can_prompt=1
+    elif [ -e /dev/tty ] && [ -r /dev/tty ]; then
+        can_prompt=1
+        prompt_from_tty=1
+    fi
+
+    if [ "$can_prompt" -eq 0 ]; then
+        [ "$default_ans" = "y" ] && return 0 || return 1
+    fi
+
+    local ans="$default_ans"
+    if [ "$prompt_from_tty" -eq 1 ]; then
+        read -r -p "$prompt_msg" ans < /dev/tty || ans="$default_ans"
+    else
+        read -r -p "$prompt_msg" ans || ans="$default_ans"
+    fi
+
+    case "$ans" in
+        [yY][eE][sS]|[yY])
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # run command with sudo via tty if needed
 run_sudo() {
     if [ "$EUID" -eq 0 ]; then
@@ -291,58 +333,39 @@ ensure_fcitx5() {
         return 0
     fi
 
-    # check if interactive terminal is available
-    local can_prompt=0
-    local prompt_from_tty=0
-    if [ -t 0 ]; then
-        can_prompt=1
-    elif [ -t 1 ] && [ -e /dev/tty ] && [ -r /dev/tty ]; then
-        can_prompt=1
-        prompt_from_tty=1
-    fi
-
-    if [ "$can_prompt" -eq 1 ] && [ -n "$pkg_manager" ]; then
+    if [ -n "$pkg_manager" ]; then
         echo -e "  ${c_yellow}• Clak là bộ gõ hoạt động trên nền Fcitx5 (framework quản lý input method)${c_reset}"
         echo -e "  ${c_yellow}• Để sử dụng Clak, hệ thống cần được cài đặt Fcitx5 trước${c_reset}"
-        local install_f5="n"
-        if [ "$prompt_from_tty" -eq 1 ]; then
-            read -r -p "  Bạn có muốn cài đặt Fcitx5 ngay bây giờ không? [y/N]: " install_f5 < /dev/tty || install_f5="n"
-        else
-            read -r -p "  Bạn có muốn cài đặt Fcitx5 ngay bây giờ không? [y/N]: " install_f5 || install_f5="n"
-        fi
-        case "$install_f5" in
-            [yY][eE][sS]|[yY])
-                log_step "$lbl_install" "Đang cài đặt Fcitx5 qua ${pkg_manager}..."
-                if [ "$pkg_manager" = "pacman" ]; then
-                    run_sudo pacman -S --noconfirm fcitx5 fcitx5-configtool || true
-                elif [ "$pkg_manager" = "apt" ]; then
-                    run_sudo apt-get update -y 2>/dev/null || true
-                    run_sudo apt-get install -y fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-config-qt || true
-                    command -v im-config >/dev/null 2>&1 && im-config -n fcitx5 2>/dev/null || true
-                elif [ "$pkg_manager" = "dnf" ]; then
-                    run_sudo dnf install -y fcitx5 fcitx5-configtool || true
-                elif [ "$pkg_manager" = "zypper" ]; then
-                    run_sudo zypper install -y fcitx5 || true
-                fi
+        if prompt_yn "  Bạn có muốn cài đặt Fcitx5 ngay bây giờ không? [y/N]: " "n"; then
+            log_step "$lbl_install" "Đang cài đặt Fcitx5 qua ${pkg_manager}..."
+            if [ "$pkg_manager" = "pacman" ]; then
+                run_sudo pacman -S --noconfirm fcitx5 fcitx5-configtool || true
+            elif [ "$pkg_manager" = "apt" ]; then
+                run_sudo apt-get update -y 2>/dev/null || true
+                run_sudo apt-get install -y fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-config-qt || true
+                command -v im-config >/dev/null 2>&1 && im-config -n fcitx5 2>/dev/null || true
+            elif [ "$pkg_manager" = "dnf" ]; then
+                run_sudo dnf install -y fcitx5 fcitx5-configtool || true
+            elif [ "$pkg_manager" = "zypper" ]; then
+                run_sudo zypper install -y fcitx5 || true
+            fi
 
-                # verify after install
-                if command -v fcitx5 >/dev/null 2>&1; then
-                    local f_ver
-                    f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
-                    log_step "$lbl_check" "Cài đặt Fcitx5 thành công: ${c_cyan}${f_ver}${c_reset}"
-                    return 0
-                else
-                    err "Cài đặt Fcitx5 không thành công hoặc bị hủy. Vui lòng cài thủ công: ${pkg_hint}"
-                fi
-                ;;
-            *)
-                echo -e "  ${c_dim}Bạn đã chọn không cài Fcitx5. Quá trình cài đặt Clak dừng lại tại đây.${c_reset}"
-                if [ -n "$pkg_hint" ]; then
-                    echo -e "  ${c_yellow}Gợi ý cài đặt khi bạn sẵn sàng:${c_reset} ${c_bold}${pkg_hint}${c_reset}"
-                fi
-                exit 0
-                ;;
-        esac
+            # verify after install
+            if command -v fcitx5 >/dev/null 2>&1; then
+                local f_ver
+                f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
+                log_step "$lbl_check" "Cài đặt Fcitx5 thành công: ${c_cyan}${f_ver}${c_reset}"
+                return 0
+            else
+                err "Cài đặt Fcitx5 không thành công hoặc bị hủy. Vui lòng cài thủ công: ${pkg_hint}"
+            fi
+        else
+            echo -e "  ${c_dim}Bạn đã chọn không cài Fcitx5. Quá trình cài đặt Clak dừng lại tại đây.${c_reset}"
+            if [ -n "$pkg_hint" ]; then
+                echo -e "  ${c_yellow}Gợi ý cài đặt khi bạn sẵn sàng:${c_reset} ${c_bold}${pkg_hint}${c_reset}"
+            fi
+            exit 0
+        fi
     else
         echo -e "  ${c_yellow}• Clak là bộ gõ hoạt động trên nền Fcitx5, không thể hoạt động độc lập${c_reset}"
         if [ -n "$pkg_hint" ]; then
@@ -545,57 +568,33 @@ disable_ibus_conflict() {
             return
         fi
 
-        local can_prompt=0
-        local prompt_from_tty=0
-        if [ -t 0 ]; then
-            can_prompt=1
-        elif [ -t 1 ] && [ -e /dev/tty ] && [ -r /dev/tty ]; then
-            can_prompt=1
-            prompt_from_tty=1
-        fi
-
-        if [ "$can_prompt" -eq 1 ]; then
-            log_step "$lbl_warn" "Phát hiện IBus đang chạy trên hệ thống"
-            echo -e "  ${c_yellow}• Cả IBus và Fcitx5 cùng chạy có thể gây xung đột bộ gõ${c_reset}"
-            echo -e "  ${c_yellow}• Nếu bạn đang dùng IBus cho bộ gõ khác (như ibus-mozc, ibus-hangul), bạn có thể giữ lại${c_reset}"
-            local switch_ibus="n"
-            if [ "$prompt_from_tty" -eq 1 ]; then
-                read -r -p "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " switch_ibus < /dev/tty || switch_ibus="n"
-            else
-                read -r -p "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " switch_ibus || switch_ibus="n"
+        log_step "$lbl_warn" "Phát hiện IBus đang chạy trên hệ thống"
+        echo -e "  ${c_yellow}• Cả IBus và Fcitx5 cùng chạy có thể gây xung đột bộ gõ${c_reset}"
+        echo -e "  ${c_yellow}• Nếu bạn đang dùng IBus cho bộ gõ khác (như ibus-mozc, ibus-hangul), bạn có thể giữ lại${c_reset}"
+        if prompt_yn "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " "n"; then
+            if pidof ibus-daemon >/dev/null 2>&1; then
+                ibus exit 2>/dev/null || true
+                pkill -u "$(id -u)" ibus-daemon 2>/dev/null || true
             fi
-            case "$switch_ibus" in
-                [yY][eE][sS]|[yY])
-                    if pidof ibus-daemon >/dev/null 2>&1; then
-                        ibus exit 2>/dev/null || true
-                        pkill -u "$(id -u)" ibus-daemon 2>/dev/null || true
-                    fi
 
-                    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active ibus-daemon.service >/dev/null 2>&1; then
-                        systemctl --user stop ibus-daemon.service 2>/dev/null || true
-                        systemctl --user disable ibus-daemon.service 2>/dev/null || true
-                    fi
+            if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active ibus-daemon.service >/dev/null 2>&1; then
+                systemctl --user stop ibus-daemon.service 2>/dev/null || true
+                systemctl --user disable ibus-daemon.service 2>/dev/null || true
+            fi
 
-                    for f in "${HOME}/.config/autostart/ibus-daemon.desktop" "${HOME}/.config/autostart/ibus-ui-gtk3.desktop"; do
-                        if [ -f "$f" ]; then
-                            mv "$f" "${f}.disabled-by-clak" 2>/dev/null || true
-                        fi
-                    done
+            for f in "${HOME}/.config/autostart/ibus-daemon.desktop" "${HOME}/.config/autostart/ibus-ui-gtk3.desktop"; do
+                if [ -f "$f" ]; then
+                    mv "$f" "${f}.disabled-by-clak" 2>/dev/null || true
+                fi
+            done
 
-                    if command -v im-config >/dev/null 2>&1; then
-                        im-config -n fcitx5 2>/dev/null || true
-                    fi
-                    log_step "$lbl_install" "Đã ưu tiên Fcitx5 và tạm dừng xung đột IBus"
-                    ;;
-                *)
-                    log_step "$lbl_check" "Giữ nguyên cấu hình IBus hiện tại theo lựa chọn của bạn"
-                    echo -e "  ${c_dim}Gợi ý: Nếu sau này muốn chuyển sang Fcitx5, bạn có thể chạy: im-config -n fcitx5${c_reset}"
-                    ;;
-            esac
+            if command -v im-config >/dev/null 2>&1; then
+                im-config -n fcitx5 2>/dev/null || true
+            fi
+            log_step "$lbl_install" "Đã ưu tiên Fcitx5 và tạm dừng xung đột IBus"
         else
-            log_step "$lbl_warn" "Phát hiện IBus đang chạy song song"
-            echo -e "  ${c_yellow}• Clak không tự ý thay đổi cấu hình IBus ở chế độ không tương tác${c_reset}"
-            echo -e "  ${c_dim}Gợi ý: Nếu gặp xung đột phím, bạn có thể chạy: im-config -n fcitx5${c_reset}"
+            log_step "$lbl_check" "Giữ nguyên cấu hình IBus hiện tại theo lựa chọn của bạn"
+            echo -e "  ${c_dim}Gợi ý: Nếu sau này muốn chuyển sang Fcitx5, bạn có thể chạy: im-config -n fcitx5${c_reset}"
         fi
     fi
 }
@@ -668,36 +667,327 @@ apply_live_environment() {
     fi
 }
 
-# print hint for tiling window managers without modifying user files
-print_tiling_wm_hint() {
+# detect and configure desktop environments and window managers
+configure_desktop_environment() {
+    local is_sim="${1:-0}"
+    local de="${XDG_CURRENT_DESKTOP:-}"
+    local session_type="${XDG_SESSION_TYPE:-}"
+
+    # 1. Hyprland
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ "$de" = "Hyprland" ] || [ -d "${HOME}/.config/hypr" ]; then
+        log_step "$lbl_de" "Phát hiện môi trường ${c_cyan}Hyprland${c_reset}"
+        local hypr_cfg=""
+        local is_lua=0
+        if [ -f "${HOME}/.config/hypr/hyprland.lua" ]; then
+            hypr_cfg="${HOME}/.config/hypr/hyprland.lua"
+            is_lua=1
+        elif [ -f "${HOME}/.config/hypr/hyprland.conf" ]; then
+            hypr_cfg="${HOME}/.config/hypr/hyprland.conf"
+        fi
+
+        local need_env=1
+        if [ -n "$hypr_cfg" ] && grep -q "XMODIFIERS" "$hypr_cfg" 2>/dev/null; then
+            need_env=0
+        fi
+
+        if [ "$need_env" -eq 0 ]; then
+            log_step "$lbl_de" "Cấu hình biến môi trường Hyprland đã có sẵn (${c_green}OK${c_reset})"
+        else
+            echo -e "  ${c_yellow}• Hyprland cần khai báo biến môi trường (XMODIFIERS, QT_IM_MODULE...)${c_reset}"
+            echo -e "  ${c_yellow}• Giúp các ứng dụng XWayland, Java, game nhận diện đúng bộ gõ Fcitx5${c_reset}"
+            if [ -n "$hypr_cfg" ]; then
+                echo -e "  ${c_yellow}• File cấu hình: ${c_accent}${hypr_cfg}${c_reset}"
+                if [ "$is_sim" -eq 1 ]; then
+                    echo -e "  ${c_dim}[Giả lập] Sẽ hỏi người dùng có muốn tự động cấu hình Hyprland không [y/N]${c_reset}"
+                elif prompt_yn "  Bạn có muốn Clak tự động thêm biến môi trường vào ${hypr_cfg} không? [y/N]: " "y"; then
+                    if [ "$is_lua" -eq 1 ]; then
+                        cat << 'EOF' >> "$hypr_cfg"
+
+-- clak input method environment
+hl.env("XMODIFIERS", "@im=fcitx")
+hl.env("INPUT_METHOD", "fcitx5")
+hl.env("SDL_IM_MODULE", "fcitx")
+hl.env("QT_IM_MODULE", "fcitx")
+EOF
+                    else
+                        cat << 'EOF' >> "$hypr_cfg"
+
+# clak input method environment
+env = XMODIFIERS,@im=fcitx
+env = INPUT_METHOD,fcitx5
+env = SDL_IM_MODULE,fcitx
+env = QT_IM_MODULE,fcitx
+exec-once = fcitx5 -d
+EOF
+                    fi
+                    command -v hyprctl >/dev/null 2>&1 && hyprctl reload >/dev/null 2>&1 || true
+                    log_step "$lbl_de" "Đã cập nhật cấu hình Hyprland thành công"
+                else
+                    echo ""
+                    echo -e "  ${c_cyan}╭─ CẤU HÌNH THỦ CÔNG CHO HYPRLAND ───────────────────────────╮${c_reset}"
+                    if [ "$is_lua" -eq 1 ]; then
+                        echo -e "  ${c_cyan}│${c_reset}  Thêm các dòng sau vào file ${c_accent}${hypr_cfg}${c_reset}:"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}hl.env(\"XMODIFIERS\", \"@im=fcitx\")${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}hl.env(\"INPUT_METHOD\", \"fcitx5\")${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}hl.env(\"SDL_IM_MODULE\", \"fcitx\")${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}hl.env(\"QT_IM_MODULE\", \"fcitx\")${c_reset}"
+                    else
+                        echo -e "  ${c_cyan}│${c_reset}  Thêm các dòng sau vào file ${c_accent}${hypr_cfg}${c_reset}:"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}env = XMODIFIERS,@im=fcitx${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}env = INPUT_METHOD,fcitx5${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}env = SDL_IM_MODULE,fcitx${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}env = QT_IM_MODULE,fcitx${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}exec-once = fcitx5 -d${c_reset}"
+                    fi
+                    echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+                    echo ""
+                fi
+            fi
+        fi
+        return
+    fi
+
+    # 2. KDE Plasma
+    if echo "$de" | grep -qi "kde\|plasma"; then
+        log_step "$lbl_de" "Phát hiện môi trường ${c_cyan}KDE Plasma${c_reset}"
+        if [ "$session_type" = "wayland" ]; then
+            local kwinrc="${HOME}/.config/kwinrc"
+            local cur_im=""
+            if command -v kreadconfig6 >/dev/null 2>&1; then
+                cur_im=$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null || true)
+            elif command -v kreadconfig5 >/dev/null 2>&1; then
+                cur_im=$(kreadconfig5 --file kwinrc --group Wayland --key InputMethod 2>/dev/null || true)
+            elif [ -f "$kwinrc" ]; then
+                cur_im=$(grep -i "InputMethod=" "$kwinrc" 2>/dev/null | cut -d= -f2 || true)
+            fi
+
+            if echo "$cur_im" | grep -qi "fcitx"; then
+                log_step "$lbl_de" "VirtualKeyboard trên KDE Plasma đã đặt Fcitx5 (${c_green}OK${c_reset})"
+            else
+                echo -e "  ${c_yellow}• Trên KDE Plasma Wayland, KWin cần đặt VirtualKeyboard thành Fcitx5${c_reset}"
+                echo -e "  ${c_yellow}• Giúp bộ gõ tích hợp mượt mà và hiển thị candidate popup đúng vị trí${c_reset}"
+                if [ "$is_sim" -eq 1 ]; then
+                    echo -e "  ${c_dim}[Giả lập] Sẽ hỏi người dùng có muốn cấu hình VirtualKeyboard không [y/N]${c_reset}"
+                elif prompt_yn "  Bạn có muốn Clak tự động cấu hình VirtualKeyboard cho KDE Plasma không? [y/N]: " "y"; then
+                    local set_ok=0
+                    if command -v kwriteconfig6 >/dev/null 2>&1; then
+                        kwriteconfig6 --file kwinrc --group Wayland --key InputMethod /usr/share/applications/org.fcitx.Fcitx5.desktop 2>/dev/null && set_ok=1 || true
+                    elif command -v kwriteconfig5 >/dev/null 2>&1; then
+                        kwriteconfig5 --file kwinrc --group Wayland --key InputMethod /usr/share/applications/org.fcitx.Fcitx5.desktop 2>/dev/null && set_ok=1 || true
+                    fi
+                    if [ "$set_ok" -eq 1 ]; then
+                        log_step "$lbl_de" "Đã cấu hình VirtualKeyboard thành Fcitx5 cho KDE Plasma"
+                    else
+                        log_step "$lbl_warn" "Chưa tự động cấu hình được kwinrc, vui lòng chọn thủ công"
+                        echo ""
+                        echo -e "  ${c_cyan}╭─ CẤU HÌNH THỦ CÔNG CHO KDE PLASMA ─────────────────────────╮${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}  Mở ${c_bold}System Settings${c_reset} -> ${c_bold}Keyboard${c_reset} -> ${c_bold}Virtual Keyboard${c_reset}       ${c_cyan}│${c_reset}"
+                        echo -e "  ${c_cyan}│${c_reset}  Chọn: ${c_green}Fcitx 5 Wayland Launcher${c_reset} rồi bấm Apply             ${c_cyan}│${c_reset}"
+                        echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+                        echo ""
+                    fi
+                else
+                    echo ""
+                    echo -e "  ${c_cyan}╭─ CẤU HÌNH THỦ CÔNG CHO KDE PLASMA ─────────────────────────╮${c_reset}"
+                    echo -e "  ${c_cyan}│${c_reset}  Mở ${c_bold}System Settings${c_reset} -> ${c_bold}Keyboard${c_reset} -> ${c_bold}Virtual Keyboard${c_reset}       ${c_cyan}│${c_reset}"
+                    echo -e "  ${c_cyan}│${c_reset}  Chọn: ${c_green}Fcitx 5 Wayland Launcher${c_reset} rồi bấm Apply             ${c_cyan}│${c_reset}"
+                    echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+                    echo ""
+                fi
+            fi
+        fi
+        return
+    fi
+
+    # 3. GNOME
+    if echo "$de" | grep -qi "gnome"; then
+        log_step "$lbl_de" "Phát hiện môi trường ${c_cyan}GNOME${c_reset}"
+        if command -v gsettings >/dev/null 2>&1; then
+            local cur_src
+            cur_src=$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)
+            if echo "$cur_src" | grep -q "vn"; then
+                echo -e "  ${c_yellow}• GNOME đang kích hoạt layout bàn phím Tiếng Việt của hệ điều hành${c_reset}"
+                echo -e "  ${c_yellow}• Bàn phím này có phím chết (dead keys) sẽ xung đột với Fcitx5 và Clak${c_reset}"
+                if [ "$is_sim" -eq 1 ]; then
+                    echo -e "  ${c_dim}[Giả lập] Sẽ hỏi người dùng có muốn chuyển layout về chuẩn 'us' không [y/N]${c_reset}"
+                elif prompt_yn "  Bạn có muốn Clak chuyển layout GNOME về chuẩn 'us' (tiếng Anh) để gõ qua Clak không? [y/N]: " "y"; then
+                    local new_src
+                    new_src=$(echo "$cur_src" | sed -e "s/'vn+us'/'us'/g" -e "s/'vn'/'us'/g")
+                    gsettings set org.gnome.desktop.input-sources sources "$new_src" 2>/dev/null || true
+                    log_step "$lbl_de" "Đã chuyển layout GNOME sang chuẩn 'us' thành công"
+                else
+                    echo ""
+                    echo -e "  ${c_cyan}╭─ LƯU Ý CHO GNOME ──────────────────────────────────────────╮${c_reset}"
+                    echo -e "  ${c_cyan}│${c_reset}  Mở ${c_bold}Settings${c_reset} -> ${c_bold}Keyboard${c_reset} -> mục ${c_bold}Input Sources${c_reset}                ${c_cyan}│${c_reset}"
+                    echo -e "  ${c_cyan}│${c_reset}  Chỉ giữ lại ${c_green}English (US)${c_reset} và xóa bỏ bộ gõ Tiếng Việt mặc định ${c_cyan}│${c_reset}"
+                    echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+                    echo ""
+                fi
+            fi
+        fi
+        return
+    fi
+
+    # 4. Sway / Niri / River / i3
     local wm_file=""
     local wm_name=""
-    local wm_line=""
-
-    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -f "${HOME}/.config/hypr/hyprland.conf" ]; then
-        wm_file="${HOME}/.config/hypr/hyprland.conf"
-        wm_name="Hyprland"
-        wm_line="exec-once = fcitx5 -d"
-    elif [ -n "${SWAYSOCK:-}" ] || [ -f "${HOME}/.config/sway/config" ]; then
+    local wm_cmd=""
+    if [ -n "${SWAYSOCK:-}" ] || [ "$de" = "sway" ] || [ -f "${HOME}/.config/sway/config" ]; then
         wm_file="${HOME}/.config/sway/config"
         wm_name="Sway"
-        wm_line="exec --no-startup-id fcitx5 -d"
+        wm_cmd="exec --no-startup-id fcitx5 -d"
     elif [ -n "${NIRI_SOCKET:-}" ] || [ -f "${HOME}/.config/niri/config.kdl" ]; then
         wm_file="${HOME}/.config/niri/config.kdl"
         wm_name="Niri"
-        wm_line='spawn-at-startup "fcitx5 -d"'
-    elif [ -f "${HOME}/.config/i3/config" ]; then
+        wm_cmd='spawn-at-startup "fcitx5" "-d"'
+    elif [ -f "${HOME}/.config/river/init" ]; then
+        wm_file="${HOME}/.config/river/init"
+        wm_name="River"
+        wm_cmd="riverctl spawn 'fcitx5 -d'"
+    elif [ -f "${HOME}/.config/i3/config" ] || [ "$de" = "i3" ]; then
         wm_file="${HOME}/.config/i3/config"
         wm_name="i3"
-        wm_line="exec --no-startup-id fcitx5 -d"
+        wm_cmd="exec --no-startup-id fcitx5 -d"
     fi
 
     if [ -n "$wm_name" ]; then
-        if [ ! -f "$wm_file" ] || ! grep -qF "fcitx5" "$wm_file" 2>/dev/null; then
-            echo ""
-            echo -e "  ${c_cyan}Gợi ý cho ${wm_name}:${c_reset} Thêm dòng sau vào file cấu hình của bạn (${c_dim}${wm_file}${c_reset}):"
-            echo -e "    ${c_bold}${c_accent}${wm_line}${c_reset}"
+        log_step "$lbl_de" "Phát hiện Window Manager: ${c_cyan}${wm_name}${c_reset}"
+        if [ -f "$wm_file" ] && grep -q "fcitx5" "$wm_file" 2>/dev/null; then
+            log_step "$lbl_de" "Lệnh khởi động fcitx5 đã có trong ${wm_name} (${c_green}OK${c_reset})"
+        else
+            echo -e "  ${c_yellow}• ${wm_name} không tự động chạy các ứng dụng trong ~/.config/autostart${c_reset}"
+            echo -e "  ${c_yellow}• Cần thêm lệnh khởi động Fcitx5 vào file cấu hình: ${c_accent}${wm_file}${c_reset}"
+            if [ "$is_sim" -eq 1 ]; then
+                echo -e "  ${c_dim}[Giả lập] Sẽ hỏi người dùng có muốn thêm lệnh khởi động vào ${wm_name} không [y/N]${c_reset}"
+            elif [ -f "$wm_file" ] && prompt_yn "  Bạn có muốn Clak tự động thêm dòng khởi động vào ${wm_file} không? [y/N]: " "y"; then
+                printf "\n# clak autostart\n%s\n" "$wm_cmd" >> "$wm_file"
+                log_step "$lbl_de" "Đã thêm lệnh khởi động fcitx5 vào ${wm_name}"
+            else
+                echo ""
+                echo -e "  ${c_cyan}╭─ CẤU HÌNH KHỞI ĐỘNG CHO ${wm_name} ────────────────────────╮${c_reset}"
+                echo -e "  ${c_cyan}│${c_reset}  Thêm dòng sau vào file cấu hình ${c_accent}${wm_file}${c_reset}:"
+                echo -e "  ${c_cyan}│${c_reset}    ${c_bold}${wm_cmd}${c_reset}"
+                echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+                echo ""
+            fi
         fi
+    fi
+}
+
+# detect and configure jetbrains ides for wayland/xwayland stability
+configure_jetbrains_compatibility() {
+    local is_sim="${1:-0}"
+    local jb_root="${HOME}/.config/JetBrains"
+
+    # only run if jetbrains is detected on the system
+    local jb_dirs=()
+    if [ -d "$jb_root" ]; then
+        for d in "$jb_root"/*; do
+            if [ -d "$d" ]; then
+                local bname
+                bname=$(basename "$d")
+                case "$bname" in
+                    Idea*|IntelliJ*|PyCharm*|CLion*|WebStorm*|Rider*|DataGrip*|RustRover*|GoLand*|PhpStorm*|RubyMine*|Aqua*|Fleet*|AndroidStudio*|*Studio*)
+                        jb_dirs+=("$d")
+                        ;;
+                esac
+            fi
+        done
+    fi
+
+    # also check android studio config path
+    if [ -d "${HOME}/.config/Google" ]; then
+        for d in "${HOME}/.config/Google"/AndroidStudio*; do
+            [ -d "$d" ] && jb_dirs+=("$d")
+        done
+    fi
+
+    # if no jetbrains product is installed, exit silently
+    if [ ${#jb_dirs[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    # check which ides still need the xwayland vmoptions fix
+    local unconfigured=()
+    for d in "${jb_dirs[@]}"; do
+        local has_fix=0
+        for vmo in "$d"/*64.vmoptions; do
+            if [ -f "$vmo" ] && grep -q "sun\.awt\.X11\.XToolkit" "$vmo" 2>/dev/null; then
+                has_fix=1
+                break
+            fi
+        done
+        if [ "$has_fix" -eq 0 ]; then
+            unconfigured+=("$d")
+        fi
+    done
+
+    log_step "$lbl_jb" "Phát hiện hệ thống có cài đặt JetBrains IDE (${c_cyan}${#jb_dirs[@]} phiên bản${c_reset})"
+
+    if [ ${#unconfigured[@]} -eq 0 ]; then
+        log_step "$lbl_jb" "Tất cả IDE JetBrains đã được tối ưu sẵn cho Wayland (${c_green}OK${c_reset})"
+        return 0
+    fi
+
+    echo -e "  ${c_yellow}• Trên Wayland, JetBrains Runtime có lỗi mất focus bộ gõ khi chuyển tab (JBR-5672)${c_reset}"
+    echo -e "  ${c_yellow}• Giải pháp: Ép JetBrains chạy qua XWayland (-Dawt.toolkit.name=sun.awt.X11.XToolkit)${c_reset}"
+    echo -e "  ${c_yellow}• Màn hình hiển thị sắc nét 1:1, không mất focus và gõ tiếng Việt ổn định tuyệt đối${c_reset}"
+
+    if [ "$is_sim" -eq 1 ]; then
+        echo -e "  ${c_dim}[Giả lập] Sẽ hỏi người dùng có muốn cấu hình vmoptions cho ${#unconfigured[@]} IDE JetBrains không [y/N]${c_reset}"
+        return 0
+    fi
+
+    if prompt_yn "  Bạn có muốn Clak tự động cấu hình vmoptions cho ${#unconfigured[@]} IDE này không? [y/N]: " "y"; then
+        local patched_count=0
+        for d in "${unconfigured[@]}"; do
+            local dir_name
+            dir_name=$(basename "$d")
+            local vmo_target=""
+
+            local existing_vmo
+            existing_vmo=$(compgen -G "$d/*64.vmoptions" | head -1 || true)
+            if [ -n "$existing_vmo" ] && [ -f "$existing_vmo" ]; then
+                vmo_target="$existing_vmo"
+            else
+                local prefix="idea"
+                case "$dir_name" in
+                    Idea*|IntelliJ*) prefix="idea" ;;
+                    PyCharm*) prefix="pycharm" ;;
+                    CLion*) prefix="clion" ;;
+                    WebStorm*) prefix="webstorm" ;;
+                    Rider*) prefix="rider" ;;
+                    DataGrip*) prefix="datagrip" ;;
+                    RustRover*) prefix="rustrover" ;;
+                    GoLand*) prefix="goland" ;;
+                    PhpStorm*) prefix="phpstorm" ;;
+                    RubyMine*) prefix="rubymine" ;;
+                    Aqua*) prefix="aqua" ;;
+                    *Studio*) prefix="studio" ;;
+                esac
+                vmo_target="${d}/${prefix}64.vmoptions"
+            fi
+
+            if [ -f "$vmo_target" ]; then
+                if ! grep -q "sun\.awt\.X11\.XToolkit" "$vmo_target" 2>/dev/null; then
+                    printf "\n-Dawt.toolkit.name=sun.awt.X11.XToolkit\n" >> "$vmo_target"
+                    patched_count=$((patched_count + 1))
+                fi
+            else
+                echo "-Dawt.toolkit.name=sun.awt.X11.XToolkit" > "$vmo_target"
+                patched_count=$((patched_count + 1))
+            fi
+        done
+        log_step "$lbl_jb" "Đã tối ưu cấu hình vmoptions cho ${c_green}${patched_count} IDE JetBrains${c_reset}"
+    else
+        echo ""
+        echo -e "  ${c_cyan}╭─ CẤU HÌNH THỦ CÔNG CHO JETBRAINS ──────────────────────────╮${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}  Mở IDE JetBrains -> Menu ${c_bold}Help${c_reset} -> ${c_bold}Edit Custom VM Options...${c_reset}    ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}  Thêm dòng sau vào cuối file rồi khởi động lại IDE:           ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}                                                               ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}-Dawt.toolkit.name=sun.awt.X11.XToolkit${c_reset}                    ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
+        echo ""
     fi
 }
 
@@ -815,10 +1105,16 @@ run_simulation() {
     # 7. check wps compatibility
     configure_wps_compatibility 1
 
-    # 8. check and configure autostart
+    # 8. check and configure de environment
+    configure_desktop_environment 1
+
+    # 9. check and configure jetbrains compatibility
+    configure_jetbrains_compatibility 1
+
+    # 10. check and configure autostart
     configure_autostart 1
 
-    # 9. reload fcitx5 daemon with final spinner
+    # 11. reload fcitx5 daemon with final spinner
     spin_step "Đang nạp lại daemon Fcitx5..." 0.6
 
     # final line directly after spin completes
@@ -826,7 +1122,6 @@ run_simulation() {
     echo -e "${c_green}✔ Cài đặt Clak thành công vào hệ thống Fcitx5!${c_reset}"
     echo -e "  ${c_cyan}::${c_reset} Vào cấu hình Fcitx5 (${c_cyan}fcitx5-configtool${c_reset}) để thêm Clak vào danh sách bộ gõ"
     echo -e "  ${c_yellow}:: Lưu ý:${c_reset} ${c_bold}Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó đã hỗ trợ sẵn gõ cả tiếng Anh và tiếng Việt${c_reset}"
-    print_tiling_wm_hint
     echo ""
 }
 
@@ -1115,12 +1410,16 @@ run_install() {
     # 8. check and configure wps compatibility
     configure_wps_compatibility 0
 
-    # 9. configure autostart with system
+    # 9. configure de environment and jetbrains
+    configure_desktop_environment 0
+    configure_jetbrains_compatibility 0
+
+    # 10. configure autostart with system
     configure_autostart 0
     configure_fcitx5_behavior 0
     apply_live_environment 0
 
-    # 10. reload fcitx5 daemon with final spinner
+    # 11. reload fcitx5 daemon with final spinner
     if command -v fcitx5 >/dev/null 2>&1; then
         (
             fcitx5 -r -d >/dev/null 2>&1 || true
@@ -1137,7 +1436,6 @@ run_install() {
     echo -e "${c_green}✔ Cài đặt Clak thành công vào hệ thống Fcitx5!${c_reset}"
     echo -e "  ${c_cyan}::${c_reset} Vào cấu hình Fcitx5 (${c_cyan}fcitx5-configtool${c_reset}) để thêm Clak vào danh sách bộ gõ để sử dụng"
     echo -e "  ${c_yellow}:: Lưu ý:${c_reset} ${c_bold}Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó hỗ trợ gõ cả tiếng Anh và tiếng Việt${c_reset}"
-    print_tiling_wm_hint
     echo ""
     if command -v notify-send >/dev/null 2>&1; then
         notify-send -i org.fcitx.Fcitx5.clak "Clak" "Cài đặt thành công! Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó hỗ trợ gõ cả tiếng Anh và tiếng Việt" 2>/dev/null || true

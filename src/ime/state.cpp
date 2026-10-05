@@ -268,6 +268,7 @@ std::string ClakState::classifyGroup(const std::string& app, const std::string& 
     bool has_url_cap = ic_ && ic_->capabilityFlags().test(fcitx::CapabilityFlag::Url);
     if (is_autofill || has_url_cap) return "address-bar";
     if (isWpsOfficeApp(app)) return "WPS-Office";
+    if (config::isJetBrainsApp(app)) return "JetBrains-Uinput";
     if (config::isTerminalApp(app)) return "Terminal-Uinput";
     if (site == "docs.google.com" || site.find("docs.google.com") != std::string::npos) return "Docs-Uinput";
     if (config::isGeckoApp(app)) return "Gecko-Uinput";
@@ -487,6 +488,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     std::string app = appKey();
     std::string site = activeSite();
     bool is_term = config::isTerminalApp(app);
+    bool is_jb = config::isJetBrainsApp(app);
     bool is_meta = config::isMetaSite(site) || config::isMetaSite(app);
     bool is_force_uinput = config::isForceUinputSite(site);
     bool is_gecko = config::isGeckoApp(app);
@@ -514,7 +516,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     bool is_office = isWpsOfficeApp(app);
     bool is_wps_toolbar = is_office && isWpsFontSizeText(surr.text());
     // valid surrounding text to pass to rust engine (filter bogus wps font-size toolbar)
-    bool valid_surr = has_surrounding && surr.isValid() && !is_canvas_editor_ && !is_term && !is_wps_toolbar;
+    bool valid_surr = has_surrounding && surr.isValid() && !is_canvas_editor_ && !is_term && !is_jb && !is_wps_toolbar;
     if (valid_surr) {
         surr_text = surr.text().c_str();
         cursor = surr.cursor();
@@ -589,7 +591,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 op_group_ = classifyGroup(app, site, is_autofill, true);
 
                 bool is_wps = isWpsOfficeApp(app);
-                bool use_term_pacing = is_term || is_modal_editor_;
+                bool use_term_pacing = is_term || is_jb || is_modal_editor_;
                 uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs :
                                       (use_term_pacing ? config::kTerminalPostDelayMs :
                                       (is_wps ? 3 : 2));

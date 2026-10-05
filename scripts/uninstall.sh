@@ -345,14 +345,11 @@ run_uninstall() {
         fi
     done
 
-    # clean up tiling wm autostart lines
-    for wm in "${target_home}/.config/hypr/hyprland.conf" "${target_home}/.config/sway/config" "${target_home}/.config/i3/config"; do
-        if [ -f "$wm" ]; then
-            sed -i '/# autostart fcitx5/d; /exec.*fcitx5 -d/d' "$wm" 2>/dev/null || true
-        fi
-    done
-    if [ -f "${target_home}/.config/niri/config.kdl" ]; then
-        sed -i '/spawn-at-startup "fcitx5 -d"/d' "${target_home}/.config/niri/config.kdl" 2>/dev/null || true
+    # restore or clean fcitx5 config backup
+    if [ "$purge_config" -eq 1 ] && [ -f "${target_home}/.config/fcitx5/config.bak-clak" ]; then
+        mv "${target_home}/.config/fcitx5/config.bak-clak" "${target_home}/.config/fcitx5/config" 2>/dev/null || true
+    else
+        rm -f "${target_home}/.config/fcitx5/config.bak-clak"
     fi
 
     local prof="${target_home}/.config/fcitx5/profile"

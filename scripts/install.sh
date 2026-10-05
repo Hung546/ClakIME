@@ -419,7 +419,7 @@ EOF
     log_step "$lbl_install" "Đã kích hoạt tự động chạy Clak Tiếng Việt cùng hệ thống"
 }
 
-# detect and disable conflicting ibus daemon
+# detect conflicting ibus and ask user before making changes
 disable_ibus_conflict() {
     local is_sim="${1:-0}"
     local has_ibus=0
@@ -429,33 +429,56 @@ disable_ibus_conflict() {
 
     if [ "$has_ibus" -eq 1 ]; then
         if [ "$is_sim" -eq 1 ]; then
-            log_step "$lbl_check" "[Giả lập] Phát hiện IBus đang hoạt động, sẽ tự động chuyển sang Fcitx5"
+            log_step "$lbl_check" "Phát hiện IBus đang hoạt động (khi cài thật sẽ hỏi trước khi chuyển sang Fcitx5)"
             return
         fi
 
-        log_step "$lbl_check" "Phát hiện IBus đang hoạt động, đang chuyển sang Fcitx5..."
-        if pidof ibus-daemon >/dev/null 2>&1; then
-            ibus exit 2>/dev/null || true
-            pkill -u "$(id -u)" ibus-daemon 2>/dev/null || true
+        local can_prompt=0
+        if [ -t 0 ]; then
+            can_prompt=1
+        elif [ -e /dev/tty ] && [ -r /dev/tty ]; then
+            can_prompt=1
         fi
 
-        if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active ibus-daemon.service >/dev/null 2>&1; then
-            systemctl --user stop ibus-daemon.service 2>/dev/null || true
-            systemctl --user disable ibus-daemon.service 2>/dev/null || true
-        fi
+        if [ "$can_prompt" -eq 1 ]; then
+            log_step "$lbl_warn" "Phát hiện IBus đang chạy trên hệ thống"
+            echo -e "  ${c_yellow}• Cả IBus và Fcitx5 cùng chạy có thể gây xung đột bộ gõ${c_reset}"
+            echo -e "  ${c_yellow}• Nếu bạn đang dùng IBus cho bộ gõ khác (như ibus-mozc, ibus-hangul), bạn có thể giữ lại${c_reset}"
+            local switch_ibus="n"
+            read -r -p "  Bạn có muốn chuyển sang Fcitx5 và tạm dừng IBus không? [y/N]: " switch_ibus < /dev/tty || switch_ibus="n"
+            case "$switch_ibus" in
+                [yY][eE][sS]|[yY])
+                    if pidof ibus-daemon >/dev/null 2>&1; then
+                        ibus exit 2>/dev/null || true
+                        pkill -u "$(id -u)" ibus-daemon 2>/dev/null || true
+                    fi
 
-        for f in "${HOME}/.config/autostart/ibus-daemon.desktop" "${HOME}/.config/autostart/ibus-ui-gtk3.desktop"; do
-            if [ -f "$f" ]; then
-                mv "$f" "${f}.disabled-by-clak" 2>/dev/null || true
-            fi
-        done
+                    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active ibus-daemon.service >/dev/null 2>&1; then
+                        systemctl --user stop ibus-daemon.service 2>/dev/null || true
+                        systemctl --user disable ibus-daemon.service 2>/dev/null || true
+                    fi
 
-        if command -v im-config >/dev/null 2>&1; then
-            im-config -n fcitx5 2>/dev/null || true
+                    for f in "${HOME}/.config/autostart/ibus-daemon.desktop" "${HOME}/.config/autostart/ibus-ui-gtk3.desktop"; do
+                        if [ -f "$f" ]; then
+                            mv "$f" "${f}.disabled-by-clak" 2>/dev/null || true
+                        fi
+                    done
+
+                    if command -v im-config >/dev/null 2>&1; then
+                        im-config -n fcitx5 2>/dev/null || true
+                    fi
+                    log_step "$lbl_install" "Đã ưu tiên Fcitx5 và tạm dừng xung đột IBus"
+                    ;;
+                *)
+                    log_step "$lbl_check" "Giữ nguyên cấu hình IBus hiện tại theo lựa chọn của bạn"
+                    echo -e "  ${c_dim}Gợi ý: Nếu sau này muốn chuyển sang Fcitx5, bạn có thể chạy: im-config -n fcitx5${c_reset}"
+                    ;;
+            esac
+        else
+            log_step "$lbl_warn" "Phát hiện IBus đang chạy song song"
+            echo -e "  ${c_yellow}• Clak không tự ý thay đổi cấu hình IBus ở chế độ không tương tác${c_reset}"
+            echo -e "  ${c_dim}Gợi ý: Nếu gặp xung đột phím, bạn có thể chạy: im-config -n fcitx5${c_reset}"
         fi
-        log_step "$lbl_install" "Đã ưu tiên Fcitx5 và vô hiệu hoá xung đột IBus"
-    elif command -v im-config >/dev/null 2>&1 && [ "$is_sim" -eq 0 ]; then
-        im-config -n fcitx5 2>/dev/null || true
     fi
 }
 
@@ -471,6 +494,9 @@ configure_fcitx5_behavior() {
     mkdir -p "$cfg_dir"
 
     if [ -f "$cfg_file" ]; then
+        # backup existing config before modifying
+        [ ! -f "${cfg_file}.bak-clak" ] && cp "$cfg_file" "${cfg_file}.bak-clak" 2>/dev/null || true
+
         if grep -q '^\[Behavior\]' "$cfg_file" 2>/dev/null; then
             if ! grep -q '^ActiveByDefault=' "$cfg_file" 2>/dev/null; then
                 sed -i '/^\[Behavior\]/a ActiveByDefault=True' "$cfg_file" 2>/dev/null || true
@@ -524,40 +550,35 @@ apply_live_environment() {
     fi
 }
 
-# configure autostart for tiling window managers
-configure_tiling_wm_autostart() {
-    local is_sim="${1:-0}"
-    local de_desc=""
+# print hint for tiling window managers without modifying user files
+print_tiling_wm_hint() {
     local wm_file=""
+    local wm_name=""
     local wm_line=""
 
     if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -f "${HOME}/.config/hypr/hyprland.conf" ]; then
         wm_file="${HOME}/.config/hypr/hyprland.conf"
+        wm_name="Hyprland"
         wm_line="exec-once = fcitx5 -d"
-        de_desc="Hyprland"
     elif [ -n "${SWAYSOCK:-}" ] || [ -f "${HOME}/.config/sway/config" ]; then
         wm_file="${HOME}/.config/sway/config"
+        wm_name="Sway"
         wm_line="exec --no-startup-id fcitx5 -d"
-        de_desc="Sway"
     elif [ -n "${NIRI_SOCKET:-}" ] || [ -f "${HOME}/.config/niri/config.kdl" ]; then
         wm_file="${HOME}/.config/niri/config.kdl"
+        wm_name="Niri"
         wm_line='spawn-at-startup "fcitx5 -d"'
-        de_desc="Niri"
     elif [ -f "${HOME}/.config/i3/config" ]; then
         wm_file="${HOME}/.config/i3/config"
+        wm_name="i3"
         wm_line="exec --no-startup-id fcitx5 -d"
-        de_desc="i3"
     fi
 
-    if [ -n "$wm_file" ]; then
-        if [ "$is_sim" -eq 1 ]; then
-            log_step "$lbl_install" "[Giả lập] Tự động thêm khởi động Fcitx5 vào cấu hình ${de_desc}"
-            return
-        fi
-
-        if [ -f "$wm_file" ] && ! grep -qF "fcitx5" "$wm_file" 2>/dev/null; then
-            printf "\n# autostart fcitx5\n%s\n" "$wm_line" >> "$wm_file" 2>/dev/null || true
-            log_step "$lbl_install" "Đã thêm lệnh khởi động Fcitx5 vào cấu hình ${c_accent}${de_desc}${c_reset}"
+    if [ -n "$wm_name" ]; then
+        if [ ! -f "$wm_file" ] || ! grep -qF "fcitx5" "$wm_file" 2>/dev/null; then
+            echo ""
+            echo -e "  ${c_cyan}Gợi ý cho ${wm_name}:${c_reset} Thêm dòng sau vào file cấu hình của bạn (${c_dim}${wm_file}${c_reset}):"
+            echo -e "    ${c_bold}${c_accent}${wm_line}${c_reset}"
         fi
     fi
 }
@@ -569,6 +590,7 @@ activate_clak_and_reconnect_compositor() {
         return
     fi
 
+    # best-effort compositor virtual keyboard reset
     if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
         case "${XDG_CURRENT_DESKTOP:-}" in
             KDE|kde|KDE-Plasma|plasma)
@@ -600,14 +622,30 @@ activate_clak_and_reconnect_compositor() {
         esac
     fi
 
-    if command -v gdbus >/dev/null 2>&1; then
-        gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
-            --method org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1 || true
-    elif command -v qdbus6 >/dev/null 2>&1; then
-        qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1 || true
-    elif command -v qdbus >/dev/null 2>&1; then
-        qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1 || true
-    fi
+    # retry loop to wait for fcitx5 dbus interface to become ready
+    local retry=0
+    while [ "$retry" -lt 15 ]; do
+        if command -v gdbus >/dev/null 2>&1; then
+            if gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+                --method org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                break
+            fi
+        elif command -v qdbus6 >/dev/null 2>&1; then
+            if qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                break
+            fi
+        elif command -v qdbus >/dev/null 2>&1; then
+            if qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                break
+            fi
+        elif command -v busctl >/dev/null 2>&1; then
+            if busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetCurrentIM s "clak" >/dev/null 2>&1; then
+                break
+            fi
+        fi
+        sleep 0.2
+        retry=$((retry + 1))
+    done
 }
 
 # simulation flow
@@ -672,6 +710,7 @@ run_simulation() {
     echo -e "${c_green}✔ Cài đặt Clak thành công vào hệ thống Fcitx5!${c_reset}"
     echo -e "  ${c_cyan}::${c_reset} Vào cấu hình Fcitx5 (${c_cyan}fcitx5-configtool${c_reset}) để thêm Clak vào danh sách bộ gõ"
     echo -e "  ${c_yellow}:: Lưu ý:${c_reset} ${c_bold}Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó đã hỗ trợ sẵn gõ cả tiếng Anh và tiếng Việt${c_reset}"
+    print_tiling_wm_hint
     echo ""
 }
 
@@ -929,7 +968,6 @@ run_install() {
 
     # 9. configure autostart with system
     configure_autostart 0
-    configure_tiling_wm_autostart 0
     configure_fcitx5_behavior 0
     apply_live_environment 0
 
@@ -950,6 +988,7 @@ run_install() {
     echo -e "${c_green}✔ Cài đặt Clak thành công vào hệ thống Fcitx5!${c_reset}"
     echo -e "  ${c_cyan}::${c_reset} Vào cấu hình Fcitx5 (${c_cyan}fcitx5-configtool${c_reset}) để thêm Clak vào danh sách bộ gõ để sử dụng"
     echo -e "  ${c_yellow}:: Lưu ý:${c_reset} ${c_bold}Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó hỗ trợ gõ cả tiếng Anh và tiếng Việt${c_reset}"
+    print_tiling_wm_hint
     echo ""
     if command -v notify-send >/dev/null 2>&1; then
         notify-send -i org.fcitx.Fcitx5.clak "Clak" "Cài đặt thành công! Hãy tắt hết các bàn phím khác và chỉ thêm mỗi Clak. Nó hỗ trợ gõ cả tiếng Anh và tiếng Việt" 2>/dev/null || true

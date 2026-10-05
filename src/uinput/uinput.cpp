@@ -110,16 +110,18 @@ bool UinputTool::send_backspace_direct(size_t count, uint32_t post_delay_ms, uin
         };
 
         // send deletion backspaces before the sentinel
+        uint32_t eff_gap = std::max<uint32_t>(gap_ms, 3);
         for (size_t i = 0; i < count - 1; ++i) {
             emit_bs();
-            if (gap_ms > 0 && i + 1 < count - 1) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(gap_ms));
+            if (eff_gap > 0 && i + 1 < count - 1) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(eff_gap));
             }
         }
 
         // wait for target app to finish deletion before dispatching sentinel
-        if (post_delay_ms > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(post_delay_ms));
+        uint32_t eff_post = std::max<uint32_t>(post_delay_ms, 12);
+        if (eff_post > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(eff_post));
         }
 
         // send final sentinel backspace

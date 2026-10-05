@@ -77,8 +77,10 @@ void ClakState::reset(bool force) {
     buffered_keys_.clear();
     verify_.pending = false;
     is_canvas_editor_ = false;
-    is_rich_text_editor_ = false;
-    mismatch_count_ = 0;
+    if (force) {
+        is_rich_text_editor_ = false;
+        mismatch_count_ = 0;
+    }
     cached_site_.clear();
     last_site_check_us_ = 0;
     if (rust_ctx_) {
@@ -89,6 +91,9 @@ void ClakState::reset(bool force) {
 std::string ClakState::appKey() {
     if (ic_ && !ic_->program().empty()) {
         return ic_->program();
+    }
+    if (ic_ && ic_->capabilityFlags().test(fcitx::CapabilityFlag::Terminal)) {
+        return "terminal";
     }
     platform::WindowInfo win = platform::getActiveWindow();
     if (!win.win_class.empty()) {
@@ -158,6 +163,10 @@ static bool isWpsFontSizeText(const std::string& text) {
 }
 
 bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr) {
+    if (is_modal_editor_) {
+        return true;
+    }
+
     std::string app = appKey();
     std::string site = activeSite();
 
@@ -167,6 +176,9 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, cons
     }
 
     if (config::isTerminalApp(app)) {
+        return true;
+    }
+    if (app == "default" && (!surr.isValid() || surr.text().empty() || surr.text() == "\n") && platform::isAnyTerminalForeground()) {
         return true;
     }
     // gecko apps (zen, firefox) require paced uinput to avoid wayland delete_surrounding_text bugs
@@ -184,10 +196,6 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, cons
         return true;
     }
     if (is_canvas_editor_ || is_rich_text_editor_) {
-        return true;
-    }
-    // switch to uinput when cursor is detected between, before, or after words in browsers
-    if (isBrowser() && isCursorNearWord(surr)) {
         return true;
     }
     return !use_surrounding;
@@ -243,11 +251,12 @@ void ClakState::verifySurrounding(const fcitx::SurroundingText& surr) {
 
     if (actualWord == verify_.expectWord) {
         mismatch_count_ = 0;
+        is_rich_text_editor_ = false;
     } else {
         mismatch_count_++;
         utils::clakLog("verifySurrounding mismatch #" + std::to_string(mismatch_count_) +
                        ": expected='" + verify_.expectWord + "' actual='" + actualWord + "'");
-        if (mismatch_count_ >= 3) {
+        if (mismatch_count_ >= config::kMismatchThreshold) {
             is_rich_text_editor_ = true;
             utils::clakLog("verifySurrounding: auto-switched to uinput for this editor");
         }
@@ -394,6 +403,12 @@ void ClakState::updateModalEditorStatus() {
     platform::WindowInfo win = platform::getActiveWindow(fallback);
     bool was_editor = is_modal_editor_;
     is_modal_editor_ = platform::isEditorActive(win);
+    if (is_modal_editor_ && (win.win_class.empty() || win.win_class == "default") && ic_) {
+        const auto& surr = ic_->surroundingText();
+        if (surr.isValid() && surr.cursor() > 0 && !surr.text().empty() && surr.text() != "\n") {
+            is_modal_editor_ = false;
+        }
+    }
     if (!was_editor && is_modal_editor_) {
         editor_mode_ = EditorMode::NORMAL;
         utils::clakLog("modal editor activated: class='" + win.win_class + "' title='" + win.win_title + "' pid=" + std::to_string(win.pid) + " -> mode: NORMAL");
@@ -420,7 +435,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     if (is_modal_editor_) {
         if (editor_mode_ == EditorMode::INSERT) {
             if (sym == FcitxKey_Escape ||
-                (has_ctrl && (sym == FcitxKey_bracketleft || sym == FcitxKey_c))) {
+                (has_ctrl && (sym == FcitxKey_bracketleft || sym == FcitxKey_c || sym == FcitxKey_C))) {
                 editor_mode_ = EditorMode::NORMAL;
                 reset();
                 utils::clakLog("editor mode -> NORMAL (via " + key_str + ")");
@@ -429,7 +444,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
         } else if (editor_mode_ == EditorMode::COMMAND) {
             if (sym == FcitxKey_Return || sym == FcitxKey_KP_Enter ||
                 sym == FcitxKey_Escape ||
-                (has_ctrl && (sym == FcitxKey_bracketleft || sym == FcitxKey_c))) {
+                (has_ctrl && (sym == FcitxKey_bracketleft || sym == FcitxKey_c || sym == FcitxKey_C))) {
                 editor_mode_ = EditorMode::NORMAL;
                 reset();
                 utils::clakLog("editor mode -> NORMAL (via " + key_str + ")");
@@ -452,7 +467,8 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                     sym == FcitxKey_o || sym == FcitxKey_O ||
                     sym == FcitxKey_c || sym == FcitxKey_C ||
                     sym == FcitxKey_s || sym == FcitxKey_S ||
-                    sym == FcitxKey_R) {
+                    sym == FcitxKey_R ||
+                    sym == FcitxKey_Insert || sym == FcitxKey_KP_Insert) {
                     editor_mode_ = EditorMode::INSERT;
                     reset();
                     utils::clakLog("editor mode -> INSERT (via " + key_str + ")");
@@ -503,12 +519,6 @@ bool ClakState::handleKey(const fcitx::Key& key) {
             is_canvas_editor_ = true;
         } else if (is_canvas_editor_ && text.size() > 2 && text != "  " && text != "\xc2\xa0\xc2\xa0") {
             is_canvas_editor_ = false;
-        }
-
-        if (!is_canvas_editor_) {
-            if (text == "\n" && surr.cursor() == 0 && surr.anchor() == 0) {
-                is_rich_text_editor_ = true;
-            }
         }
     }
 
@@ -573,6 +583,8 @@ bool ClakState::handleKey(const fcitx::Key& key) {
         case CLAK_ACTION_REPLACE:
         case CLAK_ACTION_REPLACE_SURROUNDING: {
             size_t real_bs = action.delete_count;
+            std::string del_str = (action.delete_str && action.delete_str[0] != '\0') ? action.delete_str : "";
+
             bool is_autofill = (action.action_type == CLAK_ACTION_ADDRESS_BAR_FIX) ||
                                (isBrowser() && isAutofillCertain(surr));
             bool use_uinput = is_autofill || shouldUseUinput(use_surrounding, action.action_type, surr);
@@ -588,10 +600,11 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 op_group_ = classifyGroup(app, site, is_autofill, true);
 
                 bool is_wps = isWpsOfficeApp(app);
+                bool use_term_pacing = is_term || is_modal_editor_;
                 uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs :
-                                      (is_term ? config::kTerminalPostDelayMs :
+                                      (use_term_pacing ? config::kTerminalPostDelayMs :
                                       (is_wps ? 3 : 2));
-                uint32_t gap_ms = is_term ? config::kTerminalGapMs : (is_wps ? 2 : 2);
+                uint32_t gap_ms = use_term_pacing ? config::kTerminalGapMs : (is_wps ? 2 : 2);
                 uint32_t pre_delay = 0;
 
                 utils::clakLog("uinput waiting for sentinel: expected=" + std::to_string(bs_to_send) +
@@ -657,6 +670,10 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     if (sc_c) clak_free_string(sc_c);
 
     if (keyEvent.isRelease()) {
+        if (is_deleting_ && key.sym() == FcitxKey_BackSpace) {
+            keyEvent.filterAndAccept();
+            return;
+        }
         if (shortcut == "ctrl_shift" && ctrl_shift_down_) {
             bool is_mod_release = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R ||
                                    key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R);

@@ -699,6 +699,10 @@ run_update() {
         chmod 755 "${lib_dest}/libclak.so"
         chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
 
+        # for user-level install, addon configuration must point to the absolute library path
+        # because fcitx5 only resolves relative Library paths against system PKGLIBDIR
+        sed -i "s|^Library=.*|Library=${lib_dest}/libclak|" "${addon_dest}/clak.conf"
+
         # symlink into debian/ubuntu multiarch path for fcitx5
         mkdir -p "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5"
         ln -sf "${lib_dest}/libclak.so" "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5/libclak.so" 2>/dev/null || true

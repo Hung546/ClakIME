@@ -13,6 +13,12 @@ target_include_directories(clak_cpp_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/engine
 )
 
+target_link_directories(clak_cpp_tests PRIVATE
+    $ENV{HOME}/.local/usr/lib/x86_64-linux-gnu
+    /usr/lib/x86_64-linux-gnu
+)
+
+
 target_link_libraries(clak_cpp_tests PRIVATE
     GTest::gtest
     GTest::gtest_main

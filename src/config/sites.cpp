@@ -41,7 +41,8 @@ bool isTerminalApp(const std::string& app) {
   if (isVSCodeApp(app)) return true;
   static const std::vector<std::string> terms = {
     "kitty", "ghostty", "alacritty", "foot", "wezterm", "xterm",
-    "gnome-terminal", "konsole", "tilix", "terminator", "urxvt"};
+    "gnome-terminal", "konsole", "tilix", "terminator", "urxvt",
+    "terminal", "x-terminal-emulator"};
   for (const auto& t : terms) {
     if (app.find(t) != std::string::npos) return true;
   }

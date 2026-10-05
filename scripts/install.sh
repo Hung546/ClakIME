@@ -499,13 +499,14 @@ Name=clak
 [GroupOrder]
 0=Default
 EOF
-    else
         if ! grep -q "Name=clak" "$profile_file" 2>/dev/null; then
             local count
             count=$(grep -c "\[Groups/0/Items/" "$profile_file" 2>/dev/null || echo "1")
             sed -i "/\[GroupOrder\]/i \\\n[Groups/0/Items/${count}]\nName=clak\n" "$profile_file" 2>/dev/null || true
         fi
         sed -i 's/^DefaultIM=.*/DefaultIM=clak/' "$profile_file" 2>/dev/null || true
+        # ensure base layout is us (not vn or vn-us, which map dead keys and break telex/vni)
+        sed -i 's/^Default Layout=vn.*/Default Layout=us/' "$profile_file" 2>/dev/null || true
     fi
 
     # configure gtk im module for gnome and wayland compatibility
@@ -730,6 +731,10 @@ activate_clak_and_reconnect_compositor() {
                     local cur_src
                     cur_src=$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)
                     if [ -n "$cur_src" ] && [ "$cur_src" != "@as []" ]; then
+                        # If current GNOME layout is vn or vn+us, switch to us to avoid dead key conflicts with IME
+                        if echo "$cur_src" | grep -q "vn"; then
+                            cur_src=$(echo "$cur_src" | sed -e "s/'vn+us'/'us'/g" -e "s/'vn'/'us'/g")
+                        fi
                         gsettings set org.gnome.desktop.input-sources sources "[]" 2>/dev/null || true
                         sleep 0.1
                         gsettings set org.gnome.desktop.input-sources sources "$cur_src" 2>/dev/null || true
@@ -1028,6 +1033,10 @@ run_install() {
         cp "$im_src" "${im_dest}/clak.conf"
         chmod 755 "${lib_dest}/libclak.so"
         chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
+
+        # for user-level install, addon configuration must point to the absolute library path
+        # because fcitx5 only resolves relative Library paths against system PKGLIBDIR
+        sed -i "s|^Library=.*|Library=${lib_dest}/libclak|" "${addon_dest}/clak.conf"
 
         # symlink into debian/ubuntu multiarch path for fcitx5
         mkdir -p "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5"

@@ -7,6 +7,7 @@ pub struct ImeAction {
     pub action_type: i32,
     pub delete_count: usize,
     pub commit_str: *const c_char,
+    pub delete_str: *const c_char,
 }
 
 pub const ACTION_FORWARD: i32 = 0;
@@ -19,6 +20,7 @@ pub const ACTION_UINPUT_REPLACE: i32 = 4;
 pub struct ClakContext {
     engine: ClakCore,
     commit_buf: CString,
+    delete_buf: CString,
     raw_buffer: String,
     last_composed: String,
     stale_surr: Option<(String, usize)>,
@@ -49,6 +51,7 @@ impl ClakContext {
         Self {
             engine,
             commit_buf: CString::default(),
+            delete_buf: CString::default(),
             raw_buffer: String::new(),
             last_composed: String::new(),
             stale_surr: None,
@@ -93,6 +96,7 @@ impl ClakContext {
         self.raw_buffer.clear();
         self.last_composed.clear();
         self.typed_over_selection = false;
+        self.delete_buf = CString::default();
     }
 
     pub fn process_key(
@@ -152,6 +156,7 @@ impl ClakContext {
             if self.macros_enabled && !self.last_composed.is_empty() {
                 if let Some(replacement) = self.lookup_macro() {
                     let del_count = self.last_composed.chars().count();
+                    let del_str = self.last_composed.clone();
                     let mut commit_text = replacement;
                     if key_sym == 0xff09 {
                         commit_text.push('\t');
@@ -161,7 +166,7 @@ impl ClakContext {
                     self.reset();
                     self.just_deleted = false;
                     self.stale_surr = None;
-                    return self.replace(del_count, &commit_text);
+                    return self.replace(del_count, &del_str, &commit_text);
                 }
             }
             self.reset();
@@ -190,16 +195,16 @@ impl ClakContext {
         if self.bracket_brackets {
             if self.last_composed == "ơ" && key_str == "[" {
                 self.reset();
-                return self.replace(1, "[");
+                return self.replace(1, "ơ", "[");
             } else if self.last_composed == "ư" && key_str == "]" {
                 self.reset();
-                return self.replace(1, "]");
+                return self.replace(1, "ư", "]");
             } else if self.last_composed == "Ơ" && key_str == "{" {
                 self.reset();
-                return self.replace(1, "{");
+                return self.replace(1, "Ơ", "{");
             } else if self.last_composed == "Ư" && key_str == "}" {
                 self.reset();
-                return self.replace(1, "}");
+                return self.replace(1, "Ư", "}");
             } else if self.raw_buffer.is_empty() {
                 let mapped = match key_str {
                     "[" => Some("ơ"),
@@ -211,7 +216,7 @@ impl ClakContext {
                 if let Some(target) = mapped {
                     self.raw_buffer.push_str(key_str);
                     self.last_composed = target.to_string();
-                    return self.replace(0, target);
+                    return self.replace(0, "", target);
                 }
             }
         }
@@ -234,12 +239,13 @@ impl ClakContext {
             if self.macros_enabled && !self.last_composed.is_empty() {
                 if let Some(replacement) = self.lookup_macro() {
                     let del_count = self.last_composed.chars().count();
+                    let del_str = self.last_composed.clone();
                     let mut commit_text = replacement;
                     commit_text.push_str(key_str);
                     self.reset();
                     self.just_deleted = false;
                     self.stale_surr = None;
-                    return self.replace(del_count, &commit_text);
+                    return self.replace(del_count, &del_str, &commit_text);
                 }
             }
 
@@ -251,7 +257,7 @@ impl ClakContext {
                         self.reset();
                         self.just_deleted = false;
                         self.stale_surr = None;
-                        return self.replace(1, ". ");
+                        return self.replace(1, " ", ". ");
                     }
                 }
             }
@@ -387,10 +393,10 @@ impl ClakContext {
 
         if has_autocomplete {
             self.typed_over_selection = false;
-            return self.address_bar_fix(chars_to_delete, &added_part);
+            return self.address_bar_fix(chars_to_delete, &deleted_part, &added_part);
         }
 
-        self.replace(chars_to_delete, &added_part)
+        self.replace(chars_to_delete, &deleted_part, &added_part)
     }
 
     fn forward(&self) -> ImeAction {
@@ -398,15 +404,18 @@ impl ClakContext {
             action_type: ACTION_FORWARD,
             delete_count: 0,
             commit_str: std::ptr::null(),
+            delete_str: std::ptr::null(),
         }
     }
 
-    fn address_bar_fix(&mut self, delete_count: usize, text: &str) -> ImeAction {
+    fn address_bar_fix(&mut self, delete_count: usize, deleted_str: &str, text: &str) -> ImeAction {
         self.commit_buf = CString::new(text).unwrap_or_default();
+        self.delete_buf = CString::new(deleted_str).unwrap_or_default();
         ImeAction {
             action_type: ACTION_ADDRESS_BAR_FIX,
             delete_count,
             commit_str: self.commit_buf.as_ptr(),
+            delete_str: self.delete_buf.as_ptr(),
         }
     }
 
@@ -427,12 +436,14 @@ impl ClakContext {
         None
     }
 
-    fn replace(&mut self, delete_count: usize, text: &str) -> ImeAction {
+    fn replace(&mut self, delete_count: usize, deleted_str: &str, text: &str) -> ImeAction {
         self.commit_buf = CString::new(text).unwrap_or_default();
+        self.delete_buf = CString::new(deleted_str).unwrap_or_default();
         ImeAction {
             action_type: ACTION_REPLACE,
             delete_count,
             commit_str: self.commit_buf.as_ptr(),
+            delete_str: self.delete_buf.as_ptr(),
         }
     }
 }
@@ -729,6 +740,7 @@ pub unsafe extern "C" fn clak_process_key(
                     action_type: ACTION_FORWARD,
                     delete_count: 0,
                     commit_str: std::ptr::null(),
+                    delete_str: std::ptr::null(),
                 }
             }
         };
@@ -801,6 +813,7 @@ pub unsafe extern "C" fn clak_process_key(
             action_type: ACTION_FORWARD,
             delete_count: 0,
             commit_str: std::ptr::null(),
+            delete_str: std::ptr::null(),
         },
     }
 }

@@ -682,7 +682,7 @@ dependencies = [
 
 [[package]]
 name = "clak-engine"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "libc",
  "serde",
@@ -691,7 +691,7 @@ dependencies = [
 
 [[package]]
 name = "clak-gui"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "clak-engine",
  "serde",

@@ -7,7 +7,16 @@ api_url="${CLAK_API_URL:-https://api.github.com}"
 release_tag="${CLAK_RELEASE_TAG:-}"
 dry_run=0
 demo_uinput=0
+skip_uinput=0
 target_mode="user"
+tmp_dir=""
+
+cleanup() {
+    if [ -n "${tmp_dir:-}" ] && [ -d "$tmp_dir" ]; then
+        rm -rf "$tmp_dir"
+    fi
+}
+trap cleanup EXIT INT TERM
 
 # parse command-line arguments
 for arg in "$@"; do
@@ -20,6 +29,7 @@ for arg in "$@"; do
             demo_uinput=1
             ;;
         --skip-uinput)
+            skip_uinput=1
             demo_uinput=0
             ;;
         --system|-s)
@@ -101,7 +111,7 @@ spin_step() {
 # in-place animated download spinner with percentage and kb counter
 spin_download() {
     local text="$1"
-    local total_kb="${2:-1843}"
+    local total_kb="${2:-0}"
     local track_pid="${3:-}"
     local track_file="${4:-}"
 
@@ -123,24 +133,44 @@ spin_download() {
                 cur_bytes=$(wc -c < "$track_file" 2>/dev/null || echo 0)
             fi
             local cur_kb=$((cur_bytes / 1024))
-            local pct=$((cur_kb * 100 / total_kb))
-            [ $pct -gt 99 ] && pct=99
-            printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
-                "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            if [ "$total_kb" -gt 0 ]; then
+                local pct=$((cur_kb * 100 / total_kb))
+                [ $pct -gt 99 ] && pct=99
+                printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                    "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            else
+                printf "\r\033[38;5;75m%s\033[0m \033[38;5;244m%s (%d KB)\033[0m\033[K" \
+                    "$f" "$text" "$cur_kb"
+            fi
             i=$((i + 1))
             sleep 0.08
         done
         wait "$track_pid" 2>/dev/null || true
+        local cur_bytes=0
+        if [ -f "$track_file" ]; then
+            cur_bytes=$(wc -c < "$track_file" 2>/dev/null || echo 0)
+        fi
+        local final_kb=$((cur_bytes / 1024))
         local f=${frames[i % 10]}
-        printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
-            "$f" "$text" "$total_kb" "$total_kb"
+        if [ "$total_kb" -gt 0 ]; then
+            printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                "$f" "$text" "$final_kb" "$final_kb"
+        else
+            printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d KB)\033[0m\033[K" \
+                "$f" "$text" "$final_kb"
+        fi
         sleep 0.04
     else
         for ((pct=0; pct<=100; pct+=4)); do
             local f=${frames[(pct / 4) % 10]}
-            local cur_kb=$((total_kb * pct / 100))
-            printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
-                "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            if [ "$total_kb" -gt 0 ]; then
+                local cur_kb=$((total_kb * pct / 100))
+                printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                    "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            else
+                printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s\033[0m\033[K" \
+                    "$f" "$pct" "$text"
+            fi
             sleep 0.04
         done
     fi
@@ -174,13 +204,26 @@ spin_pid() {
     printf "\r\033[K"
 }
 
-# run command with sudo via tty
+# run command with sudo via tty if needed
 run_sudo() {
-    if [ -e /dev/tty ]; then
-        sudo "$@" < /dev/tty
-    else
-        sudo "$@"
+    if [ "$EUID" -eq 0 ]; then
+        "$@"
+        return $?
     fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if ! sudo -n true 2>/dev/null; then
+        if [ -e /dev/tty ] && [ -r /dev/tty ]; then
+            sudo -v < /dev/tty || return 1
+        else
+            sudo -v || return 1
+        fi
+    fi
+
+    sudo "$@"
 }
 
 # error exit
@@ -208,6 +251,21 @@ get_arch() {
             err "Kiến trúc CPU không hỗ trợ: $arch (hiện tại hỗ trợ x86_64)"
             ;;
     esac
+}
+
+# print install hint for fcitx5
+print_fcitx5_missing_hint() {
+    if command -v apt-get >/dev/null 2>&1; then
+        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo apt install fcitx5 fcitx5-config-qt"
+    elif command -v dnf >/dev/null 2>&1; then
+        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo dnf install fcitx5 fcitx5-configtool"
+    elif command -v pacman >/dev/null 2>&1; then
+        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo pacman -S fcitx5 fcitx5-configtool"
+    elif command -v zypper >/dev/null 2>&1; then
+        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} sudo zypper install fcitx5"
+    else
+        echo -e "  ${c_yellow}Gợi ý cài đặt:${c_reset} Hãy cài đặt gói fcitx5 bằng trình quản lý gói của hệ thống"
+    fi
 }
 
 # explain why sudo is required for uinput
@@ -361,6 +419,197 @@ EOF
     log_step "$lbl_install" "Đã kích hoạt tự động chạy Clak Tiếng Việt cùng hệ thống"
 }
 
+# detect and disable conflicting ibus daemon
+disable_ibus_conflict() {
+    local is_sim="${1:-0}"
+    local has_ibus=0
+    if pidof ibus-daemon >/dev/null 2>&1 || [ -f "${HOME}/.config/autostart/ibus-daemon.desktop" ]; then
+        has_ibus=1
+    fi
+
+    if [ "$has_ibus" -eq 1 ]; then
+        if [ "$is_sim" -eq 1 ]; then
+            log_step "$lbl_check" "[Giả lập] Phát hiện IBus đang hoạt động, sẽ tự động chuyển sang Fcitx5"
+            return
+        fi
+
+        log_step "$lbl_check" "Phát hiện IBus đang hoạt động, đang chuyển sang Fcitx5..."
+        if pidof ibus-daemon >/dev/null 2>&1; then
+            ibus exit 2>/dev/null || true
+            pkill -u "$(id -u)" ibus-daemon 2>/dev/null || true
+        fi
+
+        if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active ibus-daemon.service >/dev/null 2>&1; then
+            systemctl --user stop ibus-daemon.service 2>/dev/null || true
+            systemctl --user disable ibus-daemon.service 2>/dev/null || true
+        fi
+
+        for f in "${HOME}/.config/autostart/ibus-daemon.desktop" "${HOME}/.config/autostart/ibus-ui-gtk3.desktop"; do
+            if [ -f "$f" ]; then
+                mv "$f" "${f}.disabled-by-clak" 2>/dev/null || true
+            fi
+        done
+
+        if command -v im-config >/dev/null 2>&1; then
+            im-config -n fcitx5 2>/dev/null || true
+        fi
+        log_step "$lbl_install" "Đã ưu tiên Fcitx5 và vô hiệu hoá xung đột IBus"
+    elif command -v im-config >/dev/null 2>&1 && [ "$is_sim" -eq 0 ]; then
+        im-config -n fcitx5 2>/dev/null || true
+    fi
+}
+
+# configure fcitx5 active by default and share input state
+configure_fcitx5_behavior() {
+    local is_sim="${1:-0}"
+    if [ "$is_sim" -eq 1 ]; then
+        return
+    fi
+
+    local cfg_dir="${HOME}/.config/fcitx5"
+    local cfg_file="${cfg_dir}/config"
+    mkdir -p "$cfg_dir"
+
+    if [ -f "$cfg_file" ]; then
+        if grep -q '^\[Behavior\]' "$cfg_file" 2>/dev/null; then
+            if ! grep -q '^ActiveByDefault=' "$cfg_file" 2>/dev/null; then
+                sed -i '/^\[Behavior\]/a ActiveByDefault=True' "$cfg_file" 2>/dev/null || true
+            fi
+            if ! grep -q '^ShareInputState=' "$cfg_file" 2>/dev/null; then
+                sed -i '/^\[Behavior\]/a ShareInputState=All' "$cfg_file" 2>/dev/null || true
+            fi
+        else
+            cat << 'EOF' >> "$cfg_file"
+
+[Behavior]
+ActiveByDefault=True
+ShareInputState=All
+EOF
+        fi
+    else
+        cat << 'EOF' > "$cfg_file"
+[Behavior]
+ActiveByDefault=True
+ShareInputState=All
+EOF
+    fi
+}
+
+# apply im environment variables to live session
+apply_live_environment() {
+    local is_sim="${1:-0}"
+    if [ "$is_sim" -eq 1 ]; then
+        return
+    fi
+
+    export GTK_IM_MODULE=fcitx
+    export QT_IM_MODULE=fcitx
+    export XMODIFIERS=@im=fcitx
+    export SDL_IM_MODULE=fcitx
+
+    if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+        systemctl --user set-environment \
+            GTK_IM_MODULE=fcitx \
+            QT_IM_MODULE=fcitx \
+            XMODIFIERS=@im=fcitx \
+            SDL_IM_MODULE=fcitx 2>/dev/null || true
+    fi
+
+    if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+        dbus-update-activation-environment --systemd \
+            GTK_IM_MODULE=fcitx \
+            QT_IM_MODULE=fcitx \
+            XMODIFIERS=@im=fcitx \
+            SDL_IM_MODULE=fcitx 2>/dev/null || true
+    fi
+}
+
+# configure autostart for tiling window managers
+configure_tiling_wm_autostart() {
+    local is_sim="${1:-0}"
+    local de_desc=""
+    local wm_file=""
+    local wm_line=""
+
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -f "${HOME}/.config/hypr/hyprland.conf" ]; then
+        wm_file="${HOME}/.config/hypr/hyprland.conf"
+        wm_line="exec-once = fcitx5 -d"
+        de_desc="Hyprland"
+    elif [ -n "${SWAYSOCK:-}" ] || [ -f "${HOME}/.config/sway/config" ]; then
+        wm_file="${HOME}/.config/sway/config"
+        wm_line="exec --no-startup-id fcitx5 -d"
+        de_desc="Sway"
+    elif [ -n "${NIRI_SOCKET:-}" ] || [ -f "${HOME}/.config/niri/config.kdl" ]; then
+        wm_file="${HOME}/.config/niri/config.kdl"
+        wm_line='spawn-at-startup "fcitx5 -d"'
+        de_desc="Niri"
+    elif [ -f "${HOME}/.config/i3/config" ]; then
+        wm_file="${HOME}/.config/i3/config"
+        wm_line="exec --no-startup-id fcitx5 -d"
+        de_desc="i3"
+    fi
+
+    if [ -n "$wm_file" ]; then
+        if [ "$is_sim" -eq 1 ]; then
+            log_step "$lbl_install" "[Giả lập] Tự động thêm khởi động Fcitx5 vào cấu hình ${de_desc}"
+            return
+        fi
+
+        if [ -f "$wm_file" ] && ! grep -qF "fcitx5" "$wm_file" 2>/dev/null; then
+            printf "\n# autostart fcitx5\n%s\n" "$wm_line" >> "$wm_file" 2>/dev/null || true
+            log_step "$lbl_install" "Đã thêm lệnh khởi động Fcitx5 vào cấu hình ${c_accent}${de_desc}${c_reset}"
+        fi
+    fi
+}
+
+# activate clak input method and reconnect wayland compositor
+activate_clak_and_reconnect_compositor() {
+    local is_sim="${1:-0}"
+    if [ "$is_sim" -eq 1 ]; then
+        return
+    fi
+
+    if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+        case "${XDG_CURRENT_DESKTOP:-}" in
+            KDE|kde|KDE-Plasma|plasma)
+                local qdbus_cmd=""
+                if command -v qdbus6 >/dev/null 2>&1; then
+                    qdbus_cmd="qdbus6"
+                elif command -v qdbus >/dev/null 2>&1; then
+                    qdbus_cmd="qdbus"
+                fi
+                if [ -n "$qdbus_cmd" ]; then
+                    $qdbus_cmd org.kde.KWin /VirtualKeyboard org.freedesktop.DBus.Properties.Set \
+                        org.kde.kwin.VirtualKeyboard enabled false 2>/dev/null || true
+                    sleep 0.1
+                    $qdbus_cmd org.kde.KWin /VirtualKeyboard org.freedesktop.DBus.Properties.Set \
+                        org.kde.kwin.VirtualKeyboard enabled true 2>/dev/null || true
+                fi
+                ;;
+            GNOME|gnome|GNOME-Classic|X-Cinnamon|Cinnamon|cinnamon)
+                if command -v gsettings >/dev/null 2>&1; then
+                    local cur_src
+                    cur_src=$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null || true)
+                    if [ -n "$cur_src" ] && [ "$cur_src" != "@as []" ]; then
+                        gsettings set org.gnome.desktop.input-sources sources "[]" 2>/dev/null || true
+                        sleep 0.1
+                        gsettings set org.gnome.desktop.input-sources sources "$cur_src" 2>/dev/null || true
+                    fi
+                fi
+                ;;
+        esac
+    fi
+
+    if command -v gdbus >/dev/null 2>&1; then
+        gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+            --method org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1 || true
+    elif command -v qdbus6 >/dev/null 2>&1; then
+        qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1 || true
+    elif command -v qdbus >/dev/null 2>&1; then
+        qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1 || true
+    fi
+}
+
 # simulation flow
 run_simulation() {
     # 1. detect os and arch
@@ -368,7 +617,7 @@ run_simulation() {
     arch=$(uname -m)
     log_step "$lbl_check" "Hệ thống hợp lệ: ${c_purple}linux-${arch}${c_reset}"
 
-    # 2. check fcitx5
+    # 2. check fcitx5 and ibus
     if command -v fcitx5 >/dev/null 2>&1; then
         local f_ver
         f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
@@ -376,6 +625,7 @@ run_simulation() {
     else
         log_step "$lbl_warn" "Chưa tìm thấy Fcitx5. Vui lòng cài đặt: ${c_yellow}sudo pacman -S fcitx5${c_reset}"
     fi
+    disable_ibus_conflict 1
 
     # 3. simulated version tag
     local sim_tag="${release_tag:-v0.1.0}"
@@ -432,7 +682,18 @@ run_install() {
     arch=$(get_arch)
     log_step "$lbl_check" "Kiến trúc phần cứng: ${c_purple}${arch}${c_reset}"
 
-    # 2. check curl or wget
+    # 2. check fcitx5 and ibus
+    if command -v fcitx5 >/dev/null 2>&1; then
+        local f_ver
+        f_ver=$(fcitx5 --version 2>/dev/null | head -n1 || echo "fcitx5")
+        log_step "$lbl_check" "Đã phát hiện Fcitx5: ${c_cyan}${f_ver}${c_reset}"
+    else
+        log_step "$lbl_warn" "Chưa tìm thấy Fcitx5 trên hệ thống"
+        print_fcitx5_missing_hint
+    fi
+    disable_ibus_conflict 0
+
+    # 3. check curl or wget
     local has_curl=0
     local has_wget=0
     if command -v curl >/dev/null 2>&1; then
@@ -485,12 +746,17 @@ run_install() {
         err "Không tìm thấy file nén '${arch}.tar.gz' trong bản phát hành ${tag_name}"
     fi
 
+    local archive_size_bytes=0
+    archive_size_bytes=$(echo "$releases_json" | awk -v pat="${arch}\\.tar\\.gz" '$0 ~ pat {flag=1} flag && /"size":/ {gsub(/[^0-9]/, "", $0); print; exit}' || echo 0)
+    local archive_kb=0
+    if [ -n "$archive_size_bytes" ] && [ "$archive_size_bytes" -gt 0 ] 2>/dev/null; then
+        archive_kb=$((archive_size_bytes / 1024))
+    fi
+
     log_step "$lbl_fetch" "Phiên bản chỉ định: ${c_cyan}${tag_name}${c_reset}"
 
     # 4. download release archive
-    local tmp_dir
     tmp_dir=$(mktemp -d)
-    trap 'rm -rf "${tmp_dir}"' EXIT
 
     local archive_name
     archive_name=$(basename "$download_url")
@@ -504,7 +770,7 @@ run_install() {
         fi
     ) &
     local dl_pid=$!
-    spin_download "Đang tải ${archive_name}" 1843 "$dl_pid" "${tmp_dir}/${archive_name}"
+    spin_download "Đang tải ${archive_name}" "$archive_kb" "$dl_pid" "${tmp_dir}/${archive_name}"
     wait "$dl_pid" 2>/dev/null || true
 
     log_step "$lbl_fetch" "Tải về thành công"
@@ -627,13 +893,31 @@ run_install() {
     mkdir -p "${HOME}/.local/share/clak"
     echo "$tag_name" > "${HOME}/.local/share/clak/version"
 
+    # clean up temporary archive directory
+    if [ -n "${tmp_dir:-}" ] && [ -d "$tmp_dir" ]; then
+        rm -rf "$tmp_dir"
+        tmp_dir=""
+    fi
+
     # 7. check and configure uinput permission automatically
-    if [ -w /dev/uinput ] 2>/dev/null; then
+    if [ "$skip_uinput" -eq 1 ]; then
+        log_step "$lbl_uinput" "Đã bỏ qua cấu hình uinput (--skip-uinput)"
+    elif [ -w /dev/uinput ] 2>/dev/null; then
         log_step "$lbl_uinput" "Quyền truy cập /dev/uinput đã sẵn sàng (${c_green}OK${c_reset})"
     else
         log_step "$lbl_warn" "Người dùng hiện tại chưa có quyền ghi vào /dev/uinput"
         print_uinput_sudo_notice
-        if echo 'KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess"' | run_sudo tee /etc/udev/rules.d/99-uinput.rules >/dev/null 2>&1 && run_sudo udevadm trigger /dev/uinput 2>/dev/null; then
+        local uinput_ok=0
+        if command -v sudo >/dev/null 2>&1; then
+            if run_sudo sh -c 'mkdir -p /etc/udev/rules.d /etc/modules-load.d && echo "KERNEL==\"uinput\", SUBSYSTEM==\"misc\", OPTIONS+=\"static_node=uinput\", TAG+=\"uaccess\"" > /etc/udev/rules.d/99-uinput.rules && echo "uinput" > /etc/modules-load.d/uinput.conf'; then
+                run_sudo udevadm control --reload-rules 2>/dev/null || true
+                run_sudo udevadm trigger --name-match=uinput 2>/dev/null || run_sudo udevadm trigger /dev/uinput 2>/dev/null || true
+                run_sudo modprobe uinput 2>/dev/null || true
+                uinput_ok=1
+            fi
+        fi
+
+        if [ "$uinput_ok" -eq 1 ]; then
             log_step "$lbl_uinput" "Đã cấu hình /dev/uinput thành công"
         else
             log_step "$lbl_warn" "Chưa cấp quyền uinput, Clak sẽ hoạt động ở chế độ Wayland mặc định"
@@ -645,6 +929,9 @@ run_install() {
 
     # 9. configure autostart with system
     configure_autostart 0
+    configure_tiling_wm_autostart 0
+    configure_fcitx5_behavior 0
+    apply_live_environment 0
 
     # 10. reload fcitx5 daemon with final spinner
     if command -v fcitx5 >/dev/null 2>&1; then
@@ -655,6 +942,7 @@ run_install() {
         local reload_pid=$!
         spin_pid "$reload_pid" "Đang khởi động lại daemon Fcitx5..." 1
         wait "$reload_pid" 2>/dev/null || true
+        activate_clak_and_reconnect_compositor 0
     fi
 
     # final line directly after spin completes

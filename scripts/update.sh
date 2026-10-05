@@ -9,6 +9,14 @@ dry_run=0
 target_version=""
 force_update=0
 assume_yes=0
+tmp_dir=""
+
+cleanup() {
+    if [ -n "${tmp_dir:-}" ] && [ -d "$tmp_dir" ]; then
+        rm -rf "$tmp_dir"
+    fi
+}
+trap cleanup EXIT INT TERM
 
 # parse command-line arguments
 for arg in "$@"; do
@@ -95,7 +103,7 @@ spin_step() {
 # in-place animated download spinner with percentage and kb counter
 spin_download() {
     local text="$1"
-    local total_kb="${2:-1843}"
+    local total_kb="${2:-0}"
     local track_pid="${3:-}"
     local track_file="${4:-}"
 
@@ -117,24 +125,44 @@ spin_download() {
                 cur_bytes=$(wc -c < "$track_file" 2>/dev/null || echo 0)
             fi
             local cur_kb=$((cur_bytes / 1024))
-            local pct=$((cur_kb * 100 / total_kb))
-            [ $pct -gt 99 ] && pct=99
-            printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
-                "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            if [ "$total_kb" -gt 0 ]; then
+                local pct=$((cur_kb * 100 / total_kb))
+                [ $pct -gt 99 ] && pct=99
+                printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                    "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            else
+                printf "\r\033[38;5;75m%s\033[0m \033[38;5;244m%s (%d KB)\033[0m\033[K" \
+                    "$f" "$text" "$cur_kb"
+            fi
             i=$((i + 1))
             sleep 0.08
         done
         wait "$track_pid" 2>/dev/null || true
+        local cur_bytes=0
+        if [ -f "$track_file" ]; then
+            cur_bytes=$(wc -c < "$track_file" 2>/dev/null || echo 0)
+        fi
+        local final_kb=$((cur_bytes / 1024))
         local f=${frames[i % 10]}
-        printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
-            "$f" "$text" "$total_kb" "$total_kb"
+        if [ "$total_kb" -gt 0 ]; then
+            printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                "$f" "$text" "$final_kb" "$final_kb"
+        else
+            printf "\r\033[38;5;75m%s\033[0m \033[1;36m100%%\033[0m \033[38;5;244m%s (%d KB)\033[0m\033[K" \
+                "$f" "$text" "$final_kb"
+        fi
         sleep 0.04
     else
         for ((pct=0; pct<=100; pct+=4)); do
             local f=${frames[(pct / 4) % 10]}
-            local cur_kb=$((total_kb * pct / 100))
-            printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
-                "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            if [ "$total_kb" -gt 0 ]; then
+                local cur_kb=$((total_kb * pct / 100))
+                printf "\r\033[38;5;75m%s\033[0m \033[1;36m%3d%%\033[0m \033[38;5;244m%s (%d/%d KB)\033[0m\033[K" \
+                    "$f" "$pct" "$text" "$cur_kb" "$total_kb"
+            else
+                printf "\r\033[38;5;75m%s\033[0m \033[38;5;244m%s\033[0m\033[K" \
+                    "$f" "$pct" "$text"
+            fi
             sleep 0.04
         done
     fi
@@ -175,6 +203,28 @@ reload_fcitx5() {
     elif command -v fcitx5 >/dev/null 2>&1; then
         fcitx5 -r -d >/dev/null 2>&1 || true
     fi
+}
+
+# run command with sudo via tty if needed
+run_sudo() {
+    if [ "$EUID" -eq 0 ]; then
+        "$@"
+        return $?
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if ! sudo -n true 2>/dev/null; then
+        if [ -e /dev/tty ] && [ -r /dev/tty ]; then
+            sudo -v < /dev/tty || return 1
+        else
+            sudo -v || return 1
+        fi
+    fi
+
+    sudo "$@"
 }
 
 # error exit
@@ -536,9 +586,14 @@ run_update() {
         err "Không tìm thấy file nén cho kiến trúc linux-${arch}"
     fi
 
-    local tmp_dir
+    local archive_size_bytes=0
+    archive_size_bytes=$(echo "$releases_json" | awk -v pat="linux-${arch}\\.tar\\.gz" '$0 ~ pat {flag=1} flag && /"size":/ {gsub(/[^0-9]/, "", $0); print; exit}' || echo 0)
+    local archive_kb=0
+    if [ -n "$archive_size_bytes" ] && [ "$archive_size_bytes" -gt 0 ] 2>/dev/null; then
+        archive_kb=$((archive_size_bytes / 1024))
+    fi
+
     tmp_dir=$(mktemp -d)
-    trap 'rm -rf "${tmp_dir}"' EXIT
 
     local archive_name
     archive_name=$(basename "$download_url")
@@ -548,7 +603,7 @@ run_update() {
         curl -sLO "$download_url"
     ) &
     local dl_pid=$!
-    spin_download "Đang tải ${archive_name}" 1843 "$dl_pid" "${tmp_dir}/${archive_name}"
+    spin_download "Đang tải ${archive_name}" "$archive_kb" "$dl_pid" "${tmp_dir}/${archive_name}"
     wait "$dl_pid" 2>/dev/null || true
     log_step "$lbl_fetch" "Tải về thành công"
 
@@ -580,6 +635,9 @@ run_update() {
     local lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
     local addon_src="${tmp_dir}/usr/share/fcitx5/addon/clak.conf"
     local im_src="${tmp_dir}/usr/share/fcitx5/inputmethod/clak.conf"
+    local gui_src="${tmp_dir}/usr/bin/clak-gui"
+    local desktop_src="${tmp_dir}/usr/share/applications/clak-gui.desktop"
+    local icons_src="${tmp_dir}/usr/share/icons"
 
     if [ ! -f "$lib_src" ]; then
         err "Gói cập nhật không hợp lệ: thiếu libclak.so"
@@ -596,21 +654,68 @@ run_update() {
         im_dest="/usr/share/fcitx5/inputmethod"
 
         echo "Yêu cầu quyền sudo để ghi đè file hệ thống (/usr)..."
-        sudo mkdir -p "$lib_dest" "$addon_dest" "$im_dest" < /dev/tty
-        sudo cp "$lib_src" "${lib_dest}/libclak.so" < /dev/tty
-        sudo cp "$addon_src" "${addon_dest}/clak.conf" < /dev/tty
-        sudo cp "$im_src" "${im_dest}/clak.conf" < /dev/tty
-        sudo chmod 755 "${lib_dest}/libclak.so"
+        run_sudo mkdir -p "$lib_dest" "$addon_dest" "$im_dest"
+        run_sudo cp "$lib_src" "${lib_dest}/libclak.so"
+        run_sudo cp "$addon_src" "${addon_dest}/clak.conf"
+        run_sudo cp "$im_src" "${im_dest}/clak.conf"
+        run_sudo chmod 755 "${lib_dest}/libclak.so"
+        run_sudo chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
+
+        if [ -f "$gui_src" ]; then
+            run_sudo mkdir -p "/usr/bin"
+            run_sudo cp "$gui_src" "/usr/bin/clak-gui"
+            run_sudo chmod 755 "/usr/bin/clak-gui"
+        fi
+        if [ -f "$desktop_src" ]; then
+            run_sudo mkdir -p "/usr/share/applications"
+            run_sudo cp "$desktop_src" "/usr/share/applications/clak-gui.desktop"
+            run_sudo chmod 644 "/usr/share/applications/clak-gui.desktop"
+            command -v update-desktop-database >/dev/null 2>&1 && run_sudo update-desktop-database "/usr/share/applications" 2>/dev/null || true
+        fi
+        if [ -d "$icons_src" ]; then
+            run_sudo cp -r "$icons_src"/* /usr/share/icons/ 2>/dev/null || true
+            if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+                run_sudo gtk-update-icon-cache -f -q -t "/usr/share/icons/hicolor" 2>/dev/null || true
+            fi
+        fi
     else
         mkdir -p "$lib_dest" "$addon_dest" "$im_dest"
         cp "$lib_src" "${lib_dest}/libclak.so"
         cp "$addon_src" "${addon_dest}/clak.conf"
         cp "$im_src" "${im_dest}/clak.conf"
         chmod 755 "${lib_dest}/libclak.so"
+        chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
+
+        if [ -f "$gui_src" ]; then
+            mkdir -p "${HOME}/.local/bin"
+            cp "$gui_src" "${HOME}/.local/bin/clak-gui"
+            chmod 755 "${HOME}/.local/bin/clak-gui"
+        fi
+        if [ -f "$desktop_src" ]; then
+            mkdir -p "${HOME}/.local/share/applications"
+            cp "$desktop_src" "${HOME}/.local/share/applications/clak-gui.desktop"
+            chmod 644 "${HOME}/.local/share/applications/clak-gui.desktop"
+            command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
+        fi
+        if [ -d "$icons_src" ]; then
+            mkdir -p "${HOME}/.local/share/icons"
+            cp -r "$icons_src"/* "${HOME}/.local/share/icons/" 2>/dev/null || true
+            if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+                for icondir in "${HOME}/.local/share/icons"/*; do
+                    [ -d "$icondir" ] && gtk-update-icon-cache -f -q -t "$icondir" 2>/dev/null || true
+                done
+            fi
+        fi
     fi
 
     mkdir -p "${HOME}/.local/share/clak"
     echo "$latest_tag" > "$version_file"
+
+    # clean up temporary archive directory
+    if [ -n "${tmp_dir:-}" ] && [ -d "$tmp_dir" ]; then
+        rm -rf "$tmp_dir"
+        tmp_dir=""
+    fi
 
     log_step "$lbl_update" "Đã cập nhật ${c_accent}${lib_dest}/libclak.so${c_reset}"
 

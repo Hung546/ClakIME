@@ -113,11 +113,22 @@ spin_pid() {
 run_sudo() {
     if [ "$EUID" -eq 0 ]; then
         "$@"
-    elif command -v sudo >/dev/null 2>&1; then
-        sudo "$@"
-    else
+        return $?
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
         err "Cần quyền quản trị viên (sudo) để thực thi lệnh này"
     fi
+
+    if ! sudo -n true 2>/dev/null; then
+        if [ -e /dev/tty ] && [ -r /dev/tty ]; then
+            sudo -v < /dev/tty || return 1
+        else
+            sudo -v || return 1
+        fi
+    fi
+
+    sudo "$@"
 }
 
 # simulation flow
@@ -326,6 +337,23 @@ run_uninstall() {
 
     rm -f "${target_home}/.config/autostart/clak-autostart.desktop"
     rm -f "${target_home}/.config/environment.d/99-clak-im.conf"
+
+    # restore ibus autostart if disabled by clak
+    for f in "${target_home}/.config/autostart"/ibus-*.disabled-by-clak; do
+        if [ -f "$f" ]; then
+            mv "$f" "${f%.disabled-by-clak}" 2>/dev/null || true
+        fi
+    done
+
+    # clean up tiling wm autostart lines
+    for wm in "${target_home}/.config/hypr/hyprland.conf" "${target_home}/.config/sway/config" "${target_home}/.config/i3/config"; do
+        if [ -f "$wm" ]; then
+            sed -i '/# autostart fcitx5/d; /exec.*fcitx5 -d/d' "$wm" 2>/dev/null || true
+        fi
+    done
+    if [ -f "${target_home}/.config/niri/config.kdl" ]; then
+        sed -i '/spawn-at-startup "fcitx5 -d"/d' "${target_home}/.config/niri/config.kdl" 2>/dev/null || true
+    fi
 
     local prof="${target_home}/.config/fcitx5/profile"
     if [ -f "$prof" ]; then

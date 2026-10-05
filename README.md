@@ -10,11 +10,21 @@
 
 ## Cài đặt
 
+### Ubuntu / Debian:
+
+Cài nhanh qua script tự động (tự nhận diện và cấu hình Fcitx5):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/install.sh | bash
 ```
 
-Arch Linux (AUR):
+Hoặc tải gói `.deb` từ [Releases](https://github.com/versenilvis/clak/releases) rồi cài đặt:
+
+```bash
+sudo apt install ./clak_*_amd64.deb
+```
+
+### Arch Linux (AUR):
 
 ```bash
 # bản prebuilt binary dựng sẵn (khuyên dùng)
@@ -25,7 +35,7 @@ yay -S clak-bin
 yay -S clak
 ```
 
-Nix Flake:
+### Nix Flake:
 
 ```bash
 nix profile install github:versenilvis/clak

@@ -288,13 +288,13 @@ detect_install_source() {
     fi
 
     # 4. user local directory
-    if [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ]; then
+    if [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] || [ -f "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5/libclak.so" ]; then
         echo "user"
         return
     fi
 
     # 5. system wide directory
-    if [ -f "/usr/lib/fcitx5/libclak.so" ] || [ -f "/usr/local/lib/fcitx5/libclak.so" ]; then
+    if [ -f "/usr/lib/fcitx5/libclak.so" ] || [ -f "/usr/local/lib/fcitx5/libclak.so" ] || [ -f "/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so" ]; then
         echo "system"
         return
     fi
@@ -587,7 +587,7 @@ run_update() {
     fi
 
     local archive_size_bytes=0
-    archive_size_bytes=$(echo "$releases_json" | awk -v pat="linux-${arch}\\.tar\\.gz" '$0 ~ pat {flag=1} flag && /"size":/ {gsub(/[^0-9]/, "", $0); print; exit}' || echo 0)
+    archive_size_bytes=$(echo "$releases_json" | awk -v pat="linux-${arch}.tar.gz" 'index($0, pat) {flag=1} flag && /"size":/ {gsub(/[^0-9]/, "", $0); print; exit}' || echo 0)
     local archive_kb=0
     if [ -n "$archive_size_bytes" ] && [ "$archive_size_bytes" -gt 0 ] 2>/dev/null; then
         archive_kb=$((archive_size_bytes / 1024))
@@ -632,14 +632,22 @@ run_update() {
     # 4. extract archive
     tar -xzf "${tmp_dir}/${archive_name}" -C "$tmp_dir"
 
-    local lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
+    local lib_src=""
+    if [ -f "${tmp_dir}/usr/lib/fcitx5/libclak.so" ]; then
+        lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
+    elif compgen -G "${tmp_dir}/usr/lib/*/fcitx5/libclak.so" >/dev/null 2>&1; then
+        lib_src=$(compgen -G "${tmp_dir}/usr/lib/*/fcitx5/libclak.so" | head -1)
+    else
+        lib_src=$(find "${tmp_dir}" -name "libclak.so" 2>/dev/null | head -1 || true)
+    fi
+
     local addon_src="${tmp_dir}/usr/share/fcitx5/addon/clak.conf"
     local im_src="${tmp_dir}/usr/share/fcitx5/inputmethod/clak.conf"
     local gui_src="${tmp_dir}/usr/bin/clak-gui"
     local desktop_src="${tmp_dir}/usr/share/applications/clak-gui.desktop"
     local icons_src="${tmp_dir}/usr/share/icons"
 
-    if [ ! -f "$lib_src" ]; then
+    if [ -z "$lib_src" ] || [ ! -f "$lib_src" ]; then
         err "Gói cập nhật không hợp lệ: thiếu libclak.so"
     fi
 
@@ -661,6 +669,10 @@ run_update() {
         run_sudo chmod 755 "${lib_dest}/libclak.so"
         run_sudo chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
 
+        # symlink into debian/ubuntu multiarch path for fcitx5
+        run_sudo mkdir -p "/usr/lib/x86_64-linux-gnu/fcitx5"
+        run_sudo ln -sf "${lib_dest}/libclak.so" "/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so" 2>/dev/null || true
+
         if [ -f "$gui_src" ]; then
             run_sudo mkdir -p "/usr/bin"
             run_sudo cp "$gui_src" "/usr/bin/clak-gui"
@@ -669,6 +681,7 @@ run_update() {
         if [ -f "$desktop_src" ]; then
             run_sudo mkdir -p "/usr/share/applications"
             run_sudo cp "$desktop_src" "/usr/share/applications/clak-gui.desktop"
+            run_sudo sed -i "s|^Exec=.*|Exec=/usr/bin/clak-gui|" "/usr/share/applications/clak-gui.desktop" 2>/dev/null || true
             run_sudo chmod 644 "/usr/share/applications/clak-gui.desktop"
             command -v update-desktop-database >/dev/null 2>&1 && run_sudo update-desktop-database "/usr/share/applications" 2>/dev/null || true
         fi
@@ -686,6 +699,10 @@ run_update() {
         chmod 755 "${lib_dest}/libclak.so"
         chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
 
+        # symlink into debian/ubuntu multiarch path for fcitx5
+        mkdir -p "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5"
+        ln -sf "${lib_dest}/libclak.so" "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5/libclak.so" 2>/dev/null || true
+
         if [ -f "$gui_src" ]; then
             mkdir -p "${HOME}/.local/bin"
             cp "$gui_src" "${HOME}/.local/bin/clak-gui"
@@ -694,6 +711,8 @@ run_update() {
         if [ -f "$desktop_src" ]; then
             mkdir -p "${HOME}/.local/share/applications"
             cp "$desktop_src" "${HOME}/.local/share/applications/clak-gui.desktop"
+            # use absolute path for Exec so desktop environment finds binary without ~/.local/bin in PATH
+            sed -i "s|^Exec=.*|Exec=${HOME}/.local/bin/clak-gui|" "${HOME}/.local/share/applications/clak-gui.desktop" 2>/dev/null || true
             chmod 644 "${HOME}/.local/share/applications/clak-gui.desktop"
             command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
         fi

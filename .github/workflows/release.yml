@@ -16,25 +16,30 @@ permissions:
 jobs:
   build:
     name: Build Packages
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          pacman -Syu --noconfirm --needed \
-            base-devel \
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
             cmake \
-            ninja \
+            ninja-build \
             extra-cmake-modules \
-            fcitx5 \
-            libinput \
-            rust \
-            git \
-            nodejs
+            libfcitx5core-dev \
+            libfcitx5utils-dev \
+            libinput-dev \
+            libudev-dev \
+            libxkbcommon-dev \
+            libfontconfig1-dev \
+            pkg-config \
+            git
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo & build artifacts
         uses: actions/cache@v4
@@ -46,9 +51,9 @@ jobs:
             ~/.cargo/git/db/
             build/engine-target/
             build/ui-target/
-          key: ${{ runner.os }}-build-arch-${{ hashFiles('engine/Cargo.lock', 'ui/Cargo.lock') }}
+          key: ${{ runner.os }}-build-ubuntu-${{ hashFiles('engine/Cargo.lock', 'ui/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-build-arch-
+            ${{ runner.os }}-build-ubuntu-
 
       - name: Run engine tests
         run: cargo test --manifest-path engine/Cargo.toml --verbose
@@ -65,6 +70,13 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           DESTDIR=/tmp/clak-dist cmake --install build
+          if [ -f /tmp/clak-dist/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so ] && [ ! -f /tmp/clak-dist/usr/lib/fcitx5/libclak.so ]; then
+            mkdir -p /tmp/clak-dist/usr/lib/fcitx5
+            cp -a /tmp/clak-dist/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so /tmp/clak-dist/usr/lib/fcitx5/libclak.so
+          elif [ -f /tmp/clak-dist/usr/lib/fcitx5/libclak.so ] && [ ! -f /tmp/clak-dist/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so ]; then
+            mkdir -p /tmp/clak-dist/usr/lib/x86_64-linux-gnu/fcitx5
+            cp -a /tmp/clak-dist/usr/lib/fcitx5/libclak.so /tmp/clak-dist/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so
+          fi
           mkdir -p dist
           tar -C /tmp/clak-dist -czf dist/clak-${VERSION}-linux-x86_64.tar.gz usr/
 

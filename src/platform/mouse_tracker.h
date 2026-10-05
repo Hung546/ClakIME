@@ -3,7 +3,6 @@
 #include <functional>
 #include <memory>
 #include <fcitx-utils/event.h>
-#include <fcitx-utils/eventloopinterface.h>
 
 struct libinput;
 struct udev;

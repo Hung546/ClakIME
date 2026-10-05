@@ -273,7 +273,7 @@ ensure_fcitx5() {
         pkg_hint="sudo pacman -S fcitx5 fcitx5-configtool"
     elif command -v apt-get >/dev/null 2>&1; then
         pkg_manager="apt"
-        pkg_hint="sudo apt install fcitx5 fcitx5-config-qt"
+        pkg_hint="sudo apt install fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-config-qt"
     elif command -v dnf >/dev/null 2>&1; then
         pkg_manager="dnf"
         pkg_hint="sudo dnf install fcitx5 fcitx5-configtool"
@@ -317,7 +317,8 @@ ensure_fcitx5() {
                     run_sudo pacman -S --noconfirm fcitx5 fcitx5-configtool || true
                 elif [ "$pkg_manager" = "apt" ]; then
                     run_sudo apt-get update -y 2>/dev/null || true
-                    run_sudo apt-get install -y fcitx5 fcitx5-config-qt || true
+                    run_sudo apt-get install -y fcitx5 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-config-qt || true
+                    command -v im-config >/dev/null 2>&1 && im-config -n fcitx5 2>/dev/null || true
                 elif [ "$pkg_manager" = "dnf" ]; then
                     run_sudo dnf install -y fcitx5 fcitx5-configtool || true
                 elif [ "$pkg_manager" = "zypper" ]; then
@@ -474,6 +475,12 @@ INPUT_METHOD=fcitx5
 SDL_IM_MODULE=fcitx
 EOF
 
+    # stop running fcitx5 before writing profile to prevent in-memory profile overwrite
+    if command -v fcitx5 >/dev/null 2>&1 && pidof fcitx5 >/dev/null 2>&1; then
+        pkill -u "$(id -u)" fcitx5 2>/dev/null || true
+        sleep 0.2
+    fi
+
     local profile_file="${HOME}/.config/fcitx5/profile"
     if [ ! -f "$profile_file" ]; then
         mkdir -p "${HOME}/.config/fcitx5"
@@ -500,6 +507,25 @@ EOF
         fi
         sed -i 's/^DefaultIM=.*/DefaultIM=clak/' "$profile_file" 2>/dev/null || true
     fi
+
+    # configure gtk im module for gnome and wayland compatibility
+    for gtk_ver in "gtk-3.0" "gtk-4.0"; do
+        local gtk_dir="${HOME}/.config/${gtk_ver}"
+        local gtk_ini="${gtk_dir}/settings.ini"
+        mkdir -p "$gtk_dir"
+        if [ ! -f "$gtk_ini" ]; then
+            cat << 'EOF' > "$gtk_ini"
+[Settings]
+gtk-im-module=fcitx
+EOF
+        elif ! grep -q "gtk-im-module" "$gtk_ini" 2>/dev/null; then
+            if grep -q '^\[Settings\]' "$gtk_ini" 2>/dev/null; then
+                sed -i '/^\[Settings\]/a gtk-im-module=fcitx' "$gtk_ini" 2>/dev/null || true
+            else
+                printf "\n[Settings]\ngtk-im-module=fcitx\n" >> "$gtk_ini" 2>/dev/null || true
+            fi
+        fi
+    done
 
     log_step "$lbl_install" "Đã kích hoạt tự động chạy Clak Tiếng Việt cùng hệ thống"
 }
@@ -864,7 +890,7 @@ run_install() {
     fi
 
     local archive_size_bytes=0
-    archive_size_bytes=$(echo "$releases_json" | awk -v pat="${arch}\\.tar\\.gz" '$0 ~ pat {flag=1} flag && /"size":/ {gsub(/[^0-9]/, "", $0); print; exit}' || echo 0)
+    archive_size_bytes=$(echo "$releases_json" | awk -v pat="${arch}.tar.gz" 'index($0, pat) {flag=1} flag && /"size":/ {gsub(/[^0-9]/, "", $0); print; exit}' || echo 0)
     local archive_kb=0
     if [ -n "$archive_size_bytes" ] && [ "$archive_size_bytes" -gt 0 ] 2>/dev/null; then
         archive_kb=$((archive_size_bytes / 1024))
@@ -921,15 +947,34 @@ run_install() {
     # 5. extract archive
     tar -xzf "${tmp_dir}/${archive_name}" -C "$tmp_dir"
 
-    local lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
+    local lib_src=""
+    if [ -f "${tmp_dir}/usr/lib/fcitx5/libclak.so" ]; then
+        lib_src="${tmp_dir}/usr/lib/fcitx5/libclak.so"
+    elif compgen -G "${tmp_dir}/usr/lib/*/fcitx5/libclak.so" >/dev/null 2>&1; then
+        lib_src=$(compgen -G "${tmp_dir}/usr/lib/*/fcitx5/libclak.so" | head -1)
+    else
+        lib_src=$(find "${tmp_dir}" -name "libclak.so" 2>/dev/null | head -1 || true)
+    fi
+
     local addon_src="${tmp_dir}/usr/share/fcitx5/addon/clak.conf"
     local im_src="${tmp_dir}/usr/share/fcitx5/inputmethod/clak.conf"
     local gui_src="${tmp_dir}/usr/bin/clak-gui"
     local desktop_src="${tmp_dir}/usr/share/applications/clak-gui.desktop"
     local icons_src="${tmp_dir}/usr/share/icons"
 
-    if [ ! -f "$lib_src" ]; then
+    if [ -z "$lib_src" ] || [ ! -f "$lib_src" ]; then
         err "Gói cài đặt bị lỗi: không tìm thấy file libclak.so"
+    fi
+
+    # check glibc compatibility of downloaded binary
+    if command -v ldd >/dev/null 2>&1; then
+        local ldd_check
+        ldd_check=$(ldd "$lib_src" 2>&1 || true)
+        if echo "$ldd_check" | grep -q "version \`GLIBC_.*' not found"; then
+            local missing_glibc
+            missing_glibc=$(echo "$ldd_check" | grep "version \`GLIBC_" | head -1 | sed -e 's/.*version `//' -e 's/'\'' not found.*//')
+            log_step "$lbl_warn" "Cảnh báo tương thích: gói nhị phân yêu cầu GLIBC $missing_glibc (hệ thống hiện tại chưa có)"
+        fi
     fi
 
     # 6. copy files (only request sudo if system install)
@@ -950,6 +995,10 @@ run_install() {
         run_sudo chmod 755 "${lib_dest}/libclak.so"
         run_sudo chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
 
+        # symlink into debian/ubuntu multiarch path for fcitx5
+        run_sudo mkdir -p "/usr/lib/x86_64-linux-gnu/fcitx5"
+        run_sudo ln -sf "${lib_dest}/libclak.so" "/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so" 2>/dev/null || true
+
         if [ -f "$gui_src" ]; then
             run_sudo mkdir -p "/usr/bin"
             run_sudo cp "$gui_src" "/usr/bin/clak-gui"
@@ -958,6 +1007,7 @@ run_install() {
         if [ -f "$desktop_src" ]; then
             run_sudo mkdir -p "/usr/share/applications"
             run_sudo cp "$desktop_src" "/usr/share/applications/clak-gui.desktop"
+            run_sudo sed -i "s|^Exec=.*|Exec=/usr/bin/clak-gui|" "/usr/share/applications/clak-gui.desktop" 2>/dev/null || true
             run_sudo chmod 644 "/usr/share/applications/clak-gui.desktop"
             command -v update-desktop-database >/dev/null 2>&1 && run_sudo update-desktop-database "/usr/share/applications" 2>/dev/null || true
         fi
@@ -979,6 +1029,10 @@ run_install() {
         chmod 755 "${lib_dest}/libclak.so"
         chmod 644 "${addon_dest}/clak.conf" "${im_dest}/clak.conf"
 
+        # symlink into debian/ubuntu multiarch path for fcitx5
+        mkdir -p "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5"
+        ln -sf "${lib_dest}/libclak.so" "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5/libclak.so" 2>/dev/null || true
+
         if [ -f "$gui_src" ]; then
             mkdir -p "${HOME}/.local/bin"
             cp "$gui_src" "${HOME}/.local/bin/clak-gui"
@@ -987,6 +1041,8 @@ run_install() {
         if [ -f "$desktop_src" ]; then
             mkdir -p "${HOME}/.local/share/applications"
             cp "$desktop_src" "${HOME}/.local/share/applications/clak-gui.desktop"
+            # use absolute path for Exec so desktop environment finds binary without ~/.local/bin in PATH
+            sed -i "s|^Exec=.*|Exec=${HOME}/.local/bin/clak-gui|" "${HOME}/.local/share/applications/clak-gui.desktop" 2>/dev/null || true
             chmod 644 "${HOME}/.local/share/applications/clak-gui.desktop"
             command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${HOME}/.local/share/applications" 2>/dev/null || true
         fi
@@ -999,6 +1055,12 @@ run_install() {
                 done
             fi
         fi
+
+        # propagate ~/.local/bin to current path and systemd user environment
+        if [[ ":$PATH:" != *":${HOME}/.local/bin:"* ]]; then
+            export PATH="${HOME}/.local/bin:${PATH}"
+        fi
+        command -v systemctl >/dev/null 2>&1 && systemctl --user set-environment PATH="${HOME}/.local/bin:${PATH}" 2>/dev/null || true
     fi
 
     log_step "$lbl_install" "Đã chép ${c_accent}${lib_dest}/libclak.so${c_reset}"

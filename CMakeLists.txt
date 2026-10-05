@@ -19,6 +19,21 @@ string(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 find_package(Fcitx5Core 5.0.14 REQUIRED)
 include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5CompilerSettings.cmake")
 
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES Fcitx5::Core)
+check_cxx_source_compiles("
+#include <fcitx/instance.h>
+int main() {
+    fcitx::Instance *inst = nullptr;
+    inst->showCustomInputMethodInformation(nullptr, \"\");
+    return 0;
+}
+" FCITX5_HAVE_SHOW_CUSTOM_IM_INFO)
+
+if(FCITX5_HAVE_SHOW_CUSTOM_IM_INFO)
+    add_compile_definitions(FCITX5_HAVE_SHOW_CUSTOM_IM_INFO=1)
+endif()
+
 set(CLAK_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/engine")
 set(CLAK_ENGINE_LIB "${CMAKE_CURRENT_BINARY_DIR}/engine-target/release/libclak_engine.a")
 
@@ -155,6 +170,8 @@ if(TARGET clak_gui_build)
         COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/share/applications"
         COMMAND ${CMAKE_COMMAND} -E copy "${CLAK_UI_BIN}" "$ENV{HOME}/.local/bin/clak-gui"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/data/clak-gui.desktop" "$ENV{HOME}/.local/share/applications/clak-gui.desktop"
+        COMMAND sed -i "s|^Exec=.*|Exec=$ENV{HOME}/.local/bin/clak-gui|" "$ENV{HOME}/.local/share/applications/clak-gui.desktop"
+        COMMAND update-desktop-database "$ENV{HOME}/.local/share/applications" || true
     )
     add_dependencies(install-user clak_gui_build)
 endif()

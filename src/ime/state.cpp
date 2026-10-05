@@ -666,7 +666,11 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
                     reset(/*force=*/true);
                     ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
                     if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
+#ifdef FCITX5_HAVE_SHOW_CUSTOM_IM_INFO
                         engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
+#else
+                        engine_->instance()->showInputMethodInformation(ic_);
+#endif
                     }
                 }
                 ctrl_shift_down_ = false;
@@ -688,7 +692,11 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
         reset(/*force=*/true);
         ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
         if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
+#ifdef FCITX5_HAVE_SHOW_CUSTOM_IM_INFO
             engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
+#else
+            engine_->instance()->showInputMethodInformation(ic_);
+#endif
         }
         keyEvent.filterAndAccept();
         return;

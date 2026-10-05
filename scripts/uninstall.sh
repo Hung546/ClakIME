@@ -280,6 +280,7 @@ run_uninstall() {
         rm -f "${HOME}/.local/bin/clak-gui"
         rm -f "${HOME}/.local/share/applications/clak-gui.desktop"
         rm -f "${HOME}/.local/lib/fcitx5/libclak.so"
+        rm -f "${HOME}/.local/lib/x86_64-linux-gnu/fcitx5/libclak.so"
         rm -f "${HOME}/.local/share/fcitx5/addon/clak.conf"
         rm -f "${HOME}/.local/share/fcitx5/inputmethod/clak.conf"
         rm -rf "${HOME}/.local/share/clak"
@@ -295,6 +296,7 @@ run_uninstall() {
         run_sudo rm -f "/usr/bin/clak-gui"
         run_sudo rm -f "/usr/share/applications/clak-gui.desktop"
         run_sudo rm -f "/usr/lib/fcitx5/libclak.so"
+        run_sudo rm -f "/usr/lib/x86_64-linux-gnu/fcitx5/libclak.so"
         run_sudo rm -f "/usr/share/fcitx5/addon/clak.conf"
         run_sudo rm -f "/usr/share/fcitx5/inputmethod/clak.conf"
         run_sudo find "/usr/share/icons" -type f -name "*clak*" -delete 2>/dev/null || true

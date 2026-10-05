@@ -91,6 +91,7 @@ export component MainWindow inherits Window {
     callback remove_macro(int);
     callback reset_defaults_requested();
     callback check_update_requested();
+    callback uninstall_requested();
 
     forward-focus: fs;
     fs := FocusScope {
@@ -181,6 +182,7 @@ export component MainWindow inherits Window {
                             open_url(url) => { root.open_url(url); }
                             reset_defaults => { root.reset_defaults_requested(); }
                             check_update_requested => { root.check_update_requested(); }
+                            uninstall_requested => { root.uninstall_requested(); }
                         }
                     }
                 }

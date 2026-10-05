@@ -389,6 +389,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
+    let win_uninstall = main_window.as_weak();
+    main_window.on_uninstall_requested(move || {
+        let terminals = [
+            "kitty",
+            "alacritty",
+            "foot",
+            "wezterm",
+            "gnome-terminal",
+            "konsole",
+            "xterm",
+        ];
+        let term = terminals.iter().find(|&&t| {
+            std::process::Command::new("which")
+                .arg(t)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        });
+
+        let script_cmd = "if [ -f scripts/uninstall.sh ]; then bash scripts/uninstall.sh; elif [ -f \"$HOME/.local/share/clak/uninstall.sh\" ]; then bash \"$HOME/.local/share/clak/uninstall.sh\"; else curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/uninstall.sh | bash; fi; echo ''; read -p 'Nhấn Enter để đóng...' dummy";
+
+        if let Some(&term_cmd) = term {
+            let mut cmd = std::process::Command::new(term_cmd);
+            match term_cmd {
+                "gnome-terminal" => {
+                    cmd.args(["--", "bash", "-c", script_cmd]);
+                }
+                "wezterm" => {
+                    cmd.args(["start", "--", "bash", "-c", script_cmd]);
+                }
+                _ => {
+                    cmd.args(["-e", "bash", "-c", script_cmd]);
+                }
+            }
+            let _ = cmd.spawn();
+        } else {
+            let _ = std::process::Command::new("bash")
+                .args(["-c", script_cmd])
+                .spawn();
+        }
+
+        if let Some(w) = win_uninstall.upgrade() {
+            let _ = w.hide();
+        }
+        std::process::exit(0);
+    });
+
     main_window.run()?;
     Ok(())
 }

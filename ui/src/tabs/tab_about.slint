@@ -21,6 +21,7 @@ export component TabAbout inherits VerticalLayout {
     callback open_url(string);
     callback reset_defaults();
     callback check_update_requested();
+    callback uninstall_requested();
 
     alignment: start;
     spacing: 0px;
@@ -305,7 +306,7 @@ export component TabAbout inherits VerticalLayout {
     }
 
     SectionHeader {
-        title: "KHÔI PHỤC";
+        title: "QUẢN LÝ";
         show-divider: true;
     }
 
@@ -339,9 +340,46 @@ export component TabAbout inherits VerticalLayout {
         VerticalLayout {
             alignment: center;
             GhostButton {
-                text: "Khôi phục tất cả";
+                text: "Khôi phục";
                 destructive: true;
                 clicked => { root.reset_defaults(); }
+            }
+        }
+    }
+
+    // section 4: nhom go cai dat
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 10px;
+        min-height: 48px;
+        alignment: space-between;
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: "Gỡ cài đặt Clak";
+                color: Theme.text-primary;
+                font-size: 14px;
+                font-weight: Theme.feature-title-weight;
+            }
+
+            Text {
+                text: "Gỡ bỏ hoàn toàn bộ gõ khỏi hệ thống";
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: Theme.text-weight;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            GhostButton {
+                text: "Gỡ cài đặt";
+                destructive: true;
+                clicked => { root.uninstall_requested(); }
             }
         }
     }

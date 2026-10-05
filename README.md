@@ -75,6 +75,10 @@ nix profile install github:versenilvis/clak
 
 <img src="assets/proof/wps.webp" width="100%" alt="WPS" />
 
+## Gỡ cài đặt
+
+Clak Settings > Giới thiệu > Gỡ cài đặt
+
 ## Feedback
 
 - [Email](mailto:versedev.store@proton.me)

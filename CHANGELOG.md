@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.11](https://github.com/versenilvis/clak/releases/tag/v0.2.11) - 2026-10-05
+
+### Bug fixes
+
+- Using renderer-skia-opengl to render correct font ([f97b77](https://github.com/versenilvis/clak/commit/f97b776982c1c461cd7357a5d9cdd67f7cdc4449))
+
+### Documentation
+
+- Small note ([d2c22c](https://github.com/versenilvis/clak/commit/d2c22c83f507c77bfb04da67b00a0ac092fb16fd))
+
+### Features
+
+- Uninstall setting option ([5e0219](https://github.com/versenilvis/clak/commit/5e02193adc108aadeeae62cbf104d99c0ca9091b))
+
 ## [v0.2.10](https://github.com/versenilvis/clak/releases/tag/v0.2.10) - 2026-10-05
 
 ### Bug fixes

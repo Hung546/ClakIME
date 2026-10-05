@@ -1,6 +1,6 @@
 [package]
 name = "clak-engine"
-version = "0.2.10"
+version = "0.2.11"
 edition = "2021"
 description = "Vietnamese input method engine"
 license = "0BSD"

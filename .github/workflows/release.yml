@@ -57,7 +57,8 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=OFF
           cmake --build build -j$(nproc)
 
       - name: Create release bundle

@@ -1,6 +1,6 @@
 find_package(GTest QUIET)
 
-add_executable(clak_cpp_tests
+add_executable(clak_cpp_tests EXCLUDE_FROM_ALL
     mock_input_context.cpp
     test_clak_state.cpp
     test_regression.cpp

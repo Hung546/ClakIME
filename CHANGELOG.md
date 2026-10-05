@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.2.10](https://github.com/versenilvis/clak/releases/tag/v0.2.10) - 2026-10-05
+
+### Bug fixes
+
+- Prevent word deletion on space and improve terminal compatibility ([#1](https://github.com/versenilvis/clak/issues/1)) ([8055aa](https://github.com/versenilvis/clak/commit/8055aa608f383df91ee533713c99f8229fdfd5fc))
+
 ## [v0.2.9](https://github.com/versenilvis/clak/releases/tag/v0.2.9) - 2026-10-05
 
 ### Bug fixes

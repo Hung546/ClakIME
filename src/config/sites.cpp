@@ -41,7 +41,7 @@ bool isJetBrainsApp(const std::string& app) {
   static const std::vector<std::string> jb = {
     "idea", "jetbrains", "pycharm", "clion", "webstorm", "goland",
     "rider", "rubymine", "phpstorm", "datagrip", "android-studio", "studio",
-    "rustrover", "fleet", "aqua"};
+    "rustrover", "fleet", "aqua", "dataspell", "gateway", "mps"};
   for (const auto& j : jb) {
     if (app.find(j) != std::string::npos) return true;
   }

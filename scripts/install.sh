@@ -887,7 +887,7 @@ configure_jetbrains_compatibility() {
                 local bname
                 bname=$(basename "$d")
                 case "$bname" in
-                    Idea*|IntelliJ*|PyCharm*|CLion*|WebStorm*|Rider*|DataGrip*|RustRover*|GoLand*|PhpStorm*|RubyMine*|Aqua*|Fleet*|AndroidStudio*|*Studio*)
+                    Idea*|IntelliJ*|PyCharm*|CLion*|WebStorm*|Rider*|DataGrip*|RustRover*|GoLand*|PhpStorm*|RubyMine*|Aqua*|Fleet*|DataSpell*|Gateway*|JetBrainsGateway*|MPS*|AndroidStudio*|*Studio*)
                         jb_dirs+=("$d")
                         ;;
                 esac
@@ -963,6 +963,9 @@ configure_jetbrains_compatibility() {
                     PhpStorm*) prefix="phpstorm" ;;
                     RubyMine*) prefix="rubymine" ;;
                     Aqua*) prefix="aqua" ;;
+                    DataSpell*) prefix="dataspell" ;;
+                    Gateway*|JetBrainsGateway*) prefix="gateway" ;;
+                    MPS*) prefix="mps" ;;
                     *Studio*) prefix="studio" ;;
                 esac
                 vmo_target="${d}/${prefix}64.vmoptions"

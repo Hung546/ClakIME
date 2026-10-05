@@ -7,6 +7,7 @@ namespace clak {
 namespace platform {
 
 bool isEditorActive(const WindowInfo& win);
+bool isAnyTerminalForeground();
 
 } // namespace platform
 } // namespace clak

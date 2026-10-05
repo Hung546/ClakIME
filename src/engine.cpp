@@ -185,6 +185,9 @@ void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputCont
     auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     std::string app = state ? state->appKey() : (ic ? ic->program() : "");
     utils::clakLog("engine::activate: ic program='" + (ic ? ic->program() : "") + "' app='" + app + "' enabled=" + std::to_string(isAppEnabled(app)));
+    if (state) {
+        state->reset(/*force=*/true);
+    }
 }
 
 void ClakEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {

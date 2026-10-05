@@ -48,6 +48,23 @@ void MockInputContext::deleteSurroundingTextImpl(int offset, unsigned int size) 
 
 void MockInputContext::forwardKeyImpl(const fcitx::ForwardKeyEvent& key) {
     forwarded_keys.push_back(key.key());
+    if (auto_update_surrounding && surroundingText().isValid()) {
+        std::string str = fcitx::Key::keySymToUTF8(key.key().sym());
+        if (!str.empty() && key.key().sym() < 0xff00) {
+            const std::string& cur_text = surroundingText().text();
+            unsigned int cur = surroundingText().cursor();
+            std::string new_text;
+            auto it = cur_text.begin();
+            for (unsigned int i = 0; i < cur && it != cur_text.end(); ++i) {
+                uint32_t c = 0;
+                it = fcitx::utf8::getNextChar(it, cur_text.end(), &c);
+            }
+            size_t byte_idx = std::distance(cur_text.begin(), it);
+            new_text = cur_text.substr(0, byte_idx) + str + cur_text.substr(byte_idx);
+            size_t added_chars = fcitx::utf8::length(str);
+            surroundingText().setText(new_text, cur + added_chars, cur + added_chars);
+        }
+    }
     if (on_forward_key) {
         on_forward_key(key);
     }

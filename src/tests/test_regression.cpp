@@ -313,6 +313,41 @@ TEST_F(RegressionCorpusTest, test_regression_adaptive_wait_scales_and_decays) {
     EXPECT_EQ(state.adaptiveExtraWaitUs(), 0);
 }
 
+TEST_F(RegressionCorpusTest, test_regression_newline_does_not_trigger_rich_text_editor) {
+    // an empty line with "\n" and cursor 0 must not switch to rich text / uinput mode
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ime::ClakState state(engine_.get(), &ic);
+
+    ic.setSurrounding("\n", 0, 0);
+    ic.typeChar('t', &state);
+    EXPECT_FALSE(state.isRichTextEditor());
+
+    // continue typing 'h', 'e', 'e', 's' ("thees" -> "thế")
+    ic.setSurrounding("t\n", 1, 1);
+    ic.typeChar('h', &state);
+    ic.setSurrounding("th\n", 2, 2);
+    ic.typeChar('e', &state);
+
+    // 2nd 'e' turns "the" into "thê"
+    ic.setSurrounding("the\n", 3, 3);
+    ic.typeChar('e', &state);
+    EXPECT_FALSE(state.isRichTextEditor());
+    EXPECT_FALSE(ic.deletions.empty());
+    EXPECT_EQ(ic.deletions.back().first, -1);
+    EXPECT_EQ(ic.deletions.back().second, 1);
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "ê");
+
+    // 's' turns "thê" into "thế"
+    ic.setSurrounding("thê\n", 3, 3);
+    ic.typeChar('s', &state);
+    EXPECT_FALSE(state.isRichTextEditor());
+    EXPECT_EQ(ic.deletions.back().first, -1);
+    EXPECT_EQ(ic.deletions.back().second, 1);
+    EXPECT_EQ(ic.commits.back(), "ế");
+}
+
 } // namespace test
 } // namespace clak
+
 

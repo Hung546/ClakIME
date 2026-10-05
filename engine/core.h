@@ -52,6 +52,7 @@ typedef struct {
     int32_t     action_type;
     size_t      delete_count;
     const char *commit_str;
+    const char *delete_str;
 } ClakAction;
 
 ClakContext *clak_context_new(int32_t method);

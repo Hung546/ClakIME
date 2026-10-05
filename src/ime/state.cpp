@@ -77,10 +77,8 @@ void ClakState::reset(bool force) {
     buffered_keys_.clear();
     verify_.pending = false;
     is_canvas_editor_ = false;
-    if (force) {
-        is_rich_text_editor_ = false;
-        mismatch_count_ = 0;
-    }
+    is_rich_text_editor_ = false;
+    mismatch_count_ = 0;
     cached_site_.clear();
     last_site_check_us_ = 0;
     if (rust_ctx_) {
@@ -162,7 +160,7 @@ static bool isWpsFontSizeText(const std::string& text) {
     return true;
 }
 
-bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr) {
+bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& /*surr*/) {
     if (is_modal_editor_) {
         return true;
     }
@@ -176,9 +174,6 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, cons
     }
 
     if (config::isTerminalApp(app)) {
-        return true;
-    }
-    if (app == "default" && (!surr.isValid() || surr.text().empty() || surr.text() == "\n") && platform::isAnyTerminalForeground()) {
         return true;
     }
     // gecko apps (zen, firefox) require paced uinput to avoid wayland delete_surrounding_text bugs
@@ -403,12 +398,6 @@ void ClakState::updateModalEditorStatus() {
     platform::WindowInfo win = platform::getActiveWindow(fallback);
     bool was_editor = is_modal_editor_;
     is_modal_editor_ = platform::isEditorActive(win);
-    if (is_modal_editor_ && (win.win_class.empty() || win.win_class == "default") && ic_) {
-        const auto& surr = ic_->surroundingText();
-        if (surr.isValid() && surr.cursor() > 0 && !surr.text().empty() && surr.text() != "\n") {
-            is_modal_editor_ = false;
-        }
-    }
     if (!was_editor && is_modal_editor_) {
         editor_mode_ = EditorMode::NORMAL;
         utils::clakLog("modal editor activated: class='" + win.win_class + "' title='" + win.win_title + "' pid=" + std::to_string(win.pid) + " -> mode: NORMAL");
@@ -670,10 +659,6 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     if (sc_c) clak_free_string(sc_c);
 
     if (keyEvent.isRelease()) {
-        if (is_deleting_ && key.sym() == FcitxKey_BackSpace) {
-            keyEvent.filterAndAccept();
-            return;
-        }
         if (shortcut == "ctrl_shift" && ctrl_shift_down_) {
             bool is_mod_release = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R ||
                                    key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R);

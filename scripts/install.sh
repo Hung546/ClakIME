@@ -912,7 +912,7 @@ configure_jetbrains_compatibility() {
     for d in "${jb_dirs[@]}"; do
         local has_fix=0
         for vmo in "$d"/*64.vmoptions; do
-            if [ -f "$vmo" ] && grep -q "sun\.awt\.X11\.XToolkit" "$vmo" 2>/dev/null; then
+            if [ -f "$vmo" ] && grep -q "sun\.awt\.X11\.XToolkit" "$vmo" 2>/dev/null && grep -q "idea\.input\.method\.disabler\.notification\.muted=true" "$vmo" 2>/dev/null; then
                 has_fix=1
                 break
             fi
@@ -930,7 +930,7 @@ configure_jetbrains_compatibility() {
     fi
 
     echo -e "  ${c_yellow}• Trên Wayland, JetBrains Runtime có lỗi mất focus bộ gõ khi chuyển tab (JBR-5672)${c_reset}"
-    echo -e "  ${c_yellow}• Giải pháp: Ép JetBrains chạy qua XWayland (-Dawt.toolkit.name=sun.awt.X11.XToolkit)${c_reset}"
+    echo -e "  ${c_yellow}• Giải pháp: Ép JetBrains qua XWayland và tắt cơ chế disabler thông báo tắt bộ gõ${c_reset}"
     echo -e "  ${c_yellow}• Màn hình hiển thị sắc nét 1:1, không mất focus và gõ tiếng Việt ổn định tuyệt đối${c_reset}"
 
     if [ "$is_sim" -eq 1 ]; then
@@ -971,13 +971,24 @@ configure_jetbrains_compatibility() {
                 vmo_target="${d}/${prefix}64.vmoptions"
             fi
 
+            local patched=0
             if [ -f "$vmo_target" ]; then
                 if ! grep -q "sun\.awt\.X11\.XToolkit" "$vmo_target" 2>/dev/null; then
                     printf "\n-Dawt.toolkit.name=sun.awt.X11.XToolkit\n" >> "$vmo_target"
-                    patched_count=$((patched_count + 1))
+                    patched=1
+                fi
+                if ! grep -q "idea\.input\.method\.disabler\.notification\.muted=true" "$vmo_target" 2>/dev/null; then
+                    printf -- "-Didea.input.method.disabler.notification.muted=true\n" >> "$vmo_target"
+                    patched=1
                 fi
             else
-                echo "-Dawt.toolkit.name=sun.awt.X11.XToolkit" > "$vmo_target"
+                cat << 'EOF' > "$vmo_target"
+-Dawt.toolkit.name=sun.awt.X11.XToolkit
+-Didea.input.method.disabler.notification.muted=true
+EOF
+                patched=1
+            fi
+            if [ "$patched" -eq 1 ]; then
                 patched_count=$((patched_count + 1))
             fi
         done
@@ -986,9 +997,10 @@ configure_jetbrains_compatibility() {
         echo ""
         echo -e "  ${c_cyan}╭─ CẤU HÌNH THỦ CÔNG CHO JETBRAINS ──────────────────────────╮${c_reset}"
         echo -e "  ${c_cyan}│${c_reset}  Mở IDE JetBrains -> Menu ${c_bold}Help${c_reset} -> ${c_bold}Edit Custom VM Options...${c_reset}    ${c_cyan}│${c_reset}"
-        echo -e "  ${c_cyan}│${c_reset}  Thêm dòng sau vào cuối file rồi khởi động lại IDE:           ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}  Thêm 2 dòng sau vào cuối file rồi khởi động lại IDE:         ${c_cyan}│${c_reset}"
         echo -e "  ${c_cyan}│${c_reset}                                                               ${c_cyan}│${c_reset}"
         echo -e "  ${c_cyan}│${c_reset}    ${c_bold}-Dawt.toolkit.name=sun.awt.X11.XToolkit${c_reset}                    ${c_cyan}│${c_reset}"
+        echo -e "  ${c_cyan}│${c_reset}    ${c_bold}-Didea.input.method.disabler.notification.muted=true${c_reset}       ${c_cyan}│${c_reset}"
         echo -e "  ${c_cyan}╰────────────────────────────────────────────────────────────╯${c_reset}"
         echo ""
     fi

@@ -31,6 +31,7 @@ public:
 
   bool isDeleting() const { return is_deleting_; }
   bool isSelectionDeletion() const { return is_selection_deletion_; }
+  uint64_t safetyTimerTime() const { return safety_timer_ ? safety_timer_->time() : 0; }
   bool isRichTextEditor() const { return is_rich_text_editor_; }
   int mismatchCount() const { return mismatch_count_; }
   size_t expectedBackspaces() const { return expected_backspaces_; }

@@ -7,6 +7,7 @@
 #include "core.h"
 #include "uinput/uinput.h"
 #include "platform/window_info.h"
+#include "config/config.h"
 
 namespace clak {
 namespace test {
@@ -156,23 +157,14 @@ TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
     state.keyEvent(key_event);
 
     ic.setSurrounding("text", 0, 4);
+    uint64_t before_type_us = fcitx::now(CLOCK_MONOTONIC);
     ic.typeChar('d', &state);
     ic.typeChar('d', &state);
 
     EXPECT_TRUE(state.isDeleting());
     EXPECT_TRUE(state.isSelectionDeletion());
-
-    // at 100ms, the 250ms selection timer has not fired yet (unlike standard 50ms timer)
-    bool still_deleting_at_100ms = false;
-    auto mid_timer = instance_->eventLoop().addTimeEvent(
-        CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 100000,
-        0,
-        [&](fcitx::EventSourceTime*, uint64_t) {
-            still_deleting_at_100ms = state.isDeleting();
-            return true;
-        }
-    );
+    // verify safety timer was armed with 250ms selection timeout instead of 50ms
+    EXPECT_GE(state.safetyTimerTime(), before_type_us + config::kSelectionDeletionTimeoutUs);
 
     // at 600ms, the 250ms selection timer has fired and recovered state cleanly
     auto exit_timer = instance_->eventLoop().addTimeEvent(
@@ -186,7 +178,6 @@ TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
     );
     instance_->eventLoop().exec();
 
-    EXPECT_TRUE(still_deleting_at_100ms);
     EXPECT_FALSE(state.isDeleting());
     ASSERT_FALSE(ic.commits.empty());
     EXPECT_EQ(ic.commits.back(), "đ");

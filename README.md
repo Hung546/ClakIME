@@ -56,7 +56,7 @@ nix profile install github:versenilvis/clak
 
 <img src="assets/proof/ggdocs.gif" width="100%" alt="Google Docs" />
 
-- Clak giúp bạn gõ trên Facebook mượt mà btw
+- Clak giúp bạn gõ trên Facebook, các web của Meta mượt mà btw
 
 <img src="assets/proof/facebook.gif" width="100%" alt="Facebook" />
 
@@ -72,7 +72,7 @@ nix profile install github:versenilvis/clak
 
 <img src="assets/proof/telegram.webp" width="100%" alt="Telegram" />
 
-- Clak có thể detect được các cli tool như Neovim và biết chính xác đang ở mode nào để giúp trải nghiệm muợt mà hơn btw
+- Clak có thể detect được các terminal code editor như Neovim và biết chính xác đang ở mode nào để giúp trải nghiệm muợt mà hơn btw
 
 <img src="assets/proof/neovim.webp" width="100%" alt="Neovim" />
 

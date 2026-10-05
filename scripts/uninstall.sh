@@ -143,6 +143,7 @@ run_simulation() {
     local has_profile=0
     local has_autostart=0
     local has_config=0
+    local has_fcitx_bak=0
 
     [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] && has_user=1
     [ -f "${HOME}/.local/share/fcitx5/addon/clak.conf" ] && has_user=1
@@ -163,11 +164,12 @@ run_simulation() {
     [ -d "${HOME}/.config/clak" ] && [ "$purge_config" -eq 1 ] && has_config=1
     [ -f "${HOME}/.config/autostart/clak-autostart.desktop" ] && has_autostart=1
     [ -f "${HOME}/.config/environment.d/99-clak-im.conf" ] && has_autostart=1
+    [ -f "${HOME}/.config/fcitx5/config.bak-clak" ] && has_fcitx_bak=1
     if [ -f "${HOME}/.config/fcitx5/profile" ] && grep -q "clak" "${HOME}/.config/fcitx5/profile" 2>/dev/null; then
         has_profile=1
     fi
 
-    if [ "$has_user" -eq 0 ] && [ "$has_system" -eq 0 ] && [ "$has_profile" -eq 0 ] && [ "$has_autostart" -eq 0 ] && [ "$has_config" -eq 0 ] && [ "$has_wps" -eq 0 ]; then
+    if [ "$has_user" -eq 0 ] && [ "$has_system" -eq 0 ] && [ "$has_profile" -eq 0 ] && [ "$has_autostart" -eq 0 ] && [ "$has_config" -eq 0 ] && [ "$has_wps" -eq 0 ] && [ "$has_fcitx_bak" -eq 0 ]; then
         echo ""
         log_step "$lbl_warn" "Không tìm thấy file cài đặt hoặc cấu hình Clak nào trên hệ thống"
         return 0
@@ -191,6 +193,10 @@ run_simulation() {
 
     if [ "$has_profile" -eq 1 ]; then
         echo -e "  • Mục Clak trong cấu hình Fcitx5:   ${c_accent}~/.config/fcitx5/profile${c_reset}"
+    fi
+
+    if [ "$has_fcitx_bak" -eq 1 ]; then
+        echo -e "  • Khôi phục cấu hình Fcitx5 gốc:    ${c_accent}~/.config/fcitx5/config${c_reset}"
     fi
 
     if [ "$has_autostart" -eq 1 ]; then
@@ -223,6 +229,7 @@ run_uninstall() {
     local has_autostart=0
     local has_config=0
     local has_wps=0
+    local has_fcitx_bak=0
 
     [ -f "${HOME}/.local/lib/fcitx5/libclak.so" ] && has_user_files=1
     [ -f "${HOME}/.local/share/fcitx5/addon/clak.conf" ] && has_user_files=1
@@ -242,12 +249,13 @@ run_uninstall() {
     [ -f "${HOME}/.config/autostart/clak-autostart.desktop" ] && has_autostart=1
     [ -f "${HOME}/.config/environment.d/99-clak-im.conf" ] && has_autostart=1
     [ -f "${HOME}/.config/environment.d/99-clak-wps.conf" ] && has_wps=1
+    [ -f "${HOME}/.config/fcitx5/config.bak-clak" ] && has_fcitx_bak=1
     [ -d "${HOME}/.config/clak" ] && [ "$purge_config" -eq 1 ] && has_config=1
     if [ -f "${HOME}/.config/fcitx5/profile" ] && grep -q "clak" "${HOME}/.config/fcitx5/profile" 2>/dev/null; then
         has_profile=1
     fi
 
-    if [ "$has_user_files" -eq 0 ] && [ "$has_sys_files" -eq 0 ] && [ "$has_profile" -eq 0 ] && [ "$has_autostart" -eq 0 ] && [ "$has_config" -eq 0 ] && [ "$has_wps" -eq 0 ] && [ "$target_mode" != "system" ]; then
+    if [ "$has_user_files" -eq 0 ] && [ "$has_sys_files" -eq 0 ] && [ "$has_profile" -eq 0 ] && [ "$has_autostart" -eq 0 ] && [ "$has_config" -eq 0 ] && [ "$has_wps" -eq 0 ] && [ "$has_fcitx_bak" -eq 0 ] && [ "$target_mode" != "system" ]; then
         log_step "$lbl_warn" "Không tìm thấy file cài đặt hoặc cấu hình Clak nào trên hệ thống"
         exit 0
     fi
@@ -345,11 +353,10 @@ run_uninstall() {
         fi
     done
 
-    # restore or clean fcitx5 config backup
-    if [ "$purge_config" -eq 1 ] && [ -f "${target_home}/.config/fcitx5/config.bak-clak" ]; then
+    # restore original fcitx5 config backup if available
+    if [ -f "${target_home}/.config/fcitx5/config.bak-clak" ]; then
         mv "${target_home}/.config/fcitx5/config.bak-clak" "${target_home}/.config/fcitx5/config" 2>/dev/null || true
-    else
-        rm -f "${target_home}/.config/fcitx5/config.bak-clak"
+        log_step "$lbl_clean" "Đã khôi phục file cấu hình Fcitx5 gốc (~/.config/fcitx5/config)"
     fi
 
     local prof="${target_home}/.config/fcitx5/profile"

@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.3.1](https://github.com/versenilvis/clak/releases/tag/v0.3.1) - 2026-10-05
+
+### Bug fixes
+
+- Eliminate timing flake in rapid selection deletion test ([d6eb2a](https://github.com/versenilvis/clak/commit/d6eb2a7c7fe5302d605b637fed3b8dc1390745b6))
+
+### Documentation
+
+- Refine Clak feature descriptions in README ([c4ebef](https://github.com/versenilvis/clak/commit/c4ebef4bdfaa8090274985726e02bc3f2218f0dd))
+
+### Features
+
+- Support jetbrains apps ([f9b6db](https://github.com/versenilvis/clak/commit/f9b6db21067cb89f10d21105612e5f87b48022ac))
+
 ## [v0.3.0](https://github.com/versenilvis/clak/releases/tag/v0.3.0) - 2026-10-05
 
 ### Bug fixes

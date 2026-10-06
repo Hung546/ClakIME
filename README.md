@@ -42,8 +42,8 @@ nix profile install github:versenilvis/clak
 ```
 
 > [!NOTE]
-> Clak có sẵn bàn phím tiếng Anh, bạn không cần thêm bất cứ bàn phím nào khác ngoài Clak cả
-> Sử dụng tổ hợp phím `Ctrl + Shift` để chuyển đổi ngôn ngữ
+> Clak có sẵn bàn phím tiếng Anh, bạn không cần thêm bất cứ bàn phím nào khác ngoài Clak cả\
+> Sử dụng tổ hợp phím `Ctrl + Shift` để chuyển đổi ngôn ngữ\
 > Clak mang lại trải nghiệm gõ giống hệt như trên Windows
 
 ## Các điểm chính
@@ -88,7 +88,7 @@ nix profile install github:versenilvis/clak
 
 Clak Settings > Giới thiệu > Gỡ cài đặt
 
-<img width="702" height="157" alt="image" src="https://github.com/user-attachments/assets/f1395d5a-8428-49df-95db-8cf508aa7c92" />
+<img width="100%" alt="uninstall" src="https://github.com/user-attachments/assets/f1395d5a-8428-49df-95db-8cf508aa7c92" />
 
 ## Feedback
 

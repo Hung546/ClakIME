@@ -2,6 +2,8 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.3.2](https://github.com/versenilvis/clak/releases/tag/v0.3.2) - 2026-10-05
+
 ## [v0.3.1](https://github.com/versenilvis/clak/releases/tag/v0.3.1) - 2026-10-05
 
 ### Bug fixes

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.4.1](https://github.com/versenilvis/clak/releases/tag/v0.4.1) - 2026-10-06
+
+### Documentation
+
+- Reformat ([7550ab](https://github.com/versenilvis/clak/commit/7550ab78b2c382c64f306872353a234a414c9404))
+- Settings menu and feedback info ([e37c90](https://github.com/versenilvis/clak/commit/e37c909c528b85ac83e9545791847af502d1e471))
+
+### Performance
+
+- Trim unused font weights, disable accessibility, and enable fat LTO ([23e9d6](https://github.com/versenilvis/clak/commit/23e9d697a703893ee2798ef7440e2dc3103fd09a))
+
 ## [v0.4.0](https://github.com/versenilvis/clak/releases/tag/v0.4.0) - 2026-10-06
 
 ### Features

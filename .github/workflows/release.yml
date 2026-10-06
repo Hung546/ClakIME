@@ -49,8 +49,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            build/engine-target/
-            build/ui-target/
+            build/cargo-target/
           key: ${{ runner.os }}-build-ubuntu-${{ hashFiles('engine/Cargo.lock', 'ui/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-ubuntu-

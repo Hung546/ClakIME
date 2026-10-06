@@ -30,7 +30,15 @@ restart:
 # clean build artifacts
 [group("dev")]
 clean:
-    rm -rf build engine/target vendor clak-vendor.tar.gz clak-vendor.tar.gz.sha256
+    rm -rf build engine/target ui/target target .scratch vendor clak-vendor.tar.gz clak-vendor.tar.gz.sha256
+
+# prune stale cargo cache and incremental artifacts
+[group("dev")]
+prune:
+    cargo clean --manifest-path engine/Cargo.toml
+    cargo clean --manifest-path ui/Cargo.toml
+    rm -rf .scratch
+
 
 # run clak settings gui
 [group("gui")]

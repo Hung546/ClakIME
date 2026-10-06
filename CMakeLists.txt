@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.16)
 project(clak VERSION 0.3.2 LANGUAGES C CXX)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+endif()
+
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+if(ipo_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,12 +40,19 @@ int main() {
 }
 " FCITX5_HAVE_SHOW_CUSTOM_IM_INFO)
 
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 if(FCITX5_HAVE_SHOW_CUSTOM_IM_INFO)
     add_compile_definitions(FCITX5_HAVE_SHOW_CUSTOM_IM_INFO=1)
 endif()
 
+set(CARGO_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/cargo-target")
 set(CLAK_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/engine")
-set(CLAK_ENGINE_LIB "${CMAKE_CURRENT_BINARY_DIR}/engine-target/release/libclak_engine.a")
+set(CLAK_ENGINE_LIB "${CARGO_TARGET_DIR}/release/libclak_engine.a")
 
 file(GLOB_RECURSE CLAK_ENGINE_SOURCES CONFIGURE_DEPENDS
     "${CLAK_ENGINE_DIR}/src/*.rs"
@@ -47,7 +64,7 @@ add_custom_command(
     OUTPUT ${CLAK_ENGINE_LIB}
     COMMAND cargo build --release
         --manifest-path "${CLAK_ENGINE_DIR}/Cargo.toml"
-        --target-dir "${CMAKE_CURRENT_BINARY_DIR}/engine-target"
+        --target-dir "${CARGO_TARGET_DIR}"
     WORKING_DIRECTORY ${CLAK_ENGINE_DIR}
     DEPENDS ${CLAK_ENGINE_SOURCES}
     VERBATIM
@@ -58,7 +75,7 @@ option(ENABLE_GUI "Build GUI configuration app" ON)
 
 if(ENABLE_GUI AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ui/Cargo.toml")
     set(CLAK_UI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/ui")
-    set(CLAK_UI_BIN "${CMAKE_CURRENT_BINARY_DIR}/ui-target/release/clak-gui")
+    set(CLAK_UI_BIN "${CARGO_TARGET_DIR}/release/clak-gui")
 
     file(GLOB_RECURSE CLAK_UI_SOURCES CONFIGURE_DEPENDS
         "${CLAK_UI_DIR}/src/*"
@@ -70,7 +87,7 @@ if(ENABLE_GUI AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ui/Cargo.toml")
         OUTPUT ${CLAK_UI_BIN}
         COMMAND cargo build --release
             --manifest-path "${CLAK_UI_DIR}/Cargo.toml"
-            --target-dir "${CMAKE_CURRENT_BINARY_DIR}/ui-target"
+            --target-dir "${CARGO_TARGET_DIR}"
         WORKING_DIRECTORY ${CLAK_UI_DIR}
         DEPENDS ${CLAK_UI_SOURCES} ${CLAK_ENGINE_SOURCES}
         VERBATIM

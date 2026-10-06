@@ -324,13 +324,16 @@ X-KDE-autostart-after=panel
 def run_gui(args):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(script_dir, ".."))
-    gui_bin = os.path.join(repo_root, "build", "ui-target", "release", "clak-gui")
-    if not os.path.exists(gui_bin):
-        gui_bin = os.path.join(repo_root, "ui", "target", "debug", "clak-gui")
-    if os.path.exists(gui_bin):
-        os.execv(gui_bin, [gui_bin] + sys.argv[2:])
-    else:
-        subprocess.run(["cargo", "run", "--manifest-path", "ui/Cargo.toml", "--release"])
+    search_paths = [
+        os.path.join(repo_root, "build", "cargo-target", "release", "clak-gui"),
+        os.path.join(repo_root, "ui", "target", "release", "clak-gui"),
+        os.path.join(repo_root, "build", "ui-target", "release", "clak-gui"),
+        os.path.join(repo_root, "ui", "target", "debug", "clak-gui"),
+    ]
+    for gui_bin in search_paths:
+        if os.path.exists(gui_bin):
+            os.execv(gui_bin, [gui_bin] + sys.argv[2:])
+    subprocess.run(["cargo", "run", "--manifest-path", "ui/Cargo.toml", "--release"])
 
 def main():
     parser = argparse.ArgumentParser(description="Clak input method utility CLI")

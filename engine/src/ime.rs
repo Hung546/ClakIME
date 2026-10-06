@@ -33,6 +33,7 @@ pub struct ClakContext {
     macros_enabled: bool,
     macros: std::collections::HashMap<String, String>,
     debug_log: bool,
+    last_surr: Option<(String, usize)>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -64,6 +65,7 @@ impl ClakContext {
             macros_enabled: true,
             macros: std::collections::HashMap::new(),
             debug_log: false,
+            last_surr: None,
         }
     }
 
@@ -97,6 +99,7 @@ impl ClakContext {
         self.last_composed.clear();
         self.typed_over_selection = false;
         self.delete_buf = CString::default();
+        self.last_surr = None;
     }
 
     pub fn process_key(
@@ -146,6 +149,9 @@ impl ClakContext {
                 let remaining: String = chars.into_iter().collect();
                 self.raw_buffer = decompose_to_telex(&remaining);
                 self.last_composed = remaining;
+                if let Some(text) = surrounding_text {
+                    self.last_surr = Some((text.to_string(), cursor));
+                }
             }
             return self.forward();
         }
@@ -304,8 +310,21 @@ impl ClakContext {
                 has_autocomplete = true;
             }
 
+            let is_same_surr = match &self.last_surr {
+                Some((prev_text, prev_cur)) => prev_text == text && *prev_cur == cursor,
+                None => false,
+            };
+
+            let before_cur: String = chars[..cur].iter().collect();
+            let matches_last =
+                !self.last_composed.is_empty() && before_cur.ends_with(&self.last_composed);
+
             if sel_start == sel_end {
                 self.typed_over_selection = false;
+                // if surrounding text changed and cursor no longer follows our composed word, reset composition
+                if !is_stale && !is_same_surr && !self.last_composed.is_empty() && !matches_last {
+                    self.reset();
+                }
             } else if !has_autocomplete {
                 self.reset();
                 if is_single_token && sel_start == 0 && sel_end == chars.len() {
@@ -385,11 +404,18 @@ impl ClakContext {
 
         if deleted_part.is_empty() && added_part == key_str {
             self.last_composed = new_word;
+            if let Some(text) = surrounding_text {
+                self.last_surr = Some((text.to_string(), cursor));
+            }
             return self.forward();
         }
 
         let chars_to_delete = deleted_part.chars().count();
         self.last_composed = new_word;
+
+        if let Some(text) = surrounding_text {
+            self.last_surr = Some((text.to_string(), cursor));
+        }
 
         if has_autocomplete {
             self.typed_over_selection = false;
@@ -1274,5 +1300,36 @@ mod tests {
         assert_eq!(act.delete_count, 2);
         let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
         assert_eq!(commit, "được ");
+    }
+
+    #[test]
+    fn test_delete_all_and_retype() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        // step 1: type "in" -> forwards 'i', forwards 'n'
+        ctx.process_key(b'i' as u32, "i", false, Some("\n"), 0, 0);
+        ctx.process_key(b'n' as u32, "n", false, Some("i\n"), 1, 1);
+        // step 2: type 's' -> replaces to "ín"
+        let act_s = ctx.process_key(b's' as u32, "s", false, Some("in\n"), 2, 2);
+        assert_eq!(act_s.action_type, ACTION_REPLACE);
+        assert_eq!(ctx.last_composed, "ín");
+
+        // step 3: user deletes everything in the editor!
+        // editor text is now "\n", cursor at 0
+        // user types 'i' again
+        let act_i = ctx.process_key(b'i' as u32, "i", false, Some("\n"), 0, 0);
+        assert_eq!(act_i.action_type, ACTION_FORWARD);
+        assert_eq!(ctx.raw_buffer, "i");
+        assert_eq!(ctx.last_composed, "i");
+
+        // user types 'n'
+        let act_n = ctx.process_key(b'n' as u32, "n", false, Some("i\n"), 1, 1);
+        assert_eq!(act_n.action_type, ACTION_FORWARD);
+        assert_eq!(ctx.raw_buffer, "in");
+        assert_eq!(ctx.last_composed, "in");
+
+        // user types 's'
+        let act_s2 = ctx.process_key(b's' as u32, "s", false, Some("in\n"), 2, 2);
+        assert_eq!(act_s2.action_type, ACTION_REPLACE);
+        assert_eq!(ctx.last_composed, "ín");
     }
 }

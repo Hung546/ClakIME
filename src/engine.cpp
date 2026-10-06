@@ -185,8 +185,11 @@ void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputCont
     auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     std::string app = state ? state->appKey() : (ic ? ic->program() : "");
     utils::clakLog("engine::activate: ic program='" + (ic ? ic->program() : "") + "' app='" + app + "' enabled=" + std::to_string(isAppEnabled(app)));
-    if (state) {
-        state->reset(/*force=*/true);
+    if (state && state->allRealBackspacesReceived()) {
+        // complete uinput deletion early if all real backspaces were already processed before text-input reactivation
+        utils::clakLog("engine::activate: completing uinput deletion early during text-input reactivation (real backspaces: " +
+                       std::to_string(state->currentBackspaceCount()) + "/" + std::to_string(state->expectedBackspaces()) + ")");
+        state->finishUinputDeletion();
     }
 }
 
@@ -194,10 +197,6 @@ void ClakEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputCo
     FCITX_UNUSED(entry);
     auto* ic = event.inputContext();
     utils::clakLog("engine::deactivate: ic program='" + (ic ? ic->program() : "") + "'");
-    auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
-    if (state) {
-        state->reset(/*force=*/true);
-    }
 }
 
 void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {

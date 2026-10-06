@@ -40,7 +40,7 @@ ClakState::~ClakState() {
 void ClakState::reset(bool force) {
     std::string app = appKey();
     std::string site = activeSite();
-    if (is_deleting_ && !force) {
+    if (is_deleting_) {
         utils::clakLog("reset: ignored mid-flight uinput deletion (sentinel in flight: " +
                        std::to_string(current_backspace_count_) + "/" + std::to_string(expected_backspaces_) +
                        " pending='" + pending_commit_string_ + "' app=" + app + " site='" + site + "')");
@@ -73,11 +73,14 @@ void ClakState::reset(bool force) {
     is_selection_deletion_ = false;
     expected_backspaces_ = 0;
     current_backspace_count_ = 0;
+    in_flight_sentinel_count_ = 0;
+    sentinel_grace_until_us_ = 0;
     pending_commit_string_.clear();
     buffered_keys_.clear();
     verify_.pending = false;
     is_canvas_editor_ = false;
     is_rich_text_editor_ = false;
+    is_draftjs_editor_ = false;
     mismatch_count_ = 0;
     cached_site_.clear();
     last_site_check_us_ = 0;
@@ -120,6 +123,11 @@ bool ClakState::isBrowser() const {
 bool ClakState::isGecko() const {
     std::string app = const_cast<ClakState*>(this)->appKey();
     return config::isGeckoApp(app);
+}
+
+bool ClakState::isDraftJsEditor() const {
+    std::string site = const_cast<ClakState*>(this)->activeSite();
+    return is_draftjs_editor_ || config::isDraftJsSite(site);
 }
 
 bool ClakState::isCursorNearWord(const fcitx::SurroundingText& surr) {
@@ -187,7 +195,7 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, cons
     if (action_type == CLAK_ACTION_ADDRESS_BAR_FIX) {
         return true;
     }
-    if (config::isForceUinputSite(site)) {
+    if (config::isForceUinputSite(site) || isDraftJsEditor()) {
         return true;
     }
     if (is_canvas_editor_ || is_rich_text_editor_) {
@@ -247,11 +255,18 @@ void ClakState::verifySurrounding(const fcitx::SurroundingText& surr) {
     if (actualWord == verify_.expectWord) {
         mismatch_count_ = 0;
         is_rich_text_editor_ = false;
+        is_draftjs_editor_ = false;
     } else {
         mismatch_count_++;
         utils::clakLog("verifySurrounding mismatch #" + std::to_string(mismatch_count_) +
                        ": expected='" + verify_.expectWord + "' actual='" + actualWord + "'");
-        if (mismatch_count_ >= config::kMismatchThreshold) {
+        // if delete was completely ignored in rich text dom, switch immediately
+        bool delete_ignored = (!verify_.preWord.empty() && actualWord.find(verify_.preWord) != std::string::npos);
+        if (delete_ignored) {
+            is_draftjs_editor_ = true;
+            is_rich_text_editor_ = true;
+            utils::clakLog("verifySurrounding: detected draftjs / react contenteditable editor, switched to uinput");
+        } else if (mismatch_count_ >= config::kMismatchThreshold) {
             is_rich_text_editor_ = true;
             utils::clakLog("verifySurrounding: auto-switched to uinput for this editor");
         }
@@ -271,6 +286,7 @@ std::string ClakState::classifyGroup(const std::string& app, const std::string& 
     if (config::isJetBrainsApp(app)) return "JetBrains-Uinput";
     if (config::isTerminalApp(app)) return "Terminal-Uinput";
     if (site == "docs.google.com" || site.find("docs.google.com") != std::string::npos) return "Docs-Uinput";
+    if (isDraftJsEditor()) return "DraftJS-Uinput";
     if (config::isGeckoApp(app)) return "Gecko-Uinput";
     if (used_uinput) return "Chromium-Uinput";
     return "Chromium-SurroundingText";
@@ -331,6 +347,8 @@ void ClakState::arm_safety_timer() {
                 is_selection_deletion_ = false;
                 expected_backspaces_ = 0;
                 current_backspace_count_ = 0;
+                in_flight_sentinel_count_ = 0;
+                sentinel_grace_until_us_ = 0;
                 if (!pending_commit_string_.empty()) {
                     doCommitString(pending_commit_string_);
                     pending_commit_string_.clear();
@@ -342,6 +360,35 @@ void ClakState::arm_safety_timer() {
             return true;
         }
     );
+}
+
+void ClakState::finishUinputDeletion() {
+    if (!is_deleting_) return;
+    if (safety_timer_) {
+        safety_timer_.reset();
+    }
+    if (expected_backspaces_ > current_backspace_count_) {
+        in_flight_sentinel_count_ = expected_backspaces_ - current_backspace_count_;
+        sentinel_grace_until_us_ = fcitx::now(CLOCK_MONOTONIC) + 50000;
+    }
+    is_deleting_ = false;
+    is_address_bar_fix_ = false;
+    is_selection_deletion_ = false;
+    expected_backspaces_ = 0;
+    current_backspace_count_ = 0;
+
+    if (!pending_commit_string_.empty()) {
+        doCommitString(pending_commit_string_);
+        pending_commit_string_.clear();
+    }
+    if (op_start_us_ > 0) {
+        uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
+        uint64_t roundtrip_us = (now_us > op_start_us_) ? (now_us - op_start_us_) : 0;
+        observeTransactionLatency(roundtrip_us);
+    }
+    logLatency(op_group_, op_start_us_, "REPLACE");
+    op_start_us_ = 0;
+    replayBufferedKeys();
 }
 
 void ClakState::replayBufferedKeys() {
@@ -490,20 +537,24 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     bool is_term = config::isTerminalApp(app);
     bool is_jb = config::isJetBrainsApp(app);
     bool is_meta = config::isMetaSite(site) || config::isMetaSite(app);
-    bool is_force_uinput = config::isForceUinputSite(site);
+    bool is_draftjs = isDraftJsEditor();
+    bool is_force_uinput = config::isForceUinputSite(site) || is_draftjs;
     bool is_gecko = config::isGeckoApp(app);
 
     bool has_surrounding = ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText);
     const auto& surr = ic_->surroundingText();
 
-    if (sym == FcitxKey_BackSpace && has_surrounding && surr.isValid() && surr.cursor() != surr.anchor()) {
-        reset(/*force=*/true);
-        return false;
+    if (sym == FcitxKey_BackSpace && has_surrounding && surr.isValid()) {
+        if (surr.cursor() == 0 || surr.cursor() != surr.anchor()) {
+            reset(/*force=*/true);
+            return false;
+        }
     }
 
     if (is_meta) {
         is_canvas_editor_ = false;
         is_rich_text_editor_ = false;
+        is_draftjs_editor_ = false;
     } else if (!is_gecko && has_surrounding && surr.isValid()) {
         const std::string& text = surr.text();
         if (text == "  " || text == "\xc2\xa0\xc2\xa0") {
@@ -528,6 +579,8 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     bool skip_verify = is_gecko || is_meta;
     if (verify_.pending && use_surrounding && !skip_verify) {
         verifySurrounding(surr);
+        is_draftjs = isDraftJsEditor();
+        use_surrounding = valid_surr && !is_rich_text_editor_ && !is_force_uinput && !is_draftjs && !is_office;
     } else if (verify_.pending) {
         verify_.pending = false;
     }
@@ -594,8 +647,11 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 bool use_term_pacing = is_term || is_jb || is_modal_editor_;
                 uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs :
                                       (use_term_pacing ? config::kTerminalPostDelayMs :
-                                      (is_wps ? 3 : 2));
-                uint32_t gap_ms = use_term_pacing ? config::kTerminalGapMs : (is_wps ? 2 : 2);
+                                      (is_draftjs ? 1 :
+                                      (is_wps ? 3 : 2)));
+                uint32_t gap_ms = use_term_pacing ? config::kTerminalGapMs :
+                                  (is_draftjs ? 1 :
+                                  (is_wps ? 2 : 2));
                 uint32_t pre_delay = 0;
 
                 utils::clakLog("uinput waiting for sentinel: expected=" + std::to_string(bs_to_send) +
@@ -747,33 +803,19 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
 
     // uinput deletion sentinel check: only clean backspace from uinput loopback counts
     bool is_clean_backspace = (sym == FcitxKey_BackSpace) && !has_ctrl_alt && !is_shift;
+    if (is_clean_backspace && in_flight_sentinel_count_ > 0 &&
+        fcitx::now(CLOCK_MONOTONIC) <= sentinel_grace_until_us_) {
+        in_flight_sentinel_count_--;
+        keyEvent.filterAndAccept();
+        return;
+    }
     if (is_deleting_ && is_clean_backspace) {
         current_backspace_count_++;
         if (current_backspace_count_ < expected_backspaces_) {
             return;
         }
         keyEvent.filterAndAccept();
-        if (safety_timer_) {
-            safety_timer_.reset();
-        }
-        is_deleting_ = false;
-        is_address_bar_fix_ = false;
-        is_selection_deletion_ = false;
-        expected_backspaces_ = 0;
-        current_backspace_count_ = 0;
-
-        if (!pending_commit_string_.empty()) {
-            doCommitString(pending_commit_string_);
-            pending_commit_string_.clear();
-        }
-        if (op_start_us_ > 0) {
-            uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
-            uint64_t roundtrip_us = (now_us > op_start_us_) ? (now_us - op_start_us_) : 0;
-            observeTransactionLatency(roundtrip_us);
-        }
-        logLatency(op_group_, op_start_us_, "REPLACE");
-        op_start_us_ = 0;
-        replayBufferedKeys();
+        finishUinputDeletion();
         return;
     }
 
@@ -788,6 +830,8 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
             is_selection_deletion_ = false;
             expected_backspaces_ = 0;
             current_backspace_count_ = 0;
+            in_flight_sentinel_count_ = 0;
+            sentinel_grace_until_us_ = 0;
             pending_commit_string_.clear();
             buffered_keys_.clear();
         }

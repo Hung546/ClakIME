@@ -63,6 +63,7 @@ public:
     void toggleAppEnabled(const std::string& app);
     void setAppEnabled(const std::string& app, bool enabled);
     void onMouseClick();
+    fcitx::FactoryFor<ime::ClakState>& factory() { return factory_; }
 
 private:
     fcitx::Instance* instance_;

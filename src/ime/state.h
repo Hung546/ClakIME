@@ -33,9 +33,15 @@ public:
   bool isSelectionDeletion() const { return is_selection_deletion_; }
   uint64_t safetyTimerTime() const { return safety_timer_ ? safety_timer_->time() : 0; }
   bool isRichTextEditor() const { return is_rich_text_editor_; }
+  bool isDraftJsEditor() const;
   int mismatchCount() const { return mismatch_count_; }
   size_t expectedBackspaces() const { return expected_backspaces_; }
   size_t bufferedKeysCount() const { return buffered_keys_.size(); }
+  size_t currentBackspaceCount() const { return current_backspace_count_; }
+  bool allRealBackspacesReceived() const {
+    return is_deleting_ && expected_backspaces_ > 0 && current_backspace_count_ >= (expected_backspaces_ - 1);
+  }
+  void finishUinputDeletion();
   const std::string& pendingCommitString() const { return pending_commit_string_; }
   uint64_t adaptiveExtraWaitUs() const { return adaptive_extra_us_; }
   void observeTransactionLatency(uint64_t elapsed_us);
@@ -66,6 +72,8 @@ private:
   uint32_t stable_transactions_count_{0};
   size_t expected_backspaces_{0};
   size_t current_backspace_count_{0};
+  size_t in_flight_sentinel_count_{0};
+  uint64_t sentinel_grace_until_us_{0};
   size_t last_text_len_{0};
   uint64_t op_start_us_{0};
   std::string op_group_;
@@ -83,6 +91,7 @@ private:
   std::vector<fcitx::Key> buffered_keys_;
   bool is_canvas_editor_{false};
   bool is_rich_text_editor_{false};
+  bool is_draftjs_editor_{false};
   int mismatch_count_{0};
 
   enum class EditorMode {

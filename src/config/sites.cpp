@@ -15,15 +15,24 @@ bool isMetaSite(const std::string& site) {
   return false;
 }
 
+bool isDraftJsSite(const std::string& site) {
+  static const std::vector<std::string> draftjs_sites = {
+    "x.com", "twitter.com", "tiktok.com", "threads.net"
+  };
+  for (const auto& s : draftjs_sites) {
+    if (site == s || site.find(s) != std::string::npos) return true;
+  }
+  return false;
+}
+
 bool isForceUinputSite(const std::string& site) {
   static const std::vector<std::string> force_sites = {
-    "docs.google.com", "sheets.google.com", "slides.google.com",
-    "tiktok.com", "x.com", "twitter.com"
+    "docs.google.com", "sheets.google.com", "slides.google.com"
   };
   for (const auto& s : force_sites) {
     if (site == s || site.find(s) != std::string::npos) return true;
   }
-  return false;
+  return isDraftJsSite(site);
 }
 
 bool isVSCodeApp(const std::string& app) {

@@ -94,7 +94,7 @@ nix profile install github:versenilvis/clak
 
 
 > [!NOTE]
-> **Một số lí do như sau khiến binary size Clak khá lớn (khoảng gần 50MB):**\
+> **Một số lí do như sau khiến binary size của Menu UI Clak khá lớn (khoảng gần 50MB):**\
 > Clak load và sử dụng font `SF Pro` vì sở thích cá nhân của maintainer (vì thấy đẹp)\
 > Clak dùng `renderer-skia-opengl` thay vì `renderer-femtovg` liên quan tới font-rendering, subpixel anti-aliasing, text-sharping, font fallback, ...\
 > Clak có 1 banner nhỏ (vẫn là vì đẹp)\

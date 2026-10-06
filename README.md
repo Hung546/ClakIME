@@ -98,9 +98,10 @@ nix profile install github:versenilvis/clak
 > Clak load và sử dụng font `SF Pro` vì sở thích cá nhân của maintainer (vì thấy đẹp)\
 > Clak dùng `renderer-skia-opengl` thay vì `renderer-femtovg` liên quan tới font-rendering, subpixel anti-aliasing, text-sharping, font fallback, ...\
 > Clak có 1 banner nhỏ (vẫn là vì đẹp)\
-> Ngoài ra có 1 số SVG nữa
+> Ngoài ra có 1 số SVG nữa\
+> Nhìn chung là tính thẩm mỹ cao hơn rất nhiều, cũng như nhờ vậy mà tích hợp nhiều tính năng như **Chẩn đoán hệ thống**, **Cập nhật hệ thống**, ...
 
-> *Nếu bạn thấy nặng thì hãy mở 1 Issue, mình sẽ tạo 1 UI độc tích hợp trong Fcitx 5 cho nhẹ kèm option chỉ cài đặt UI này thay vì UI chính (nhưng chắc chắn sẽ không đầy đủ chức năng như menu chính)*
+> *Nếu bạn thấy nặng thì hãy mở 1 Issue, mình sẽ tạo 1 UI độc lập tích hợp trong Fcitx 5 cho nhẹ kèm option chỉ cài đặt UI này thay vì UI chính (nhưng chắc chắn sẽ không đầy đủ chức năng như menu chính)*
 
 ## Gỡ cài đặt
 

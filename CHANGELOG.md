@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.4.0](https://github.com/versenilvis/clak/releases/tag/v0.4.0) - 2026-10-06
+
+### Features
+
+- Automatically diagnose system issues ([#2](https://github.com/versenilvis/clak/issues/2)) ([915456](https://github.com/versenilvis/clak/commit/915456a48f984adfdeffa9425571e2e039c860f6))
+
+### Performance
+
+- Maximize production performance and optimize storage caching ([820aa3](https://github.com/versenilvis/clak/commit/820aa31076ba40a5092f27a9a3dfe39c5841d3b0))
+
 ## [v0.3.2](https://github.com/versenilvis/clak/releases/tag/v0.3.2) - 2026-10-05
 
 ## [v0.3.1](https://github.com/versenilvis/clak/releases/tag/v0.3.1) - 2026-10-05

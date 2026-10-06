@@ -84,6 +84,24 @@ nix profile install github:versenilvis/clak
 
 <img src="assets/proof/jetbrains.webp" width="100%" alt="Jetbrains" />
 
+## Menu cài đặt 
+
+<div align="center" >
+  <img width="943" height="695" alt="image" src="https://github.com/user-attachments/assets/fb428eef-a26b-4b3a-8412-9b367c26f648" />
+  
+  <i><b>Clak có cả menu UI độc lập</b></i>
+</div>
+
+
+> [!NOTE]
+> **Một số lí do như sau khiến binary size Clak khá lớn (khoảng gần 50MB):**\
+> Clak load và sử dụng font `SF Pro` vì sở thích cá nhân của maintainer (vì thấy đẹp)\
+> Clak dùng `renderer-skia-opengl` thay vì `renderer-femtovg` liên quan tới font-rendering, subpixel anti-aliasing, text-sharping, font fallback, ...\
+> Clak có 1 banner nhỏ (vẫn là vì đẹp)\
+> Ngoài ra có 1 số SVG nữa
+
+> *Nếu bạn thấy nặng thì hãy mở 1 Issue, mình sẽ tạo 1 UI độc tích hợp trong Fcitx 5 cho nhẹ kèm option chỉ cài đặt UI này thay vì UI chính (nhưng chắc chắn sẽ không đầy đủ chức năng như menu chính)*
+
 ## Gỡ cài đặt
 
 Clak Settings > Giới thiệu > Gỡ cài đặt
@@ -91,6 +109,10 @@ Clak Settings > Giới thiệu > Gỡ cài đặt
 <img width="100%" alt="uninstall" src="https://github.com/user-attachments/assets/f1395d5a-8428-49df-95db-8cf508aa7c92" />
 
 ## Feedback
+
+> [!TIP]
+> Bạn có thể dùng chức năng **Chẩn đoán** để quét nhanh Clak có đang bị lỗi gì với hệ thống không\
+> Điều đó giúp bạn debug nhanh hơn và cũng như có thể sao chép để gửi lên cho maintainer
 
 - [Email](mailto:versedev.store@proton.me)
 - [Twitter](https://twitter.com/versenilvis)

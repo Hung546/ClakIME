@@ -129,6 +129,41 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
         report.frontends.qt6_path.as_deref().unwrap_or("Không tìm thấy")
     ));
 
+    out.push_str("## 8. Cấu Hình Fcitx5 & Tương Thích Ứng Dụng\n");
+    out.push_str(&format!(
+        "- Fcitx5 Profile: {}\n",
+        if report.profile.clak_in_profile {
+            if report.profile.is_default_im {
+                "Đã thêm và là bộ gõ mặc định (OK)"
+            } else {
+                "Đã thêm nhưng chưa đặt làm mặc định"
+            }
+        } else {
+            "Chưa thêm Clak vào danh sách bộ gõ"
+        }
+    ));
+    if report.wps.installed {
+        out.push_str(&format!(
+            "- WPS Office: {}\n",
+            if report.wps.configured {
+                "Đã tối ưu QT_IM_MODULE=fcitx (OK)"
+            } else {
+                "Chưa tối ưu cho Wayland (cần gán QT_IM_MODULE=fcitx)"
+            }
+        ));
+    }
+    if report.jetbrains.installed {
+        out.push_str(&format!(
+            "- JetBrains IDEs: {}\n",
+            if report.jetbrains.unconfigured_ides.is_empty() {
+                format!("Đã tối ưu XToolkit ({})", report.jetbrains.configured_ides.join(", "))
+            } else {
+                format!("Chưa tối ưu: {}", report.jetbrains.unconfigured_ides.join(", "))
+            }
+        ));
+    }
+    out.push('\n');
+
     if !report.conflicts.is_empty() {
         out.push_str("## Ứng Dụng Xung Đột\n");
         for conf in &report.conflicts {

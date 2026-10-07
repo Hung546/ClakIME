@@ -92,9 +92,15 @@ export component MainWindow inherits Window {
     in-out property <string> doctor_score_text: "100";
     in-out property <string> doctor_score_label: "Khỏe mạnh";
     in-out property <color> doctor_score_color: #10b981;
+    in-out property <bool> profile_needs_setup: false;
+    in-out property <bool> wps_needs_fix: false;
+    in-out property <bool> jetbrains_needs_fix: false;
 
     callback doctor_scan_requested();
     callback doctor_copy_requested();
+    callback setup_profile_requested();
+    callback fix_wps_requested();
+    callback fix_jetbrains_requested();
 
     callback ok_requested();
     callback apply_requested();
@@ -137,6 +143,64 @@ export component MainWindow inherits Window {
                 padding: 20px;
                 padding-top: 18px;
                 spacing: 12px;
+
+                // banner canh bao clak chua duoc kich hoat trong fcitx5 profile
+                if root.profile_needs_setup: Rectangle {
+                    border-radius: Theme.radius-md;
+                    background: #3b82f6.with-alpha(0.12);
+                    border-width: 1px;
+                    border-color: #3b82f6.with-alpha(0.35);
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
+                        alignment: space-between;
+                        spacing: 12px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            width: 24px;
+                            Image {
+                                source: @image-url("../assets/icons/zap.svg");
+                                width: 18px;
+                                height: 18px;
+                                colorize: #60a5fa;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: "Chưa kích hoạt Clak trong Fcitx5";
+                                color: #60a5fa;
+                                font-size: 13px;
+                                font-weight: 600;
+                            }
+
+                            Text {
+                                text: "Clak chưa có trong danh sách bộ gõ. Nhấp để thêm ngay và đặt làm bộ gõ chính mà không cần cấu hình thủ công.";
+                                color: Theme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            ActionButton {
+                                text: "Kích hoạt 1-Click";
+                                primary: true;
+                                clicked => { root.setup_profile_requested(); }
+                            }
+                        }
+                    }
+                }
 
                 ScrollView {
                     vertical-stretch: 1;
@@ -200,9 +264,15 @@ export component MainWindow inherits Window {
                             score_color: root.doctor_score_color;
                             reload_needed: root.reload_needed;
                             is_reloading: root.is_reloading;
+                            profile_needs_setup: root.profile_needs_setup;
+                            wps_needs_fix: root.wps_needs_fix;
+                            jetbrains_needs_fix: root.jetbrains_needs_fix;
                             scan_requested => { root.doctor_scan_requested(); }
                             copy_requested => { root.doctor_copy_requested(); }
                             restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
+                            setup_profile_requested => { root.setup_profile_requested(); }
+                            fix_wps_requested => { root.fix_wps_requested(); }
+                            fix_jetbrains_requested => { root.fix_jetbrains_requested(); }
                         }
 
                         if root.selected_tab == 4: TabAbout {

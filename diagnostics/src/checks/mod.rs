@@ -7,3 +7,4 @@ pub mod system;
 pub mod config;
 pub mod environment;
 pub mod frontends;
+pub mod compatibility;

@@ -12,6 +12,10 @@ pub use checks::memory::{check_memory, MemoryInspection};
 pub use checks::permissions::{check_permissions, PermissionChecks};
 pub use checks::system::{check_system, SystemInfo};
 pub use checks::config::{check_config, ConfigStatus};
+pub use checks::compatibility::{
+    check_jetbrains, check_profile, check_wps, fix_fcitx5_profile, fix_jetbrains_compatibility,
+    fix_wps_compatibility, JetBrainsStatus, ProfileStatus, WpsStatus,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticIssue {
@@ -37,6 +41,9 @@ pub struct DiagnosticReport {
     pub autostart: AutostartStatus,
     pub environment: EnvironmentStatus,
     pub frontends: FrontendStatus,
+    pub profile: ProfileStatus,
+    pub wps: WpsStatus,
+    pub jetbrains: JetBrainsStatus,
     pub conflicts: Vec<AppConflict>,
     pub issues: Vec<DiagnosticIssue>,
     pub warnings: Vec<DiagnosticWarning>,
@@ -63,6 +70,9 @@ pub fn run_diagnostics() -> DiagnosticReport {
     let environment = check_environment();
     let frontends = check_frontends();
     let conflicts = check_conflicts();
+    let profile = check_profile();
+    let wps = check_wps();
+    let jetbrains = check_jetbrains();
 
     let mut issues = Vec::new();
     let mut warnings = Vec::new();
@@ -80,6 +90,36 @@ pub fn run_diagnostics() -> DiagnosticReport {
             title: "Không đọc được /dev/input".to_string(),
             message: "Thiếu quyền đọc chuột để tự động reset buffer khi click chuột".to_string(),
             fix_command: Some("sudo usermod -aG input $USER".to_string()),
+        });
+    }
+
+    if !profile.clak_in_profile {
+        issues.push(DiagnosticIssue {
+            title: "Chưa thêm Clak vào Fcitx5".to_string(),
+            message: "Clak chưa được thêm vào danh sách bộ gõ trong ~/.config/fcitx5/profile".to_string(),
+            fix_command: Some("Bấm nút 'Kích hoạt 1-Click' trên thanh thông báo hoặc chạy clak doctor".to_string()),
+        });
+    } else if !profile.is_default_im {
+        warnings.push(DiagnosticWarning {
+            title: "Chưa đặt Clak làm mặc định".to_string(),
+            message: "Clak đã có trong danh sách nhưng DefaultIM chưa phải là clak".to_string(),
+            fix_command: Some("Đặt DefaultIM=clak trong ~/.config/fcitx5/profile".to_string()),
+        });
+    }
+
+    if wps.installed && !wps.configured {
+        warnings.push(DiagnosticWarning {
+            title: "WPS Office chưa tối ưu".to_string(),
+            message: "WPS Office chạy Qt5 nội bộ trên XWayland cần biến QT_IM_MODULE=fcitx để không bị nuốt dấu".to_string(),
+            fix_command: Some("Bấm nút 'Tối ưu hóa WPS Office' trong Tab Bác sĩ".to_string()),
+        });
+    }
+
+    if jetbrains.installed && !jetbrains.unconfigured_ides.is_empty() {
+        warnings.push(DiagnosticWarning {
+            title: format!("JetBrains IDEs chưa tối ưu ({})", jetbrains.unconfigured_ides.join(", ")),
+            message: "Java runtime trên Wayland có lỗi JBR-5672 gây mất focus khi đổi tab. Cần thêm -Dawt.toolkit.name=sun.awt.X11.XToolkit".to_string(),
+            fix_command: Some("Bấm nút 'Tối ưu hóa JetBrains' trong Tab Bác sĩ".to_string()),
         });
     }
 
@@ -193,6 +233,9 @@ pub fn run_diagnostics() -> DiagnosticReport {
         autostart,
         environment,
         frontends,
+        profile,
+        wps,
+        jetbrains,
         conflicts,
         issues,
         warnings,

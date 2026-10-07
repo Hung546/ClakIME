@@ -202,6 +202,8 @@ endif()
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/clak.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon")
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/clak.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod")
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/" DESTINATION "${CMAKE_INSTALL_DATADIR}/icons")
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/99-uinput-clak.rules" DESTINATION "lib/udev/rules.d")
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/uinput-clak.conf" DESTINATION "lib/modules-load.d")
 
 add_custom_target(install-user
     COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/share/fcitx5/addon"

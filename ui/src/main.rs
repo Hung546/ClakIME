@@ -173,7 +173,7 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
     });
 
     lines.push(DoctorLineData {
-        text: "[1/7] Môi trường hệ thống:".into(),
+        text: "[1/8] Môi trường hệ thống:".into(),
         color: header_color,
         bold: true,
     });
@@ -199,13 +199,13 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
     });
 
     lines.push(DoctorLineData {
-        text: "[2/7] Thiết bị ảo và Quyền hạn:".into(),
+        text: "[2/8] Thiết bị ảo và Quyền hạn:".into(),
         color: header_color,
         bold: true,
     });
     if report.permissions.uinput_writable {
         lines.push(DoctorLineData {
-            text: "  • /dev/uinput: [OK] Khả dụng và có quyền ghi".into(),
+            text: "  • /dev/uinput: [OK] Khả dụng (chống nuốt chữ Kitty, Ghostty, Chrome, VSCode)".into(),
             color: ok_color,
             bold: false,
         });
@@ -236,7 +236,7 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
     });
 
     lines.push(DoctorLineData {
-        text: "[3/7] Trạng thái Daemon Fcitx5:".into(),
+        text: "[3/8] Trạng thái Daemon Fcitx5:".into(),
         color: header_color,
         bold: true,
     });
@@ -275,7 +275,7 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
     });
 
     lines.push(DoctorLineData {
-        text: "[4/7] Kiểm tra Binary & Nạp bộ nhớ (RAM):".into(),
+        text: "[4/8] Kiểm tra Binary & Nạp bộ nhớ (RAM):".into(),
         color: header_color,
         bold: true,
     });
@@ -308,7 +308,7 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
     });
 
     lines.push(DoctorLineData {
-        text: "[5/7] Cấu hình và Nhật ký (Log):".into(),
+        text: "[5/8] Cấu hình và Nhật ký (Log):".into(),
         color: header_color,
         bold: true,
     });
@@ -358,7 +358,7 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
         bold: false,
     });
     lines.push(DoctorLineData {
-        text: "[6/7] Biến Môi Trường Input Method:".into(),
+        text: "[6/8] Biến Môi Trường Input Method:".into(),
         color: header_color,
         bold: true,
     });
@@ -403,7 +403,7 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
         bold: false,
     });
     lines.push(DoctorLineData {
-        text: "[7/7] Thư Viện Frontend Fcitx5:".into(),
+        text: "[7/8] Thư Viện Frontend Fcitx5:".into(),
         color: header_color,
         bold: true,
     });
@@ -458,6 +458,68 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
             color: warn_color,
             bold: false,
         });
+    }
+
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: "[8/8] Cấu Hình Fcitx5 & Tương Thích Ứng Dụng:".into(),
+        color: header_color,
+        bold: true,
+    });
+    if report.profile.clak_in_profile {
+        if report.profile.is_default_im {
+            lines.push(DoctorLineData {
+                text: "  • Fcitx5 Profile: [OK] Đã kích hoạt và là bộ gõ mặc định".into(),
+                color: ok_color,
+                bold: false,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text: "  • Fcitx5 Profile: [LƯU Ý] Đã thêm nhưng chưa đặt DefaultIM=clak".into(),
+                color: warn_color,
+                bold: false,
+            });
+        }
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • Fcitx5 Profile: [CHƯA CÓ] Chưa thêm Clak vào danh sách bộ gõ".into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+    if report.wps.installed {
+        if report.wps.configured {
+            lines.push(DoctorLineData {
+                text: "  • WPS Office: [OK] Đã tối ưu biến QT_IM_MODULE=fcitx".into(),
+                color: ok_color,
+                bold: false,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text: "  • WPS Office: [CẦN TỐI ƯU] Chạy Qt5 nội bộ trên XWayland (Dùng nút Tối ưu)".into(),
+                color: warn_color,
+                bold: true,
+            });
+        }
+    }
+    if report.jetbrains.installed {
+        if report.jetbrains.unconfigured_ides.is_empty() {
+            lines.push(DoctorLineData {
+                text: format!("  • JetBrains IDEs: [OK] Đã cấu hình XToolkit ({})", report.jetbrains.configured_ides.join(", ")).into(),
+                color: ok_color,
+                bold: false,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text: format!("  • JetBrains IDEs: [CẦN TỐI ƯU] Chưa cấu hình: {}", report.jetbrains.unconfigured_ides.join(", ")).into(),
+                color: warn_color,
+                bold: true,
+            });
+        }
     }
 
     if !report.conflicts.is_empty() {
@@ -826,6 +888,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     w.set_doctor_has_scanned(true);
                     w.set_doctor_is_scanning(false);
                     w.set_reload_needed(report_for_ui.memory.is_deleted_inode);
+                    w.set_profile_needs_setup(!report_for_ui.profile.clak_in_profile || !report_for_ui.profile.is_default_im);
+                    w.set_wps_needs_fix(report_for_ui.wps.installed && !report_for_ui.wps.configured);
+                    w.set_jetbrains_needs_fix(report_for_ui.jetbrains.installed && !report_for_ui.jetbrains.unconfigured_ides.is_empty());
                     if let Ok(mut guard) = last_report_async.lock() {
                         *guard = Some(report_for_ui);
                     }
@@ -1143,19 +1208,74 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
+    let win_prof = main_window.as_weak();
+    main_window.on_setup_profile_requested(move || {
+        let Some(window) = win_prof.upgrade() else { return; };
+        if let Err(e) = clak_diagnostics::fix_fcitx5_profile() {
+            eprintln!("lỗi thêm clak vào profile: {}", e);
+        } else {
+            window.set_profile_needs_setup(false);
+            if window.get_doctor_has_scanned() {
+                window.invoke_doctor_scan_requested();
+            }
+        }
+    });
+
+    let win_wps = main_window.as_weak();
+    main_window.on_fix_wps_requested(move || {
+        let Some(window) = win_wps.upgrade() else { return; };
+        if let Err(e) = clak_diagnostics::fix_wps_compatibility() {
+            eprintln!("lỗi tối ưu wps office: {}", e);
+        } else {
+            window.set_wps_needs_fix(false);
+            if window.get_doctor_has_scanned() {
+                window.invoke_doctor_scan_requested();
+            }
+        }
+    });
+
+    let win_jb = main_window.as_weak();
+    main_window.on_fix_jetbrains_requested(move || {
+        let Some(window) = win_jb.upgrade() else { return; };
+        if let Err(e) = clak_diagnostics::fix_jetbrains_compatibility() {
+            eprintln!("lỗi tối ưu jetbrains: {}", e);
+        } else {
+            window.set_jetbrains_needs_fix(false);
+            if window.get_doctor_has_scanned() {
+                window.invoke_doctor_scan_requested();
+            }
+        }
+    });
+
     let win_startup = main_window.as_weak();
     std::thread::spawn(move || {
         let daemon = clak_diagnostics::check_daemon();
-        if daemon.fcitx5_running {
+        let is_deleted = if daemon.fcitx5_running {
             let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
-            if memory.is_deleted_inode {
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(w) = win_startup.upgrade() {
-                        w.set_reload_needed(true);
-                    }
-                });
+            memory.is_deleted_inode
+        } else {
+            false
+        };
+
+        let profile = clak_diagnostics::check_profile();
+        let needs_setup = !profile.clak_in_profile || !profile.is_default_im;
+
+        let wps = clak_diagnostics::check_wps();
+        let wps_fix = wps.installed && !wps.configured;
+
+        let jb = clak_diagnostics::check_jetbrains();
+        let jb_fix = jb.installed && !jb.unconfigured_ides.is_empty();
+
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(w) = win_startup.upgrade() {
+                if is_deleted {
+                    w.set_reload_needed(true);
+                }
+                w.set_profile_needs_setup(needs_setup);
+                w.set_wps_needs_fix(wps_fix);
+                w.set_jetbrains_needs_fix(jb_fix);
             }
-        }
+        });
     });
 
     // run diagnostics immediately if preview flag is passed
@@ -1196,6 +1316,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_doctor_score_color(score_color);
         main_window.set_doctor_has_scanned(true);
         main_window.set_doctor_is_scanning(false);
+        main_window.set_reload_needed(report.memory.is_deleted_inode);
+        main_window.set_profile_needs_setup(!report.profile.clak_in_profile || !report.profile.is_default_im);
+        main_window.set_wps_needs_fix(report.wps.installed && !report.wps.configured);
+        main_window.set_jetbrains_needs_fix(report.jetbrains.installed && !report.jetbrains.unconfigured_ides.is_empty());
         main_window.set_selected_tab(3);
         if let Ok(mut guard) = last_report.lock() {
             *guard = Some(report);

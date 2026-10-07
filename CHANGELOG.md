@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.4.2](https://github.com/versenilvis/clak/releases/tag/v0.4.2) - 2026-10-07
+
+### Bug fixes
+
+- Redesign doctor tab layout to prevent horizontal overflow ([b4ccae](https://github.com/versenilvis/clak/commit/b4ccae54bd1dbe5951c54f688a3570557ab04f7f))
+- Dynamic layout for doctor console log to eliminate empty void ([d5cecd](https://github.com/versenilvis/clak/commit/d5cecdaeeaa612909a664fc34661255f46281118))
+
+### Documentation
+
+- Fix typos and enhance readability ([4e8b53](https://github.com/versenilvis/clak/commit/4e8b533e235d0f77afbfda58a5d83ae22b8dae5b))
+- Indicate that clak menu, not its core ([d4161a](https://github.com/versenilvis/clak/commit/d4161af18b608d57a81d21381b28c2f40245846f))
+
+### Features
+
+- Backspace hold policy to prevent over-deletion ([6af36d](https://github.com/versenilvis/clak/commit/6af36d3787b7c74a3cc47d1272e52b6c69f1b46e))
+- Binary replacement detection in engine and one-click reload in ui ([18606f](https://github.com/versenilvis/clak/commit/18606fa302131b85790fdfc5285c665bc222356f))
+- Tolerance for lagging surrounding text during rapid typing ([dbb3f0](https://github.com/versenilvis/clak/commit/dbb3f09d4bbf11cb71c8e61848ae8e5b0dc4394b))
+- Dynamically update subModeLabel to VI and EN ([0dd908](https://github.com/versenilvis/clak/commit/0dd9082e46a5e5b8c0bfafd07120ecea45b8b016))
+- Packaging udev rules and 1-click compatibility setup in clak-gui ([049665](https://github.com/versenilvis/clak/commit/049665337eb606bc011cdfa9b66f30c7be89000c))
+- Prompt user to run diagnostics in AUR install and auto-run diagnostics on gui startup ([4f3a89](https://github.com/versenilvis/clak/commit/4f3a8900b5c4d8e2b23ebd29e2e57eccce423786))
+
+### Performance
+
+- Optimize for input using draftjs ([cccb3c](https://github.com/versenilvis/clak/commit/cccb3c83bb542d3ce7e662dd38eb3937f59ab69b))
+
 ## [v0.4.1](https://github.com/versenilvis/clak/releases/tag/v0.4.1) - 2026-10-06
 
 ### Documentation

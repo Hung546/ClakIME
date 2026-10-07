@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.4.4](https://github.com/versenilvis/clak/releases/tag/v0.4.4) - 2026-10-07
+
+### Bug fixes
+
+- Use fcitx5 dbus controller to add clak and switch im reliably ([87a6c5](https://github.com/versenilvis/clak/commit/87a6c52eedc815ba62ab439100bac3e175c98ad4))
+
 ## [v0.4.3](https://github.com/versenilvis/clak/releases/tag/v0.4.3) - 2026-10-07
 
 ### Bug fixes

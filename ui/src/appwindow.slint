@@ -73,6 +73,9 @@ export component MainWindow inherits Window {
     in-out property <int> update_poll_index: 4;
     in-out property <string> update_status_text: "";
     in-out property <bool> is_updating: false;
+    in-out property <bool> reload_needed: false;
+    in-out property <string> reload_status_text: "";
+    in-out property <bool> is_reloading: false;
 
     // playground
     in-out property <string> playground_input: "";
@@ -104,6 +107,7 @@ export component MainWindow inherits Window {
     callback remove_macro(int);
     callback reset_defaults_requested();
     callback check_update_requested();
+    callback restart_fcitx5_requested();
     callback uninstall_requested();
 
     forward-focus: fs;
@@ -194,8 +198,11 @@ export component MainWindow inherits Window {
                             score_text: root.doctor_score_text;
                             score_label: root.doctor_score_label;
                             score_color: root.doctor_score_color;
+                            reload_needed: root.reload_needed;
+                            is_reloading: root.is_reloading;
                             scan_requested => { root.doctor_scan_requested(); }
                             copy_requested => { root.doctor_copy_requested(); }
+                            restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
                         }
 
                         if root.selected_tab == 4: TabAbout {
@@ -208,10 +215,14 @@ export component MainWindow inherits Window {
                             update_poll_index <=> root.update_poll_index;
                             update_status_text: root.update_status_text;
                             is_updating: root.is_updating;
+                            reload_needed: root.reload_needed;
+                            reload_status_text: root.reload_status_text;
+                            is_reloading: root.is_reloading;
                             changed => { root.has_changes = true; }
                             open_url(url) => { root.open_url(url); }
                             reset_defaults => { root.reset_defaults_requested(); }
                             check_update_requested => { root.check_update_requested(); }
+                            restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
                             uninstall_requested => { root.uninstall_requested(); }
                         }
                     }

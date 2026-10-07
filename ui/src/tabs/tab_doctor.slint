@@ -16,9 +16,12 @@ export component TabDoctor inherits VerticalLayout {
     in property <string> score_text: "100";
     in property <string> score_label: "Khỏe mạnh";
     in property <color> score_color: #10b981;
+    in property <bool> reload_needed: false;
+    in property <bool> is_reloading: false;
 
     callback scan_requested();
     callback copy_requested();
+    callback restart_fcitx5_requested();
 
     alignment: start;
     spacing: 12px;
@@ -107,7 +110,12 @@ export component TabDoctor inherits VerticalLayout {
                 }
             }
 
-            Text {
+            if root.has_scanned && root.reload_needed: Text {
+                text: "Phát hiện inode cũ trong RAM. Khởi động lại Fcitx5 sẽ tạm ngắt gõ tiếng Việt 1-2 giây trên toàn hệ thống.";
+                color: #fbbf24;
+                font-size: 11px;
+            }
+            if !root.has_scanned || !root.reload_needed: Text {
                 text: root.has_scanned ? ("Lần quét gần nhất: " + root.last_scanned) : "Chưa thực hiện chẩn đoán trong phiên làm việc này";
                 color: Theme.text-muted;
                 font-size: 12px;
@@ -129,9 +137,16 @@ export component TabDoctor inherits VerticalLayout {
                     clicked => { root.copy_requested(); }
                 }
 
+                if root.has_scanned && root.reload_needed: ActionButton {
+                    text: root.is_reloading ? "Đang nạp lại..." : "Khởi động lại Fcitx5";
+                    primary: true;
+                    enabled: !root.is_reloading && !root.is_scanning;
+                    clicked => { root.restart_fcitx5_requested(); }
+                }
+
                 ActionButton {
                     text: root.is_scanning ? "Đang quét..." : (root.has_scanned ? "Quét lại" : "Chẩn đoán ngay");
-                    primary: true;
+                    primary: !root.reload_needed;
                     enabled: !root.is_scanning;
                     clicked => { root.scan_requested(); }
                 }

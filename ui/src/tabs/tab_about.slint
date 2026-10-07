@@ -17,10 +17,14 @@ export component TabAbout inherits VerticalLayout {
     in-out property <int> update_poll_index: 4;
     in-out property <string> update_status_text: "";
     in-out property <bool> is_updating: false;
+    in-out property <bool> reload_needed: false;
+    in-out property <string> reload_status_text: "";
+    in-out property <bool> is_reloading: false;
     callback changed();
     callback open_url(string);
     callback reset_defaults();
     callback check_update_requested();
+    callback restart_fcitx5_requested();
     callback uninstall_requested();
 
     alignment: start;
@@ -29,6 +33,70 @@ export component TabAbout inherits VerticalLayout {
     SectionHeader {
         title: "CẬP NHẬT";
         show-divider: false;
+    }
+
+    if root.reload_needed: Rectangle {
+        border-radius: Theme.radius-md;
+        background: #f59e0b.with-alpha(0.12);
+        border-width: 1px;
+        border-color: #f59e0b.with-alpha(0.35);
+
+        HorizontalLayout {
+            padding-left: 14px;
+            padding-right: 14px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            alignment: space-between;
+            spacing: 12px;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: "Bản cập nhật mới đã được cài đặt!";
+                    color: #fbbf24;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+
+                Text {
+                    text: "Fcitx5 đang giữ inode cũ trong RAM. Cần khởi động lại Fcitx5 để nạp bản mới.";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                }
+
+                Text {
+                    text: "Lưu ý: Thao tác này sẽ tạm ngắt gõ tiếng Việt 1-2 giây ở mọi ứng dụng đang mở.";
+                    color: #fbbf24.with-alpha(0.85);
+                    font-size: 11px;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                ActionButton {
+                    text: root.is_reloading ? "Đang nạp lại..." : "Khởi động lại Fcitx5";
+                    primary: true;
+                    enabled: !root.is_reloading;
+                    clicked => { root.restart_fcitx5_requested(); }
+                }
+            }
+        }
+    }
+
+    if root.reload_status_text != "": HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        Text {
+            text: root.reload_status_text;
+            color: #10b981;
+            font-size: 12px;
+            font-weight: 500;
+        }
     }
 
     // section 1: nhom cap nhat nguon

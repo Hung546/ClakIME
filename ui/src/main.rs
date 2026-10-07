@@ -825,6 +825,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     w.set_doctor_score_color(score_color);
                     w.set_doctor_has_scanned(true);
                     w.set_doctor_is_scanning(false);
+                    w.set_reload_needed(report_for_ui.memory.is_deleted_inode);
                     if let Ok(mut guard) = last_report_async.lock() {
                         *guard = Some(report_for_ui);
                     }
@@ -1010,9 +1011,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .status()
             };
 
+            let daemon = clak_diagnostics::check_daemon();
+            let is_deleted = if daemon.fcitx5_running {
+                let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
+                memory.is_deleted_inode
+            } else {
+                false
+            };
+
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(w) = win_weak_thread.upgrade() {
                     w.set_is_updating(false);
+                    w.set_reload_needed(is_deleted);
                     match res {
                         Ok(s) if s.success() => {
                             w.set_update_status_text("Cập nhật hoàn tất!".into());
@@ -1071,6 +1081,81 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = w.hide();
         }
         std::process::exit(0);
+    });
+
+    let win_restart = main_window.as_weak();
+    main_window.on_restart_fcitx5_requested(move || {
+        let Some(window) = win_restart.upgrade() else { return; };
+        window.set_is_reloading(true);
+        window.set_reload_status_text("Đang khởi động lại Fcitx5...".into());
+
+        let win_async = win_restart.clone();
+        std::thread::spawn(move || {
+            let restarted = if std::process::Command::new("systemctl")
+                .args(["--user", "is-active", "fcitx5.service"])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
+                std::process::Command::new("systemctl")
+                    .args(["--user", "restart", "fcitx5.service"])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            } else {
+                std::process::Command::new("fcitx5")
+                    .args(["-r", "-d"])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            };
+
+            // poll fcitx5 daemon readiness instead of blind fixed sleep
+            let mut is_deleted = true;
+            let mut daemon_ready = false;
+            for _ in 0..15 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let daemon = clak_diagnostics::check_daemon();
+                if daemon.fcitx5_running && !daemon.fcitx5_pids.is_empty() {
+                    let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
+                    if memory.clak_loaded && !memory.is_deleted_inode {
+                        is_deleted = false;
+                        daemon_ready = true;
+                        break;
+                    }
+                }
+            }
+
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    w.set_is_reloading(false);
+                    if restarted && daemon_ready && !is_deleted {
+                        w.set_reload_needed(false);
+                        w.set_reload_status_text("Khởi động lại Fcitx5 thành công! Phiên bản mới đã được nạp.".into());
+                        if w.get_doctor_has_scanned() {
+                            w.invoke_doctor_scan_requested();
+                        }
+                    } else {
+                        w.set_reload_status_text("Khởi động lại Fcitx5 thất bại hoặc daemon chưa sẵn sàng".into());
+                    }
+                }
+            });
+        });
+    });
+
+    let win_startup = main_window.as_weak();
+    std::thread::spawn(move || {
+        let daemon = clak_diagnostics::check_daemon();
+        if daemon.fcitx5_running {
+            let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
+            if memory.is_deleted_inode {
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(w) = win_startup.upgrade() {
+                        w.set_reload_needed(true);
+                    }
+                });
+            }
+        }
     });
 
     // run diagnostics immediately if preview flag is passed

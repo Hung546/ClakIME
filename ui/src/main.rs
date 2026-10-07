@@ -1427,17 +1427,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let win_prof = main_window.as_weak();
     main_window.on_setup_profile_requested(move || {
-        let Some(window) = win_prof.upgrade() else {
+        let Some(_window) = win_prof.upgrade() else {
             return;
         };
-        if let Err(e) = clak_diagnostics::fix_fcitx5_profile() {
-            eprintln!("lỗi thêm clak vào profile: {}", e);
-        } else {
-            window.set_profile_needs_setup(false);
-            if window.get_doctor_has_scanned() {
-                window.invoke_doctor_scan_requested();
+        let win_async = win_prof.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = clak_diagnostics::fix_fcitx5_profile() {
+                eprintln!("lỗi thêm clak vào profile: {}", e);
             }
-        }
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    w.set_profile_needs_setup(false);
+                    if w.get_doctor_has_scanned() {
+                        w.invoke_doctor_scan_requested();
+                    }
+                }
+            });
+        });
     });
 
     let win_wps = main_window.as_weak();

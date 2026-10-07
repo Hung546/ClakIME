@@ -154,8 +154,43 @@ Layout=
             .map_err(|e| format!("không thể cập nhật file profile: {}", e))?;
     }
 
-    // yeu cau fcitx5 nạp lại profile
+    // tao file bien moi truong 99-clak-im.conf neu chua co
+    let env_dir = PathBuf::from(&home).join(".config/environment.d");
+    let env_file = env_dir.join("99-clak-im.conf");
+    if !env_file.exists() {
+        if fs::create_dir_all(&env_dir).is_ok() {
+            let env_content = "GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\nINPUT_METHOD=fcitx5\nSDL_IM_MODULE=fcitx\n";
+            let _ = fs::write(&env_file, env_content);
+        }
+    }
+
+    // yeu cau fcitx5 nap lai profile va chuyen ngay sang clak
     let _ = Command::new("fcitx5-remote").arg("-r").status();
+    let _ = Command::new("fcitx5-remote").args(["-s", "clak"]).status();
+
+    // neu fcitx5 chua switch duoc sang clak, restart daemon de nhan addon moi
+    let is_active = Command::new("fcitx5-remote")
+        .arg("-n")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "clak")
+        .unwrap_or(false);
+
+    if !is_active {
+        if Command::new("systemctl")
+            .args(["--user", "is-active", "fcitx5.service"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            let _ = Command::new("systemctl")
+                .args(["--user", "restart", "fcitx5.service"])
+                .status();
+        } else {
+            let _ = Command::new("fcitx5").args(["-r", "-d"]).status();
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        let _ = Command::new("fcitx5-remote").args(["-s", "clak"]).status();
+    }
 
     Ok(())
 }

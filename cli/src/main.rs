@@ -35,13 +35,23 @@ enum Commands {
         #[arg(long, help = "Path to log file (default: /tmp/clak.log)")]
         log: Option<PathBuf>,
 
-        #[arg(long, visible_alias = "group", help = "Filter by specific application group name")]
+        #[arg(
+            long,
+            visible_alias = "group",
+            help = "Filter by specific application group name"
+        )]
         schema: Option<String>,
 
-        #[arg(long, help = "Assert that p99 latency does not exceed threshold in milliseconds")]
+        #[arg(
+            long,
+            help = "Assert that p99 latency does not exceed threshold in milliseconds"
+        )]
         assert_p99_ms: Option<f64>,
 
-        #[arg(long, help = "Assert that p95 latency does not exceed threshold in milliseconds")]
+        #[arg(
+            long,
+            help = "Assert that p95 latency does not exceed threshold in milliseconds"
+        )]
         assert_p95_ms: Option<f64>,
     },
 
@@ -106,18 +116,14 @@ fn handle_autostart(args: AutostartArgs) {
     }
 
     match action {
-        Some("enable") => {
-            match actions::autostart::enable_autostart() {
-                Ok(_) => println!("\x1b[32m✔\x1b[0m Đã kích hoạt khởi động Clak cùng hệ thống"),
-                Err(e) => eprintln!("Lỗi khi bật khởi động: {}", e),
-            }
-        }
-        Some("disable") => {
-            match actions::autostart::disable_autostart() {
-                Ok(_) => println!("\x1b[32m✔\x1b[0m Đã tắt tự động chạy Clak Tiếng Việt cùng hệ thống"),
-                Err(e) => eprintln!("Lỗi khi tắt khởi động: {}", e),
-            }
-        }
+        Some("enable") => match actions::autostart::enable_autostart() {
+            Ok(_) => println!("\x1b[32m✔\x1b[0m Đã kích hoạt khởi động Clak cùng hệ thống"),
+            Err(e) => eprintln!("Lỗi khi bật khởi động: {}", e),
+        },
+        Some("disable") => match actions::autostart::disable_autostart() {
+            Ok(_) => println!("\x1b[32m✔\x1b[0m Đã tắt tự động chạy Clak Tiếng Việt cùng hệ thống"),
+            Err(e) => eprintln!("Lỗi khi tắt khởi động: {}", e),
+        },
         _ => {
             let status = clak_diagnostics::check_autostart();
             let status_str = if status.is_enabled {

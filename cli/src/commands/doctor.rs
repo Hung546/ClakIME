@@ -109,9 +109,21 @@ pub fn execute(markdown: bool, json: bool) {
     }
 
     println!("\n[6/8] Biến Môi Trường Input Method:");
-    let gtk_str = report.environment.gtk_im_module.as_deref().unwrap_or("(chưa đặt)");
-    let qt_str = report.environment.qt_im_module.as_deref().unwrap_or("(chưa đặt)");
-    let xmod_str = report.environment.xmodifiers.as_deref().unwrap_or("(chưa đặt)");
+    let gtk_str = report
+        .environment
+        .gtk_im_module
+        .as_deref()
+        .unwrap_or("(chưa đặt)");
+    let qt_str = report
+        .environment
+        .qt_im_module
+        .as_deref()
+        .unwrap_or("(chưa đặt)");
+    let xmod_str = report
+        .environment
+        .xmodifiers
+        .as_deref()
+        .unwrap_or("(chưa đặt)");
     println!("  • GTK_IM_MODULE: {}", gtk_str);
     println!("  • QT_IM_MODULE: {}", qt_str);
     println!("  • XMODIFIERS: {}", xmod_str);
@@ -157,28 +169,42 @@ pub fn execute(markdown: bool, json: bool) {
         if report.wps.configured {
             println!("  • WPS Office: \x1b[32m[OK]\x1b[0m Đã tối ưu biến QT_IM_MODULE=fcitx");
         } else {
-            println!("  • WPS Office: \x1b[33m[CẦN TỐI ƯU]\x1b[0m {}", report.wps.explanation);
+            println!(
+                "  • WPS Office: \x1b[33m[CẦN TỐI ƯU]\x1b[0m {}",
+                report.wps.explanation
+            );
         }
     }
     if report.jetbrains.installed {
         if report.jetbrains.unconfigured_ides.is_empty() {
-            println!("  • JetBrains IDEs: \x1b[32m[OK]\x1b[0m Đã cấu hình XToolkit ({})", report.jetbrains.configured_ides.join(", "));
+            println!(
+                "  • JetBrains IDEs: \x1b[32m[OK]\x1b[0m Đã cấu hình XToolkit ({})",
+                report.jetbrains.configured_ides.join(", ")
+            );
         } else {
-            println!("  • JetBrains IDEs: \x1b[33m[CẦN TỐI ƯU]\x1b[0m Chưa cấu hình: {}", report.jetbrains.unconfigured_ides.join(", "));
+            println!(
+                "  • JetBrains IDEs: \x1b[33m[CẦN TỐI ƯU]\x1b[0m Chưa cấu hình: {}",
+                report.jetbrains.unconfigured_ides.join(", ")
+            );
         }
     }
 
     if !report.conflicts.is_empty() {
         println!("\nỨng dụng xung đột:");
         for conf in &report.conflicts {
-            println!("  • {} (PID {}): {}", conf.app_name, conf.pid, conf.description);
+            println!(
+                "  • {} (PID {}): {}",
+                conf.app_name, conf.pid, conf.description
+            );
             println!("    Khắc phục: {}", conf.resolution_hint);
         }
     }
 
     println!("\n{}", "=".repeat(55));
     if report.issues.is_empty() && report.warnings.is_empty() {
-        println!("\x1b[32m✔ TẤT CẢ KIỂM TRA ĐỀU HOÀN HẢO!\x1b[0m Clak đã sẵn sàng hoạt động tối ưu.");
+        println!(
+            "\x1b[32m✔ TẤT CẢ KIỂM TRA ĐỀU HOÀN HẢO!\x1b[0m Clak đã sẵn sàng hoạt động tối ưu."
+        );
     } else {
         if !report.issues.is_empty() {
             println!(

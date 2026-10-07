@@ -126,7 +126,10 @@ pub fn execute(
             .filter(|(g, _)| g.to_lowercase().contains(&lower_target))
             .collect();
         if filtered.is_empty() {
-            eprintln!("Không có bản ghi nào khớp với schema/group filter: '{}'", target);
+            eprintln!(
+                "Không có bản ghi nào khớp với schema/group filter: '{}'",
+                target
+            );
             exit(1);
         }
         filtered

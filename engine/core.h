@@ -58,6 +58,7 @@ typedef struct {
 ClakContext *clak_context_new(int32_t method);
 void         clak_context_free(ClakContext *ctx);
 void         clak_context_reset(ClakContext *ctx);
+bool         clak_is_composing(const ClakContext *ctx);
 
 typedef void ClakConfig;
 

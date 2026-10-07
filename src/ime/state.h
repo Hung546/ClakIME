@@ -45,6 +45,8 @@ public:
   const std::string& pendingCommitString() const { return pending_commit_string_; }
   uint64_t adaptiveExtraWaitUs() const { return adaptive_extra_us_; }
   void observeTransactionLatency(uint64_t elapsed_us);
+  bool isBackspaceHoldArmed() const { return backspace_hold_armed_; }
+  bool isBackspaceSuppressing() const { return backspace_suppress_repeats_; }
 
 private:
   void arm_safety_timer();
@@ -107,6 +109,9 @@ private:
   bool ctrl_pressed_first_{false};
   bool ctrl_shift_armed_{false};
   uint64_t last_selection_time_us_{0};
+  bool backspace_down_{false};
+  bool backspace_hold_armed_{false};
+  bool backspace_suppress_repeats_{false};
 };
 
 } // namespace ime

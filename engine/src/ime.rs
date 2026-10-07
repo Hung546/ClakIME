@@ -732,6 +732,15 @@ pub unsafe extern "C" fn clak_context_free(ctx: *mut ClakContext) {
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn clak_is_composing(ctx: *const ClakContext) -> bool {
+    if let Some(c) = ctx.as_ref() {
+        !c.last_composed.is_empty() || !c.raw_buffer.is_empty()
+    } else {
+        false
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clak_context_reset(ctx: *mut ClakContext) {
     if let Some(c) = ctx.as_mut() {
         c.reset();
@@ -1332,4 +1341,17 @@ mod tests {
         assert_eq!(act_s2.action_type, ACTION_REPLACE);
         assert_eq!(ctx.last_composed, "ín");
     }
+
+    #[test]
+    fn test_is_composing_state() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        assert!(!unsafe { clak_is_composing(&ctx as *const ClakContext) });
+
+        ctx.process_key(b't' as u32, "t", false, None, 0, 0);
+        assert!(unsafe { clak_is_composing(&ctx as *const ClakContext) });
+
+        ctx.reset();
+        assert!(!unsafe { clak_is_composing(&ctx as *const ClakContext) });
+    }
 }
+

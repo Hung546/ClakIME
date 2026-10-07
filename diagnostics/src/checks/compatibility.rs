@@ -73,9 +73,149 @@ pub fn check_profile() -> ProfileStatus {
     }
 }
 
+// try adding clak and setting default im via fcitx5 dbus controller
+fn setup_profile_via_dbus() -> bool {
+    let out = Command::new("busctl")
+        .args([
+            "--user",
+            "call",
+            "org.fcitx.Fcitx5",
+            "/controller",
+            "org.fcitx.Fcitx.Controller1",
+            "InputMethodGroupInfo",
+            "s",
+            "Default",
+        ])
+        .output();
+
+    let Ok(output) = out else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    let mut tokens = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = false;
+    let mut escaped = false;
+    for ch in stdout_str.chars() {
+        if escaped {
+            cur.push(ch);
+            escaped = false;
+        } else if ch == '\\' {
+            escaped = true;
+        } else if ch == '"' {
+            in_quote = !in_quote;
+        } else if ch.is_whitespace() && !in_quote {
+            if !cur.is_empty() {
+                tokens.push(cur.clone());
+                cur.clear();
+            }
+        } else {
+            cur.push(ch);
+        }
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+
+    if tokens.is_empty() || tokens[0] != "sa(ss)" {
+        return false;
+    }
+
+    let layout = tokens.get(1).map(|s| s.as_str()).unwrap_or("us");
+    let mut items: Vec<(String, String)> = Vec::new();
+    let mut i = 3;
+    while i < tokens.len() {
+        let name = tokens[i].clone();
+        let sub = tokens.get(i + 1).cloned().unwrap_or_default();
+        items.push((name, sub));
+        i += 2;
+    }
+
+    if !items.iter().any(|(name, _)| name == "clak") {
+        items.push(("clak".to_string(), "".to_string()));
+    }
+
+    let count_str = items.len().to_string();
+    let mut call_args = vec![
+        "--user".to_string(),
+        "call".to_string(),
+        "org.fcitx.Fcitx5".to_string(),
+        "/controller".to_string(),
+        "org.fcitx.Fcitx.Controller1".to_string(),
+        "SetInputMethodGroupInfo".to_string(),
+        "ssa(ss)".to_string(),
+        "Default".to_string(),
+        layout.to_string(),
+        count_str,
+    ];
+    for (name, sub) in &items {
+        call_args.push(name.clone());
+        call_args.push(sub.clone());
+    }
+
+    let set_res = Command::new("busctl").args(&call_args).status();
+    if set_res.map(|s| s.success()).unwrap_or(false) {
+        let _ = Command::new("busctl")
+            .args([
+                "--user",
+                "call",
+                "org.fcitx.Fcitx5",
+                "/controller",
+                "org.fcitx.Fcitx.Controller1",
+                "SetCurrentIM",
+                "s",
+                "clak",
+            ])
+            .status();
+        let _ = Command::new("busctl")
+            .args([
+                "--user",
+                "call",
+                "org.fcitx.Fcitx5",
+                "/controller",
+                "org.fcitx.Fcitx.Controller1",
+                "Save",
+            ])
+            .status();
+        let _ = Command::new("busctl")
+            .args([
+                "--user",
+                "call",
+                "org.fcitx.Fcitx5",
+                "/controller",
+                "org.fcitx.Fcitx.Controller1",
+                "Refresh",
+            ])
+            .status();
+        return true;
+    }
+
+    false
+}
+
 // automatically insert clak into fcitx5 profile and reload daemon
 pub fn fix_fcitx5_profile() -> Result<(), String> {
     let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+
+    // tao file bien moi truong 99-clak-im.conf neu chua co
+    let env_dir = PathBuf::from(&home).join(".config/environment.d");
+    let env_file = env_dir.join("99-clak-im.conf");
+    if !env_file.exists() {
+        if fs::create_dir_all(&env_dir).is_ok() {
+            let env_content = "GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\nINPUT_METHOD=fcitx5\nSDL_IM_MODULE=fcitx\n";
+            let _ = fs::write(&env_file, env_content);
+        }
+    }
+
+    // uu tien goi truc tiep qua fcitx5 dbus controller neu dang chay
+    if setup_profile_via_dbus() {
+        return Ok(());
+    }
+
     let config_dir = PathBuf::from(&home).join(".config/fcitx5");
     let profile_path = config_dir.join("profile");
 
@@ -152,16 +292,6 @@ Layout=
         let new_content = lines.join("\n") + "\n";
         fs::write(&profile_path, new_content)
             .map_err(|e| format!("không thể cập nhật file profile: {}", e))?;
-    }
-
-    // tao file bien moi truong 99-clak-im.conf neu chua co
-    let env_dir = PathBuf::from(&home).join(".config/environment.d");
-    let env_file = env_dir.join("99-clak-im.conf");
-    if !env_file.exists() {
-        if fs::create_dir_all(&env_dir).is_ok() {
-            let env_content = "GTK_IM_MODULE=fcitx\nQT_IM_MODULE=fcitx\nXMODIFIERS=@im=fcitx\nINPUT_METHOD=fcitx5\nSDL_IM_MODULE=fcitx\n";
-            let _ = fs::write(&env_file, env_content);
-        }
     }
 
     // yeu cau fcitx5 nap lai profile va chuyen ngay sang clak

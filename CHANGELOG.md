@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.4.3](https://github.com/versenilvis/clak/releases/tag/v0.4.3) - 2026-10-07
+
+### Bug fixes
+
+- Add doctor reminder in post_upgrade and ensure 1-click activates clak immediately ([1b6a71](https://github.com/versenilvis/clak/commit/1b6a71b9d863ed44e69e556744d73a116b09c5c9))
+
 ## [v0.4.2](https://github.com/versenilvis/clak/releases/tag/v0.4.2) - 2026-10-07
 
 ### Bug fixes

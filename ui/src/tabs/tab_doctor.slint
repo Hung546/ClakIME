@@ -41,7 +41,6 @@ export component TabDoctor inherits VerticalLayout {
         VerticalLayout {
             alignment: center;
             spacing: 4px;
-            horizontal-stretch: 1;
 
             HorizontalLayout {
                 spacing: 10px;
@@ -110,12 +109,7 @@ export component TabDoctor inherits VerticalLayout {
                 }
             }
 
-            if root.has_scanned && root.reload_needed: Text {
-                text: "Phát hiện inode cũ trong RAM. Khởi động lại Fcitx5 sẽ tạm ngắt gõ tiếng Việt 1-2 giây trên toàn hệ thống.";
-                color: #fbbf24;
-                font-size: 11px;
-            }
-            if !root.has_scanned || !root.reload_needed: Text {
+            Text {
                 text: root.has_scanned ? ("Lần quét gần nhất: " + root.last_scanned) : "Chưa thực hiện chẩn đoán trong phiên làm việc này";
                 color: Theme.text-muted;
                 font-size: 12px;
@@ -125,7 +119,6 @@ export component TabDoctor inherits VerticalLayout {
 
         VerticalLayout {
             alignment: center;
-            horizontal-stretch: 0;
 
             HorizontalLayout {
                 spacing: 8px;
@@ -137,16 +130,9 @@ export component TabDoctor inherits VerticalLayout {
                     clicked => { root.copy_requested(); }
                 }
 
-                if root.has_scanned && root.reload_needed: ActionButton {
-                    text: root.is_reloading ? "Đang nạp lại..." : "Khởi động lại Fcitx5";
-                    primary: true;
-                    enabled: !root.is_reloading && !root.is_scanning;
-                    clicked => { root.restart_fcitx5_requested(); }
-                }
-
                 ActionButton {
                     text: root.is_scanning ? "Đang quét..." : (root.has_scanned ? "Quét lại" : "Chẩn đoán ngay");
-                    primary: !root.reload_needed;
+                    primary: true;
                     enabled: !root.is_scanning;
                     clicked => { root.scan_requested(); }
                 }
@@ -154,9 +140,75 @@ export component TabDoctor inherits VerticalLayout {
         }
     }
 
+    // card canh bao phat hien inode cu trong ram
+    if root.has_scanned && root.reload_needed: Rectangle {
+        border-radius: Theme.radius-md;
+        background: #f59e0b.with-alpha(0.12);
+        border-width: 1px;
+        border-color: #f59e0b.with-alpha(0.35);
+
+        HorizontalLayout {
+            padding-left: 14px;
+            padding-right: 14px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            alignment: space-between;
+            spacing: 12px;
+
+            VerticalLayout {
+                alignment: center;
+                width: 24px;
+                Image {
+                    source: @image-url("../../assets/icons/info.svg");
+                    width: 18px;
+                    height: 18px;
+                    colorize: #fbbf24;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: "Phát hiện thư viện cũ trong RAM (Fcitx5 Inode)";
+                    color: #fbbf24;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+
+                Text {
+                    text: "Fcitx5 đang giữ inode cũ của thư viện clak trong bộ nhớ. Khởi động lại Fcitx5 để nạp bản mới nhất.";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+
+                Text {
+                    text: "Lưu ý: Thao tác sẽ tạm ngắt gõ tiếng Việt khoảng 1-2 giây trên toàn hệ thống.";
+                    color: #fbbf24.with-alpha(0.85);
+                    font-size: 11px;
+                    wrap: word-wrap;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+
+                ActionButton {
+                    text: root.is_reloading ? "Đang nạp lại..." : "Khởi động lại Fcitx5";
+                    primary: true;
+                    enabled: !root.is_reloading && !root.is_scanning;
+                    clicked => { root.restart_fcitx5_requested(); }
+                }
+            }
+        }
+    }
+
     // noi dung chinh: man hinh trong (khi chua scan)
     if !root.has_scanned && !root.is_scanning: Rectangle {
-        height: 545px;
+        height: 520px;
         background: #09090b;
         border-radius: Theme.radius-lg;
         border-width: 1px;
@@ -212,13 +264,14 @@ export component TabDoctor inherits VerticalLayout {
         }
     }
 
-    // noi dung console log khong can topbar macos
+    // noi dung console log
     if root.has_scanned || root.is_scanning: Rectangle {
-        height: 545px;
+        height: root.reload_needed ? 430px : 520px;
         background: #08080a;
         border-radius: Theme.radius-md;
         border-width: 1px;
         border-color: #1c1c21;
+        clip: true;
 
         ScrollView {
             vertical-stretch: 1;
@@ -236,31 +289,30 @@ export component TabDoctor inherits VerticalLayout {
                         text: "> Đang truy vấn kernel và thông tin session...";
                         color: #60a5fa;
                         font-size: 13px;
+                        wrap: word-wrap;
                     }
                     Text {
                         text: "> Kiểm tra quyền hạn thiết bị /dev/uinput và /dev/input...";
                         color: #71717a;
                         font-size: 13px;
+                        wrap: word-wrap;
                     }
                     Text {
                         text: "> Phân tích bảng ánh xạ bộ nhớ /proc/*/maps của Fcitx5...";
                         color: #71717a;
                         font-size: 13px;
+                        wrap: word-wrap;
                     }
                 }
 
                 if !root.is_scanning: VerticalLayout {
-                    spacing: 2px;
-                    for line in root.lines: HorizontalLayout {
-                        spacing: 6px;
-                        alignment: start;
-
-                        Text {
-                            text: line.text;
-                            color: line.color;
-                            font-size: 13px;
-                            font-weight: line.bold ? 600 : 400;
-                        }
+                    spacing: 3px;
+                    for line in root.lines: Text {
+                        text: line.text;
+                        color: line.color;
+                        font-size: 13px;
+                        font-weight: line.bold ? 600 : 400;
+                        wrap: word-wrap;
                     }
                 }
             }

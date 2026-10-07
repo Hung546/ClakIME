@@ -220,6 +220,8 @@ TEST_F(ClakStateTest, GivenCtrlShift_TogglesEnabledState) {
     ic.sendKey(FcitxKey_Shift_L, fcitx::KeyState::Ctrl, false, &state);
     ic.sendKey(FcitxKey_Shift_L, fcitx::KeyState::Ctrl, true, &state);
     EXPECT_FALSE(engine_->isAppEnabled("test-app"));
+    fcitx::InputMethodEntry dummy_entry("clak", "Clak", "vi", "clak");
+    EXPECT_EQ(engine_->subModeLabelImpl(dummy_entry, ic), "EN");
 
     // reverse order shift then ctrl must not toggle
     ic.sendKey(FcitxKey_Shift_L, fcitx::KeyStates(), false, &state);
@@ -244,6 +246,7 @@ TEST_F(ClakStateTest, GivenCtrlShift_TogglesEnabledState) {
     ic.sendKey(FcitxKey_Shift_L, fcitx::KeyState::Ctrl, false, &state);
     ic.sendKey(FcitxKey_Shift_L, fcitx::KeyState::Ctrl, true, &state);
     EXPECT_TRUE(engine_->isAppEnabled("test-app"));
+    EXPECT_EQ(engine_->subModeLabelImpl(dummy_entry, ic), "VI");
 
     // combo with other key (ctrl+shift+t) must not toggle
     ic.sendKey(FcitxKey_Control_L, fcitx::KeyStates(), false, &state);

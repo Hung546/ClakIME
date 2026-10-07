@@ -150,7 +150,7 @@ void ClakEngine::toggleAppEnabled(const std::string& app) {
     } else {
         global_enabled_ = next;
     }
-    utils::clakLog("toggled input state for app '" + app + "' -> " + (next ? "Vi" : "En"));
+    utils::clakLog("toggled input state for app '" + app + "' -> " + (next ? "VI" : "EN"));
 }
 
 void ClakEngine::setAppEnabled(const std::string& app, bool enabled) {
@@ -216,7 +216,11 @@ void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContext
 
 std::string ClakEngine::subMode(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    FCITX_UNUSED(ic);
+    auto* state = ic.propertyFor(&factory_);
+    std::string app = state ? state->appKey() : (ic.program().empty() ? "default" : ic.program());
+    if (!isAppEnabled(app)) {
+        return "English";
+    }
     if (!config_) return "Telex";
     int method = clak_config_get_method(config_);
     switch (method) {
@@ -235,8 +239,9 @@ std::string ClakEngine::subModeIconImpl(const fcitx::InputMethodEntry& entry, fc
 
 std::string ClakEngine::subModeLabelImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    FCITX_UNUSED(ic);
-    return "Vi";
+    auto* state = ic.propertyFor(&factory_);
+    std::string app = state ? state->appKey() : (ic.program().empty() ? "default" : ic.program());
+    return isAppEnabled(app) ? "VI" : "EN";
 }
 
 bool ClakEngine::checkBinaryReplaced() {

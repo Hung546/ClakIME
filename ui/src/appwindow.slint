@@ -269,7 +269,7 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                ScrollView {
+                if root.selected_tab != 3: ScrollView {
                     vertical-stretch: 1;
 
                     VerticalLayout {
@@ -316,32 +316,6 @@ export component MainWindow inherits Window {
                             remove_excluded_app(idx) => { root.remove_excluded_app(idx); }
                         }
 
-                        if root.selected_tab == 3: TabDoctor {
-                            vertical-stretch: 0;
-                            lines: root.doctor_lines;
-                            has_scanned: root.doctor_has_scanned;
-                            is_scanning: root.doctor_is_scanning;
-                            last_scanned: root.doctor_last_scanned;
-                            summary_text: root.doctor_summary_text;
-                            is_healthy: root.doctor_is_healthy;
-                            copied_toast: root.doctor_copied_toast;
-                            score_level: root.doctor_score_level;
-                            score_text: root.doctor_score_text;
-                            score_label: root.doctor_score_label;
-                            score_color: root.doctor_score_color;
-                            reload_needed: root.reload_needed;
-                            is_reloading: root.is_reloading;
-                            profile_needs_setup: root.profile_needs_setup;
-                            wps_needs_fix: root.wps_needs_fix;
-                            jetbrains_needs_fix: root.jetbrains_needs_fix;
-                            scan_requested => { root.doctor_scan_requested(); }
-                            copy_requested => { root.doctor_copy_requested(); }
-                            restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
-                            setup_profile_requested => { root.setup_profile_requested(); }
-                            fix_wps_requested => { root.fix_wps_requested(); }
-                            fix_jetbrains_requested => { root.fix_jetbrains_requested(); }
-                        }
-
                         if root.selected_tab == 4: TabAbout {
                             vertical-stretch: 0;
                             app_version: root.app_version;
@@ -363,6 +337,32 @@ export component MainWindow inherits Window {
                             uninstall_requested => { root.uninstall_requested(); }
                         }
                     }
+                }
+
+                if root.selected_tab == 3: TabDoctor {
+                    vertical-stretch: 1;
+                    lines: root.doctor_lines;
+                    has_scanned: root.doctor_has_scanned;
+                    is_scanning: root.doctor_is_scanning;
+                    last_scanned: root.doctor_last_scanned;
+                    summary_text: root.doctor_summary_text;
+                    is_healthy: root.doctor_is_healthy;
+                    copied_toast: root.doctor_copied_toast;
+                    score_level: root.doctor_score_level;
+                    score_text: root.doctor_score_text;
+                    score_label: root.doctor_score_label;
+                    score_color: root.doctor_score_color;
+                    reload_needed: root.reload_needed;
+                    is_reloading: root.is_reloading;
+                    profile_needs_setup: root.profile_needs_setup;
+                    wps_needs_fix: root.wps_needs_fix;
+                    jetbrains_needs_fix: root.jetbrains_needs_fix;
+                    scan_requested => { root.doctor_scan_requested(); }
+                    copy_requested => { root.doctor_copy_requested(); }
+                    restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
+                    setup_profile_requested => { root.setup_profile_requested(); }
+                    fix_wps_requested => { root.fix_wps_requested(); }
+                    fix_jetbrains_requested => { root.fix_jetbrains_requested(); }
                 }
 
                 // chan trang va nut bam thao tac

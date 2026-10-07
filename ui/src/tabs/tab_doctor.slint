@@ -29,7 +29,6 @@ export component TabDoctor inherits VerticalLayout {
     callback fix_wps_requested();
     callback fix_jetbrains_requested();
 
-    alignment: start;
     spacing: 12px;
 
     SectionHeader {
@@ -391,7 +390,8 @@ export component TabDoctor inherits VerticalLayout {
 
     // noi dung chinh: man hinh trong (khi chua scan)
     if !root.has_scanned && !root.is_scanning: Rectangle {
-        height: 520px;
+        vertical-stretch: 1;
+        min-height: 240px;
         background: #09090b;
         border-radius: Theme.radius-lg;
         border-width: 1px;
@@ -450,7 +450,7 @@ export component TabDoctor inherits VerticalLayout {
     // noi dung console log
     if root.has_scanned || root.is_scanning: Rectangle {
         vertical-stretch: 1;
-        min-height: 320px;
+        min-height: 240px;
         background: #08080a;
         border-radius: Theme.radius-md;
         border-width: 1px;

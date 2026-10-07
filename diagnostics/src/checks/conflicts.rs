@@ -52,13 +52,16 @@ pub fn check_conflicts() -> Vec<AppConflict> {
                             "Bộ gõ Bamboo cho IBus (PID {}) đang chạy ngầm gây xung đột nhập liệu",
                             pid
                         ),
-                        resolution_hint: "Tắt tiến trình bằng lệnh: killall ibus-engine-bamboo".to_string(),
+                        resolution_hint: "Tắt tiến trình bằng lệnh: killall ibus-engine-bamboo"
+                            .to_string(),
                     });
                     continue;
                 }
 
                 // check legacy fcitx 4 daemon
-                if (comm == "fcitx" || cmd_str.starts_with("fcitx\0")) && !cmd_str.contains("fcitx5") {
+                if (comm == "fcitx" || cmd_str.starts_with("fcitx\0"))
+                    && !cmd_str.contains("fcitx5")
+                {
                     conflicts.push(AppConflict {
                         app_name: "Fcitx 4".to_string(),
                         pid,

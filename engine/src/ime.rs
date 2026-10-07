@@ -321,7 +321,8 @@ impl ClakContext {
             let before_cur: String = chars[..cur].iter().collect();
             let matches_last = !self.last_composed.is_empty()
                 && (before_cur.ends_with(&self.last_composed)
-                    || (!self.prev_composed.is_empty() && before_cur.ends_with(&self.prev_composed))
+                    || (!self.prev_composed.is_empty()
+                        && before_cur.ends_with(&self.prev_composed))
                     || (!self.raw_buffer.is_empty() && before_cur.ends_with(&self.raw_buffer)));
 
             if sel_start == sel_end {
@@ -1398,4 +1399,3 @@ mod tests {
         assert_eq!(ctx.last_composed, "được");
     }
 }
-

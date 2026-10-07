@@ -47,9 +47,7 @@ pub fn check_frontends() -> FrontendStatus {
         "qt/plugins/platforminputcontexts/libfcitx5platforminputcontextplugin.so",
         "qt5/plugins/platforminputcontexts/libfcitx5platforminputcontextplugin.so",
     ];
-    let qt6_sub = [
-        "qt6/plugins/platforminputcontexts/libfcitx5platforminputcontextplugin.so",
-    ];
+    let qt6_sub = ["qt6/plugins/platforminputcontexts/libfcitx5platforminputcontextplugin.so"];
 
     let gtk3_path = find_file_under(&prefixes, &gtk3_sub);
     let gtk4_path = find_file_under(&prefixes, &gtk4_sub);

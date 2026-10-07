@@ -37,13 +37,20 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
             .iter()
             .map(|p| p.to_string())
             .collect();
-        out.push_str(&format!("- Tiến trình: Đang chạy (PID: {})\n", pids.join(", ")));
+        out.push_str(&format!(
+            "- Tiến trình: Đang chạy (PID: {})\n",
+            pids.join(", ")
+        ));
     } else {
         out.push_str("- Tiến trình: Chưa khởi chạy\n");
     }
     out.push_str(&format!(
         "- Bộ gõ đang kích hoạt: {}\n\n",
-        report.daemon.current_im.as_deref().unwrap_or("Không xác định")
+        report
+            .daemon
+            .current_im
+            .as_deref()
+            .unwrap_or("Không xác định")
     ));
 
     out.push_str("## 4. Kiểm Tra Bộ Nhớ & Thư Viện Clak\n");
@@ -59,7 +66,9 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
         out.push_str(&format!("- Đường dẫn nạp: `{}`\n", path));
     }
     if report.memory.is_deleted_inode {
-        out.push_str("- Cảnh báo bộ nhớ: Fcitx5 đang giữ file binary cũ (deleted inode) trong RAM\n");
+        out.push_str(
+            "- Cảnh báo bộ nhớ: Fcitx5 đang giữ file binary cũ (deleted inode) trong RAM\n",
+        );
     }
     out.push('\n');
 
@@ -92,15 +101,27 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
     out.push_str("## 6. Biến Môi Trường Input Method\n");
     out.push_str(&format!(
         "- GTK_IM_MODULE: `{}`\n",
-        report.environment.gtk_im_module.as_deref().unwrap_or("(không đặt)")
+        report
+            .environment
+            .gtk_im_module
+            .as_deref()
+            .unwrap_or("(không đặt)")
     ));
     out.push_str(&format!(
         "- QT_IM_MODULE: `{}`\n",
-        report.environment.qt_im_module.as_deref().unwrap_or("(không đặt)")
+        report
+            .environment
+            .qt_im_module
+            .as_deref()
+            .unwrap_or("(không đặt)")
     ));
     out.push_str(&format!(
         "- XMODIFIERS: `{}`\n",
-        report.environment.xmodifiers.as_deref().unwrap_or("(không đặt)")
+        report
+            .environment
+            .xmodifiers
+            .as_deref()
+            .unwrap_or("(không đặt)")
     ));
     out.push_str(&format!(
         "- File 99-clak-im.conf: {}\n\n",
@@ -114,19 +135,35 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
     out.push_str("## 7. Thư Viện Frontend Fcitx5\n");
     out.push_str(&format!(
         "- GTK 3: {}\n",
-        report.frontends.gtk3_path.as_deref().unwrap_or("Không tìm thấy")
+        report
+            .frontends
+            .gtk3_path
+            .as_deref()
+            .unwrap_or("Không tìm thấy")
     ));
     out.push_str(&format!(
         "- GTK 4: {}\n",
-        report.frontends.gtk4_path.as_deref().unwrap_or("Không tìm thấy")
+        report
+            .frontends
+            .gtk4_path
+            .as_deref()
+            .unwrap_or("Không tìm thấy")
     ));
     out.push_str(&format!(
         "- Qt 5: {}\n",
-        report.frontends.qt5_path.as_deref().unwrap_or("Không tìm thấy")
+        report
+            .frontends
+            .qt5_path
+            .as_deref()
+            .unwrap_or("Không tìm thấy")
     ));
     out.push_str(&format!(
         "- Qt 6: {}\n\n",
-        report.frontends.qt6_path.as_deref().unwrap_or("Không tìm thấy")
+        report
+            .frontends
+            .qt6_path
+            .as_deref()
+            .unwrap_or("Không tìm thấy")
     ));
 
     out.push_str("## 8. Cấu Hình Fcitx5 & Tương Thích Ứng Dụng\n");
@@ -156,9 +193,15 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
         out.push_str(&format!(
             "- JetBrains IDEs: {}\n",
             if report.jetbrains.unconfigured_ides.is_empty() {
-                format!("Đã tối ưu XToolkit ({})", report.jetbrains.configured_ides.join(", "))
+                format!(
+                    "Đã tối ưu XToolkit ({})",
+                    report.jetbrains.configured_ides.join(", ")
+                )
             } else {
-                format!("Chưa tối ưu: {}", report.jetbrains.unconfigured_ides.join(", "))
+                format!(
+                    "Chưa tối ưu: {}",
+                    report.jetbrains.unconfigured_ides.join(", ")
+                )
             }
         ));
     }
@@ -167,8 +210,14 @@ pub fn format_markdown(report: &DiagnosticReport) -> String {
     if !report.conflicts.is_empty() {
         out.push_str("## Ứng Dụng Xung Đột\n");
         for conf in &report.conflicts {
-            out.push_str(&format!("- **{}** (PID {}): {}\n", conf.app_name, conf.pid, conf.description));
-            out.push_str(&format!("  * Hướng khắc phục: `{}`\n", conf.resolution_hint));
+            out.push_str(&format!(
+                "- **{}** (PID {}): {}\n",
+                conf.app_name, conf.pid, conf.description
+            ));
+            out.push_str(&format!(
+                "  * Hướng khắc phục: `{}`\n",
+                conf.resolution_hint
+            ));
         }
         out.push('\n');
     }

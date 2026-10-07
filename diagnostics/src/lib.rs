@@ -4,6 +4,11 @@ pub mod report;
 use serde::{Deserialize, Serialize};
 
 pub use checks::autostart::{check_autostart, AutostartStatus};
+pub use checks::compatibility::{
+    check_jetbrains, check_profile, check_wps, fix_fcitx5_profile, fix_jetbrains_compatibility,
+    fix_wps_compatibility, JetBrainsStatus, ProfileStatus, WpsStatus,
+};
+pub use checks::config::{check_config, ConfigStatus};
 pub use checks::conflicts::{check_conflicts, AppConflict};
 pub use checks::daemon::{check_daemon, DaemonStatus};
 pub use checks::environment::{check_environment, EnvironmentStatus};
@@ -11,11 +16,6 @@ pub use checks::frontends::{check_frontends, FrontendStatus};
 pub use checks::memory::{check_memory, MemoryInspection};
 pub use checks::permissions::{check_permissions, PermissionChecks};
 pub use checks::system::{check_system, SystemInfo};
-pub use checks::config::{check_config, ConfigStatus};
-pub use checks::compatibility::{
-    check_jetbrains, check_profile, check_wps, fix_fcitx5_profile, fix_jetbrains_compatibility,
-    fix_wps_compatibility, JetBrainsStatus, ProfileStatus, WpsStatus,
-};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticIssue {
@@ -96,8 +96,12 @@ pub fn run_diagnostics() -> DiagnosticReport {
     if !profile.clak_in_profile {
         issues.push(DiagnosticIssue {
             title: "Chưa thêm Clak vào Fcitx5".to_string(),
-            message: "Clak chưa được thêm vào danh sách bộ gõ trong ~/.config/fcitx5/profile".to_string(),
-            fix_command: Some("Bấm nút 'Kích hoạt 1-Click' trên thanh thông báo hoặc chạy clak doctor".to_string()),
+            message: "Clak chưa được thêm vào danh sách bộ gõ trong ~/.config/fcitx5/profile"
+                .to_string(),
+            fix_command: Some(
+                "Bấm nút 'Kích hoạt 1-Click' trên thanh thông báo hoặc chạy clak doctor"
+                    .to_string(),
+            ),
         });
     } else if !profile.is_default_im {
         warnings.push(DiagnosticWarning {
@@ -177,8 +181,12 @@ pub fn run_diagnostics() -> DiagnosticReport {
         if qt_im == "ibus" {
             issues.push(DiagnosticIssue {
                 title: "QT_IM_MODULE xung đột với IBus".to_string(),
-                message: "QT_IM_MODULE đang được đặt là 'ibus', khiến ứng dụng Qt bỏ qua Fcitx5".to_string(),
-                fix_command: Some("Đổi QT_IM_MODULE=fcitx trong ~/.config/environment.d/99-clak-im.conf".to_string()),
+                message: "QT_IM_MODULE đang được đặt là 'ibus', khiến ứng dụng Qt bỏ qua Fcitx5"
+                    .to_string(),
+                fix_command: Some(
+                    "Đổi QT_IM_MODULE=fcitx trong ~/.config/environment.d/99-clak-im.conf"
+                        .to_string(),
+                ),
             });
         }
     }

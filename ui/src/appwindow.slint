@@ -193,10 +193,77 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
 
+                            HorizontalLayout {
+                                spacing: 8px;
+
+                                ActionButton {
+                                    text: "Vào Chẩn đoán";
+                                    clicked => { root.selected_tab = 3; }
+                                }
+
+                                ActionButton {
+                                    text: "Kích hoạt 1-Click";
+                                    primary: true;
+                                    clicked => { root.setup_profile_requested(); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // banner huong dan toi uu wps va jetbrains
+                if !root.profile_needs_setup && (root.wps_needs_fix || root.jetbrains_needs_fix) && root.selected_tab != 3: Rectangle {
+                    border-radius: Theme.radius-md;
+                    background: #8b5cf6.with-alpha(0.12);
+                    border-width: 1px;
+                    border-color: #8b5cf6.with-alpha(0.35);
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
+                        alignment: space-between;
+                        spacing: 12px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            width: 24px;
+                            Image {
+                                source: @image-url("../assets/icons/activity.svg");
+                                width: 18px;
+                                height: 18px;
+                                colorize: #a78bfa;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: "Phát hiện ứng dụng cần tối ưu (WPS Office / JetBrains)";
+                                color: #a78bfa;
+                                font-size: 13px;
+                                font-weight: 600;
+                            }
+
+                            Text {
+                                text: "Vào tab Chẩn đoán để kiểm tra môi trường và khắc phục lỗi nuốt dấu, mất focus trên Wayland.";
+                                color: Theme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
                             ActionButton {
-                                text: "Kích hoạt 1-Click";
+                                text: "Vào Chẩn đoán";
                                 primary: true;
-                                clicked => { root.setup_profile_requested(); }
+                                clicked => { root.selected_tab = 3; }
                             }
                         }
                     }

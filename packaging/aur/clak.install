@@ -11,13 +11,14 @@ post_install() {
     modprobe uinput 2>/dev/null || true
 
     echo -e "${c_green}::${c_reset} ${c_bold}Cài đặt Clak thành công!${c_reset}"
-    echo -e "${c_yellow}:: QUAN TRỌNG:${c_reset} ${c_bold}Hãy mở ứng dụng 'clak-gui' (hoặc tìm 'Cài đặt Clak' trong Menu ứng dụng)${c_reset}"
-    echo -e "   để tự động kích hoạt bộ gõ vào Fcitx5 và tối ưu hóa hệ thống chỉ với 1 click!"
-    echo -e "${c_cyan}:: Lưu ý:${c_reset} Hãy chỉ giữ lại duy nhất Clak trong danh sách bộ gõ vì Clak đã hỗ trợ cả Tiếng Việt và Tiếng Anh"
+    echo -e "${c_yellow}:: QUAN TRỌNG:${c_reset} ${c_bold}Hãy mở 'clak-gui' và chạy 'Chẩn đoán'${c_reset}"
+    echo -e "   (hoặc chạy lệnh terminal: ${c_cyan}${c_bold}clak doctor${c_reset})"
+    echo -e "   để kiểm tra môi trường, kích hoạt bộ gõ và tối ưu hóa hệ thống (WPS Office, JetBrains, uinput) chỉ với 1-Click!"
+    echo -e "${c_cyan}:: Lưu ý:${c_reset} Hãy tắt các bộ gõ tiếng Việt khác và chỉ để duy nhất Clak vì Clak đã hỗ trợ cả Tiếng Việt và Tiếng Anh"
     if [ -n "${SUDO_USER:-}" ] && command -v notify-send >/dev/null 2>&1; then
-        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u "$SUDO_USER")/bus" notify-send -i org.fcitx.Fcitx5.clak "Clak Tiếng Việt" "Cài đặt thành công! Hãy mở 'clak-gui' để tự động kích hoạt bộ gõ vào Fcitx5." 2>/dev/null || true
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u "$SUDO_USER")/bus" notify-send -i org.fcitx.Fcitx5.clak "Clak Tiếng Việt" "Cài đặt thành công! Hãy mở 'clak-gui' chạy 'Chẩn đoán' (hoặc gõ 'clak doctor') để kiểm tra và tối ưu 1-click." 2>/dev/null || true
     elif command -v notify-send >/dev/null 2>&1; then
-        notify-send -i org.fcitx.Fcitx5.clak "Clak Tiếng Việt" "Cài đặt thành công! Hãy mở 'clak-gui' để tự động kích hoạt bộ gõ vào Fcitx5." 2>/dev/null || true
+        notify-send -i org.fcitx.Fcitx5.clak "Clak Tiếng Việt" "Cài đặt thành công! Hãy mở 'clak-gui' chạy 'Chẩn đoán' (hoặc gõ 'clak doctor') để kiểm tra và tối ưu 1-click." 2>/dev/null || true
     fi
 }
 

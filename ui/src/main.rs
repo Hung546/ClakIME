@@ -1248,32 +1248,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let win_startup = main_window.as_weak();
+    let last_report_startup = last_report.clone();
     std::thread::spawn(move || {
-        let daemon = clak_diagnostics::check_daemon();
-        let is_deleted = if daemon.fcitx5_running {
-            let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
-            memory.is_deleted_inode
+        let report = clak_diagnostics::run_diagnostics();
+        let is_healthy = report.is_healthy();
+        let time_tag = chrono::Local::now().format("%H:%M:%S").to_string();
+        let now = chrono::Local::now().format("%H:%M:%S · %d/%m/%Y").to_string();
+        let lines = format_doctor_lines(&report, &time_tag);
+
+        let mut score: i32 = 100;
+        score -= (report.issues.len() as i32) * 25;
+        score -= (report.warnings.len() as i32) * 10;
+        let score = score.clamp(0, 100);
+
+        let (score_level, score_label, score_color) = if score >= 90 {
+            (0, "Khỏe mạnh", slint::Color::from_argb_u8(255, 16, 185, 129))
+        } else if score >= 60 {
+            (1, "Cần lưu ý", slint::Color::from_argb_u8(255, 245, 158, 11))
         } else {
-            false
+            (2, "Nguy hiểm", slint::Color::from_argb_u8(255, 239, 68, 68))
         };
 
-        let profile = clak_diagnostics::check_profile();
-        let needs_setup = !profile.clak_in_profile || !profile.is_default_im;
+        let summary = if report.issues.is_empty() && report.warnings.is_empty() {
+            "Tất cả kiểm tra đều hoàn hảo. Clak sẵn sàng hoạt động tối ưu.".to_string()
+        } else {
+            format!("Phát hiện {} vấn đề cần xử lý, {} khuyến nghị lưu ý.", report.issues.len(), report.warnings.len())
+        };
 
-        let wps = clak_diagnostics::check_wps();
-        let wps_fix = wps.installed && !wps.configured;
+        let is_deleted = report.memory.is_deleted_inode;
+        let needs_setup = !report.profile.clak_in_profile || !report.profile.is_default_im;
+        let wps_fix = report.wps.installed && !report.wps.configured;
+        let jb_fix = report.jetbrains.installed && !report.jetbrains.unconfigured_ides.is_empty();
 
-        let jb = clak_diagnostics::check_jetbrains();
-        let jb_fix = jb.installed && !jb.unconfigured_ides.is_empty();
-
+        let report_for_ui = report.clone();
         let _ = slint::invoke_from_event_loop(move || {
             if let Some(w) = win_startup.upgrade() {
+                let lines_model = Rc::new(VecModel::from(lines));
+                w.set_doctor_lines(lines_model.into());
+                w.set_doctor_last_scanned(now.into());
+                w.set_doctor_summary_text(summary.into());
+                w.set_doctor_is_healthy(is_healthy);
+                w.set_doctor_score_level(score_level);
+                w.set_doctor_score_text(score.to_string().into());
+                w.set_doctor_score_label(score_label.into());
+                w.set_doctor_score_color(score_color);
+                w.set_doctor_has_scanned(true);
+                w.set_doctor_is_scanning(false);
+
                 if is_deleted {
                     w.set_reload_needed(true);
                 }
                 w.set_profile_needs_setup(needs_setup);
                 w.set_wps_needs_fix(wps_fix);
                 w.set_jetbrains_needs_fix(jb_fix);
+
+                // nếu chưa thêm vào profile, tự động mở tab Chẩn đoán để hướng dẫn người dùng
+                if needs_setup {
+                    w.set_selected_tab(3);
+                }
+
+                if let Ok(mut guard) = last_report_startup.lock() {
+                    *guard = Some(report_for_ui);
+                }
             }
         });
     });

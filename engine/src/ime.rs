@@ -23,6 +23,7 @@ pub struct ClakContext {
     delete_buf: CString,
     raw_buffer: String,
     last_composed: String,
+    prev_composed: String,
     stale_surr: Option<(String, usize)>,
     just_deleted: bool,
     typed_over_selection: bool,
@@ -55,6 +56,7 @@ impl ClakContext {
             delete_buf: CString::default(),
             raw_buffer: String::new(),
             last_composed: String::new(),
+            prev_composed: String::new(),
             stale_surr: None,
             just_deleted: false,
             typed_over_selection: false,
@@ -97,6 +99,7 @@ impl ClakContext {
     pub fn reset(&mut self) {
         self.raw_buffer.clear();
         self.last_composed.clear();
+        self.prev_composed.clear();
         self.typed_over_selection = false;
         self.delete_buf = CString::default();
         self.last_surr = None;
@@ -316,8 +319,10 @@ impl ClakContext {
             };
 
             let before_cur: String = chars[..cur].iter().collect();
-            let matches_last =
-                !self.last_composed.is_empty() && before_cur.ends_with(&self.last_composed);
+            let matches_last = !self.last_composed.is_empty()
+                && (before_cur.ends_with(&self.last_composed)
+                    || (!self.prev_composed.is_empty() && before_cur.ends_with(&self.prev_composed))
+                    || (!self.raw_buffer.is_empty() && before_cur.ends_with(&self.raw_buffer)));
 
             if sel_start == sel_end {
                 self.typed_over_selection = false;
@@ -403,7 +408,7 @@ impl ClakContext {
         let (deleted_part, added_part) = compare_and_split(&self.last_composed, &new_word);
 
         if deleted_part.is_empty() && added_part == key_str {
-            self.last_composed = new_word;
+            self.prev_composed = std::mem::replace(&mut self.last_composed, new_word);
             if let Some(text) = surrounding_text {
                 self.last_surr = Some((text.to_string(), cursor));
             }
@@ -411,7 +416,7 @@ impl ClakContext {
         }
 
         let chars_to_delete = deleted_part.chars().count();
-        self.last_composed = new_word;
+        self.prev_composed = std::mem::replace(&mut self.last_composed, new_word);
 
         if let Some(text) = surrounding_text {
             self.last_surr = Some((text.to_string(), cursor));
@@ -1352,6 +1357,45 @@ mod tests {
 
         ctx.reset();
         assert!(!unsafe { clak_is_composing(&ctx as *const ClakContext) });
+    }
+
+    #[test]
+    fn test_rapid_typing_lagging_surrounding_dduowcj() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        // key 1: 'd' -> forwards 'd'
+        let act1 = ctx.process_key(b'd' as u32, "d", false, Some(""), 0, 0);
+        assert_eq!(act1.action_type, ACTION_FORWARD);
+        assert_eq!(ctx.last_composed, "d");
+
+        // key 2: 'd' -> replaces to 'đ'
+        let act2 = ctx.process_key(b'd' as u32, "d", false, Some("d"), 1, 1);
+        assert_eq!(act2.action_type, ACTION_REPLACE);
+        assert_eq!(ctx.last_composed, "đ");
+
+        // key 3: 'u' arrives before app processed replace, app still reports "d" at cursor 1
+        let act3 = ctx.process_key(b'u' as u32, "u", false, Some("d"), 1, 1);
+        assert_eq!(act3.action_type, ACTION_FORWARD);
+        assert_eq!(ctx.last_composed, "đu");
+
+        // key 4: 'o' -> app caught up to "đu" at cursor 2
+        let act4 = ctx.process_key(b'o' as u32, "o", false, Some("đu"), 2, 2);
+        assert_eq!(act4.action_type, ACTION_FORWARD);
+        assert_eq!(ctx.last_composed, "đuo");
+
+        // key 5: 'w' -> replaces to "đươ"
+        let act5 = ctx.process_key(b'w' as u32, "w", false, Some("đuo"), 3, 3);
+        assert_eq!(act5.action_type, ACTION_REPLACE);
+        assert_eq!(ctx.last_composed, "đươ");
+
+        // key 6: 'c' arrives before app processed replace, app still reports "đuo" at cursor 3
+        let act6 = ctx.process_key(b'c' as u32, "c", false, Some("đuo"), 3, 3);
+        assert_eq!(act6.action_type, ACTION_FORWARD);
+        assert_eq!(ctx.last_composed, "đươc");
+
+        // key 7: 'j' -> replaces to "được"
+        let act7 = ctx.process_key(b'j' as u32, "j", false, Some("đươc"), 4, 4);
+        assert_eq!(act7.action_type, ACTION_REPLACE);
+        assert_eq!(ctx.last_composed, "được");
     }
 }
 

@@ -334,13 +334,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let win_weak_thread = win_update.clone();
         std::thread::spawn(move || {
+            let script_cmd = if std::path::Path::new("scripts/update.sh").exists() {
+                "bash scripts/update.sh".to_string()
+            } else if let Ok(home) = std::env::var("HOME") {
+                let candidates = [
+                    format!("{}/.local/share/clak/update.sh", home),
+                    format!("{}/ClakIME/scripts/update.sh", home),
+                    format!("{}/dev/github/input-method/scripts/update.sh", home),
+                ];
+                if let Some(found) = candidates.iter().find(|p| std::path::Path::new(p).exists()) {
+                    format!("bash \"{}\"", found)
+                } else {
+                    "curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/update.sh -o /tmp/clak-update-$$.sh && bash /tmp/clak-update-$$.sh; rm -f /tmp/clak-update-$$.sh".to_string()
+                }
+            } else {
+                "curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/update.sh -o /tmp/clak-update-$$.sh && bash /tmp/clak-update-$$.sh; rm -f /tmp/clak-update-$$.sh".to_string()
+            };
+
+            let cmd_str = format!(
+                "{}; echo ''; read -p 'Nhấn Enter để đóng...' dummy",
+                script_cmd
+            );
+
             let terminals = [
+                "x-terminal-emulator",
+                "gnome-terminal",
+                "ptyxis",
                 "kitty",
                 "alacritty",
                 "foot",
                 "wezterm",
-                "gnome-terminal",
                 "konsole",
+                "xfce4-terminal",
                 "xterm",
             ];
             let term = terminals.iter().find(|&&t| {
@@ -351,25 +376,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .unwrap_or(false)
             });
 
-            let script_path = if std::path::Path::new("scripts/update.sh").exists() {
-                std::path::PathBuf::from("scripts/update.sh")
-            } else if let Ok(home) = std::env::var("HOME") {
-                std::path::PathBuf::from(home).join("dev/github/input-method/scripts/update.sh")
-            } else {
-                std::path::PathBuf::from("/tmp/update.sh")
-            };
-
             let res = if let Some(&term_cmd) = term {
-                let cmd_str = format!(
-                    "bash \"{}\"; echo ''; read -p 'Nhấn Enter để đóng...' dummy",
-                    script_path.display()
-                );
-                std::process::Command::new(term_cmd)
-                    .args(["-e", "bash", "-c", &cmd_str])
-                    .status()
+                match term_cmd {
+                    "gnome-terminal" | "ptyxis" => {
+                        std::process::Command::new(term_cmd)
+                            .args(["--", "bash", "-c", &cmd_str])
+                            .status()
+                    }
+                    "kitty" | "foot" => {
+                        std::process::Command::new(term_cmd)
+                            .args(["bash", "-c", &cmd_str])
+                            .status()
+                    }
+                    "wezterm" => {
+                        std::process::Command::new(term_cmd)
+                            .args(["start", "--", "bash", "-c", &cmd_str])
+                            .status()
+                    }
+                    _ => {
+                        std::process::Command::new(term_cmd)
+                            .args(["-e", "bash", "-c", &cmd_str])
+                            .status()
+                    }
+                }
             } else {
                 std::process::Command::new("bash")
-                    .arg(&script_path)
+                    .args(["-c", &cmd_str])
                     .status()
             };
 

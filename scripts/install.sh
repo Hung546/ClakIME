@@ -439,6 +439,70 @@ EOF
     fi
 }
 
+# check and configure uinput and mouse input device permissions
+configure_uinput_permissions() {
+    local is_sim="${1:-0}"
+    if [ "$skip_uinput" -eq 1 ]; then
+        log_step "$lbl_uinput" "Đã bỏ qua cấu hình uinput (--skip-uinput)"
+        return
+    fi
+
+    local uinput_ok=0
+    local mouse_ok=0
+    [ -w /dev/uinput ] 2>/dev/null && uinput_ok=1
+    for dev in /dev/input/event*; do
+        if [ -r "$dev" ] 2>/dev/null; then
+            mouse_ok=1
+            break
+        fi
+    done
+
+    if [ "$uinput_ok" -eq 1 ] && [ "$mouse_ok" -eq 1 ] && [ -f /etc/udev/rules.d/99-uinput.rules ]; then
+        log_step "$lbl_uinput" "Quyền truy cập /dev/uinput và thiết bị input đã sẵn sàng (${c_green}OK${c_reset})"
+        return
+    fi
+
+    if [ "$is_sim" -eq 1 ]; then
+        log_step "$lbl_warn" "Hệ thống cần phân quyền /dev/uinput và thiết bị chuột"
+        print_uinput_sudo_notice
+        echo -e "  ${c_dim}[Giả lập] Bạn chỉ cần nhập mật khẩu sudo tại đây khi chạy thật${c_reset}"
+        spin_step "Đang áp dụng rule udev cho /dev/uinput và input..." 0.5
+        log_step "$lbl_uinput" "Đã cấu hình quyền uinput và input thành công"
+        return
+    fi
+
+    log_step "$lbl_warn" "Người dùng chưa có đầy đủ quyền /dev/uinput hoặc thiết bị input"
+    print_uinput_sudo_notice
+    local cur_user="${USER:-$(id -un)}"
+    local uinput_done=0
+    if command -v sudo >/dev/null 2>&1; then
+        local udev_rules="KERNEL==\"uinput\", SUBSYSTEM==\"misc\", OPTIONS+=\"static_node=uinput\", MODE=\"0660\", GROUP=\"input\", TAG+=\"uaccess\"
+SUBSYSTEM==\"input\", ENV{ID_INPUT_MOUSE}==\"1\", TAG+=\"uaccess\"
+SUBSYSTEM==\"input\", ENV{ID_INPUT_TOUCHPAD}==\"1\", TAG+=\"uaccess\""
+
+        if run_sudo sh -c "mkdir -p /etc/udev/rules.d /etc/modules-load.d && printf '%s\n' '$udev_rules' > /etc/udev/rules.d/99-uinput.rules && echo 'uinput' > /etc/modules-load.d/uinput.conf"; then
+            run_sudo usermod -aG input "$cur_user" 2>/dev/null || true
+            run_sudo modprobe uinput 2>/dev/null || true
+            run_sudo udevadm control --reload-rules 2>/dev/null || true
+            run_sudo udevadm trigger --name-match=uinput 2>/dev/null || run_sudo udevadm trigger /dev/uinput 2>/dev/null || true
+            run_sudo udevadm trigger --subsystem-match=input 2>/dev/null || true
+            if command -v setfacl >/dev/null 2>&1; then
+                run_sudo setfacl -m "u:${cur_user}:rw" /dev/uinput 2>/dev/null || true
+                for ev in /dev/input/event*; do
+                    [ -e "$ev" ] && run_sudo setfacl -m "u:${cur_user}:rw" "$ev" 2>/dev/null || true
+                done
+            fi
+            uinput_done=1
+        fi
+    fi
+
+    if [ "$uinput_done" -eq 1 ]; then
+        log_step "$lbl_uinput" "Đã cấu hình tự động /dev/uinput và thiết bị input thành công"
+    else
+        log_step "$lbl_warn" "Chưa thể cấp quyền sudo cho uinput, Clak sẽ hoạt động ở chế độ Wayland mặc định"
+    fi
+}
+
 # configure autostart with system
 configure_autostart() {
     local is_sim="${1:-0}"
@@ -499,6 +563,10 @@ Name=clak
 [GroupOrder]
 0=Default
 EOF
+    fi
+
+    # ensure clak is added to profile and set as default layout us
+    if [ -f "$profile_file" ]; then
         if ! grep -q "Name=clak" "$profile_file" 2>/dev/null; then
             local count
             count=$(grep -c "\[Groups/0/Items/" "$profile_file" 2>/dev/null || echo "1")
@@ -598,9 +666,10 @@ disable_ibus_conflict() {
                     ;;
             esac
         else
-            log_step "$lbl_warn" "Phát hiện IBus đang chạy song song"
-            echo -e "  ${c_yellow}• Clak không tự ý thay đổi cấu hình IBus ở chế độ không tương tác${c_reset}"
-            echo -e "  ${c_dim}Gợi ý: Nếu gặp xung đột phím, bạn có thể chạy: im-config -n fcitx5${c_reset}"
+            if command -v im-config >/dev/null 2>&1; then
+                im-config -n fcitx5 2>/dev/null || true
+            fi
+            log_step "$lbl_install" "Đã ưu tiên Fcitx5 làm bộ gõ hệ thống (im-config)"
         fi
     fi
 }
@@ -739,10 +808,8 @@ activate_clak_and_reconnect_compositor() {
                         # If current GNOME layout is vn or vn+us, switch to us to avoid dead key conflicts with IME
                         if echo "$cur_src" | grep -q "vn"; then
                             cur_src=$(echo "$cur_src" | sed -e "s/'vn+us'/'us'/g" -e "s/'vn'/'us'/g")
+                            gsettings set org.gnome.desktop.input-sources sources "$cur_src" 2>/dev/null || true
                         fi
-                        gsettings set org.gnome.desktop.input-sources sources "[]" 2>/dev/null || true
-                        sleep 0.1
-                        gsettings set org.gnome.desktop.input-sources sources "$cur_src" 2>/dev/null || true
                     fi
                 fi
                 ;;
@@ -753,20 +820,31 @@ activate_clak_and_reconnect_compositor() {
     local retry=0
     while [ "$retry" -lt 15 ]; do
         if command -v gdbus >/dev/null 2>&1; then
+            local cur_grp
+            cur_grp=$(gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller --method org.fcitx.Fcitx.Controller1.CurrentInputMethodGroup 2>/dev/null | tr -d "()', " || echo "")
+            if [ -n "$cur_grp" ]; then
+                gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+                    --method org.fcitx.Fcitx.Controller1.SetInputMethodGroupInfo "$cur_grp" "us" "[('clak', '')]" >/dev/null 2>&1 || true
+            fi
             if gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
                 --method org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+                    --method org.fcitx.Fcitx.Controller1.Save >/dev/null 2>&1 || true
                 break
             fi
         elif command -v qdbus6 >/dev/null 2>&1; then
             if qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.Save >/dev/null 2>&1 || true
                 break
             fi
         elif command -v qdbus >/dev/null 2>&1; then
             if qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.Save >/dev/null 2>&1 || true
                 break
             fi
         elif command -v busctl >/dev/null 2>&1; then
             if busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetCurrentIM s "clak" >/dev/null 2>&1; then
+                busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save >/dev/null 2>&1 || true
                 break
             fi
         fi
@@ -807,15 +885,7 @@ run_simulation() {
     log_step "$lbl_install" "Đã cài ${c_accent}${dest_dir%/lib*}/share/fcitx5/inputmethod/clak.conf${c_reset}"
 
     # 6. check uinput permissions
-    if [ "$demo_uinput" -eq 1 ] || [ ! -w /dev/uinput ]; then
-        log_step "$lbl_warn" "Người dùng hiện tại chưa có quyền ghi vào /dev/uinput"
-        print_uinput_sudo_notice
-        echo -e "  ${c_dim}[Giả lập] Bạn chỉ cần nhập mật khẩu sudo tại đây khi chạy thật${c_reset}"
-        spin_step "Đang áp dụng rule udev cho /dev/uinput..." 0.5
-        log_step "$lbl_uinput" "Đã cấu hình quyền uinput thành công"
-    else
-        log_step "$lbl_uinput" "Quyền truy cập /dev/uinput đã sẵn sàng (${c_green}sử dụng được ngay${c_reset})"
-    fi
+    configure_uinput_permissions 1
 
     # 7. check wps compatibility
     configure_wps_compatibility 1
@@ -1082,9 +1152,13 @@ run_install() {
     log_step "$lbl_install" "Đã chép ${c_accent}${im_dest}/clak.conf${c_reset}"
     [ -f "$gui_src" ] && log_step "$lbl_install" "Đã cài đặt giao diện điều khiển cấu hình clak-gui"
 
-    # save installed version for updater
+    # save installed version and updater script for updater
     mkdir -p "${HOME}/.local/share/clak"
     echo "$tag_name" > "${HOME}/.local/share/clak/version"
+    if [ -f "scripts/update.sh" ]; then
+        cp "scripts/update.sh" "${HOME}/.local/share/clak/update.sh" 2>/dev/null || true
+        chmod +x "${HOME}/.local/share/clak/update.sh" 2>/dev/null || true
+    fi
 
     # clean up temporary archive directory
     if [ -n "${tmp_dir:-}" ] && [ -d "$tmp_dir" ]; then
@@ -1093,29 +1167,7 @@ run_install() {
     fi
 
     # 7. check and configure uinput permission automatically
-    if [ "$skip_uinput" -eq 1 ]; then
-        log_step "$lbl_uinput" "Đã bỏ qua cấu hình uinput (--skip-uinput)"
-    elif [ -w /dev/uinput ] 2>/dev/null; then
-        log_step "$lbl_uinput" "Quyền truy cập /dev/uinput đã sẵn sàng (${c_green}OK${c_reset})"
-    else
-        log_step "$lbl_warn" "Người dùng hiện tại chưa có quyền ghi vào /dev/uinput"
-        print_uinput_sudo_notice
-        local uinput_ok=0
-        if command -v sudo >/dev/null 2>&1; then
-            if run_sudo sh -c 'mkdir -p /etc/udev/rules.d /etc/modules-load.d && echo "KERNEL==\"uinput\", SUBSYSTEM==\"misc\", OPTIONS+=\"static_node=uinput\", TAG+=\"uaccess\"" > /etc/udev/rules.d/99-uinput.rules && echo "uinput" > /etc/modules-load.d/uinput.conf'; then
-                run_sudo udevadm control --reload-rules 2>/dev/null || true
-                run_sudo udevadm trigger --name-match=uinput 2>/dev/null || run_sudo udevadm trigger /dev/uinput 2>/dev/null || true
-                run_sudo modprobe uinput 2>/dev/null || true
-                uinput_ok=1
-            fi
-        fi
-
-        if [ "$uinput_ok" -eq 1 ]; then
-            log_step "$lbl_uinput" "Đã cấu hình /dev/uinput thành công"
-        else
-            log_step "$lbl_warn" "Chưa cấp quyền uinput, Clak sẽ hoạt động ở chế độ Wayland mặc định"
-        fi
-    fi
+    configure_uinput_permissions 0
 
     # 8. check and configure wps compatibility
     configure_wps_compatibility 0

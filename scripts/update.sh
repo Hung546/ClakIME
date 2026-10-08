@@ -196,6 +196,43 @@ spin_pid() {
     printf "\r\033[K"
 }
 
+activate_clak_and_reconnect_compositor() {
+    local retry=0
+    while [ "$retry" -lt 15 ]; do
+        if command -v gdbus >/dev/null 2>&1; then
+            local cur_grp
+            cur_grp=$(gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller --method org.fcitx.Fcitx.Controller1.CurrentInputMethodGroup 2>/dev/null | tr -d "()', " || echo "")
+            if [ -n "$cur_grp" ]; then
+                gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+                    --method org.fcitx.Fcitx.Controller1.SetInputMethodGroupInfo "$cur_grp" "us" "[('clak', '')]" >/dev/null 2>&1 || true
+            fi
+            if gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+                --method org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+                    --method org.fcitx.Fcitx.Controller1.Save >/dev/null 2>&1 || true
+                break
+            fi
+        elif command -v qdbus6 >/dev/null 2>&1; then
+            if qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                qdbus6 org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.Save >/dev/null 2>&1 || true
+                break
+            fi
+        elif command -v qdbus >/dev/null 2>&1; then
+            if qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.SetCurrentIM "clak" >/dev/null 2>&1; then
+                qdbus org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1.Save >/dev/null 2>&1 || true
+                break
+            fi
+        elif command -v busctl >/dev/null 2>&1; then
+            if busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetCurrentIM s "clak" >/dev/null 2>&1; then
+                busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 Save >/dev/null 2>&1 || true
+                break
+            fi
+        fi
+        sleep 0.2
+        retry=$((retry + 1))
+    done
+}
+
 # reload fcitx5 daemon via systemctl or direct command
 reload_fcitx5() {
     if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active fcitx5.service >/dev/null 2>&1; then
@@ -203,6 +240,7 @@ reload_fcitx5() {
     elif command -v fcitx5 >/dev/null 2>&1; then
         fcitx5 -r -d >/dev/null 2>&1 || true
     fi
+    activate_clak_and_reconnect_compositor
 }
 
 # run command with sudo via tty if needed

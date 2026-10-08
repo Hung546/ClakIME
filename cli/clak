@@ -113,6 +113,9 @@ def run_bench(args):
         sys.exit(0)
 
 def run_doctor(args):
+    if getattr(args, 'fix', False):
+        fix_doctor()
+
     print("=== CLAK DOCTOR: HỆ THỐNG CHẨN ĐOÁN MÔI TRƯỜNG ===")
 
     issues = []
@@ -253,7 +256,43 @@ def run_doctor(args):
             print(f"\n⚠️  LƯU Ý ({len(warnings)} khuyến nghị):")
             for i, warn in enumerate(warnings, 1):
                 print(f"  {i}. {warn}")
+        if not getattr(args, 'fix', False):
+            print(f"\n💡 Gợi ý: Chạy './cli/clak doctor --fix' để tự động sửa tất cả vấn đề phân quyền trên.")
     print("=" * 55 + "\n")
+
+def fix_doctor():
+    print("\n[+] Đang tự động cấu hình quyền uinput, mouse tracking và Fcitx5 profile...")
+    user = os.environ.get("USER", "hung")
+    udev_content = (
+        'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", MODE="0660", GROUP="input", TAG+="uaccess"\\n'
+        'SUBSYSTEM=="input", ENV{ID_INPUT_MOUSE}=="1", TAG+="uaccess"\\n'
+        'SUBSYSTEM=="input", ENV{ID_INPUT_TOUCHPAD}=="1", TAG+="uaccess"\\n'
+    )
+    script = f'''
+mkdir -p /etc/udev/rules.d /etc/modules-load.d
+printf '%b' '{udev_content}' > /etc/udev/rules.d/99-uinput.rules
+echo "uinput" > /etc/modules-load.d/uinput.conf
+usermod -aG input {user} 2>/dev/null || true
+modprobe uinput 2>/dev/null || true
+udevadm control --reload-rules 2>/dev/null || true
+udevadm trigger --name-match=uinput 2>/dev/null || udevadm trigger /dev/uinput 2>/dev/null || true
+udevadm trigger --subsystem-match=input 2>/dev/null || true
+if command -v setfacl >/dev/null 2>&1; then
+    setfacl -m u:{user}:rw /dev/uinput 2>/dev/null || true
+    for ev in /dev/input/event*; do
+        [ -e "$ev" ] && setfacl -m u:{user}:rw "$ev" 2>/dev/null || true
+    done
+fi
+'''
+    print("  • Yêu cầu quyền sudo để cập nhật udev rules, module uinput và nhóm input:")
+    try:
+        ret = subprocess.call(["sudo", "sh", "-c", script])
+        if ret == 0:
+            print("  ✔ Đã cấu hình thành công quyền /dev/uinput và thiết bị input!")
+        else:
+            print("  ❌ Không thể cấp quyền (lỗi hoặc người dùng hủy sudo).")
+    except Exception as e:
+        print(f"  ❌ Lỗi khi thực thi sudo: {e}")
 
 def run_autostart(args):
     home = os.path.expanduser("~")
@@ -343,7 +382,8 @@ def main():
     bench_parser.add_argument("--log", help="Path to log file (default: /tmp/clak.log)")
     bench_parser.add_argument("--run", action="store_true", help="Run benchmark suite before analysis")
 
-    subparsers.add_parser("doctor", help="Inspect environment, uinput permissions, fcitx5 daemon, and loaded binary")
+    doctor_parser = subparsers.add_parser("doctor", help="Inspect environment, uinput permissions, fcitx5 daemon, and loaded binary")
+    doctor_parser.add_argument("--fix", action="store_true", help="Automatically configure uinput permissions, input groups, and udev rules")
 
     auto_parser = subparsers.add_parser("autostart", help="Configure autostart on system boot/login")
     auto_parser.add_argument("action", nargs="?", choices=["enable", "disable", "status"], default=None, help="Action to perform")

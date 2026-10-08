@@ -1462,6 +1462,5 @@ mod tests {
         let act7 = ctx.process_key(b'j' as u32, "j", false, Some("đươc"), 4, 4);
         assert_eq!(act7.action_type, ACTION_REPLACE);
         assert_eq!(ctx.last_composed, "được");
->>>>>>> upstream/main
     }
 }

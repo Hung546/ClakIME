@@ -49,8 +49,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            build/engine-target/
-            build/ui-target/
+            build/cargo-target/
           key: ${{ runner.os }}-build-ubuntu-${{ hashFiles('engine/Cargo.lock', 'ui/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-build-ubuntu-
@@ -79,6 +78,16 @@ jobs:
           fi
           mkdir -p dist
           tar -C /tmp/clak-dist -czf dist/clak-${VERSION}-linux-x86_64.tar.gz usr/
+
+          # Build .deb package for Debian/Ubuntu
+          DEB_ROOT=/tmp/clak-deb
+          rm -rf "$DEB_ROOT"
+          mkdir -p "$DEB_ROOT/DEBIAN"
+          cp -r /tmp/clak-dist/usr "$DEB_ROOT/"
+          sed "s/@VERSION@/${VERSION}/g" packaging/debian/control.in > "$DEB_ROOT/DEBIAN/control"
+          cp packaging/debian/postinst "$DEB_ROOT/DEBIAN/postinst"
+          chmod 755 "$DEB_ROOT/DEBIAN/postinst"
+          dpkg-deb --build --root-owner-group "$DEB_ROOT" "dist/clak_${VERSION}_amd64.deb"
 
       - name: Create vendor tarball
         run: |

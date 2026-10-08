@@ -2,25 +2,25 @@ import "../assets/fonts/SF-Pro-Text-Regular.otf";
 import "../assets/fonts/SF-Pro-Text-Medium.otf";
 import "../assets/fonts/SF-Pro-Text-Semibold.otf";
 import "../assets/fonts/SF-Pro-Text-Bold.otf";
-import "../assets/fonts/SF-Pro-Text-Heavy.otf";
-import "../assets/fonts/SF-Pro-Text-Black.otf";
-import { Theme, MacroItemData } from "theme.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Theme, MacroItemData, DoctorLineData } from "theme.slint";
 import { Card, Divider, StatusIndicator } from "components/controls.slint";
 import { ActionButton } from "components/buttons.slint";
 import { Sidebar } from "components/sidebar.slint";
 import { TabGeneral } from "tabs/tab_general.slint";
 import { TabTyping } from "tabs/tab_typing.slint";
 import { TabAdvanced } from "tabs/tab_advanced.slint";
+import { TabDoctor } from "tabs/tab_doctor.slint";
 import { TabAbout } from "tabs/tab_about.slint";
 
-export { MacroItemData }
+export { MacroItemData, DoctorLineData }
 
 // cua so chinh cua ung dung cai dat clak
 export component MainWindow inherits Window {
-    title: "Cấu hình Clak";
+    title: "Clak Settings";
     icon: @image-url("../assets/icons/clak-logo.svg");
     width: 950px;
-    height: 700px;
+    height: 760px;
     background: Theme.bg;
     default-font-family: "SF Pro Text";
     default-font-size: 14px;
@@ -73,9 +73,34 @@ export component MainWindow inherits Window {
     in-out property <int> update_poll_index: 4;
     in-out property <string> update_status_text: "";
     in-out property <bool> is_updating: false;
+    in-out property <bool> reload_needed: false;
+    in-out property <string> reload_status_text: "";
+    in-out property <bool> is_reloading: false;
 
     // playground
     in-out property <string> playground_input: "";
+
+    // doctor chan doan
+    in-out property <[DoctorLineData]> doctor_lines: [];
+    in-out property <bool> doctor_has_scanned: false;
+    in-out property <bool> doctor_is_scanning: false;
+    in-out property <string> doctor_last_scanned: "";
+    in-out property <string> doctor_summary_text: "";
+    in-out property <bool> doctor_is_healthy: true;
+    in-out property <bool> doctor_copied_toast: false;
+    in-out property <int> doctor_score_level: 0;
+    in-out property <string> doctor_score_text: "100";
+    in-out property <string> doctor_score_label: "Khỏe mạnh";
+    in-out property <color> doctor_score_color: #10b981;
+    in-out property <bool> profile_needs_setup: false;
+    in-out property <bool> wps_needs_fix: false;
+    in-out property <bool> jetbrains_needs_fix: false;
+
+    callback doctor_scan_requested();
+    callback doctor_copy_requested();
+    callback setup_profile_requested();
+    callback fix_wps_requested();
+    callback fix_jetbrains_requested();
 
     callback ok_requested();
     callback apply_requested();
@@ -88,9 +113,13 @@ export component MainWindow inherits Window {
     callback remove_macro(int);
     callback reset_defaults_requested();
     callback check_update_requested();
+    callback restart_fcitx5_requested();
+    callback uninstall_requested();
 
     forward-focus: fs;
     fs := FocusScope {
+        width: 100%;
+        height: 100%;
         key-pressed(event) => {
             if (event.text == Key.Escape) {
                 root.escape_requested();
@@ -100,6 +129,9 @@ export component MainWindow inherits Window {
         }
 
         HorizontalLayout {
+            width: 100%;
+            height: 100%;
+
             // sidebar dieu huong
             Sidebar {
                 selected-tab <=> root.selected_tab;
@@ -112,66 +144,225 @@ export component MainWindow inherits Window {
                 padding-top: 18px;
                 spacing: 12px;
 
-                VerticalLayout {
+                // banner canh bao clak chua duoc kich hoat trong fcitx5 profile
+                if root.profile_needs_setup: Rectangle {
+                    border-radius: Theme.radius-md;
+                    background: #3b82f6.with-alpha(0.12);
+                    border-width: 1px;
+                    border-color: #3b82f6.with-alpha(0.35);
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
+                        alignment: space-between;
+                        spacing: 12px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            width: 24px;
+                            Image {
+                                source: @image-url("../assets/icons/zap.svg");
+                                width: 18px;
+                                height: 18px;
+                                colorize: #60a5fa;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: "Chưa kích hoạt Clak trong Fcitx5";
+                                color: #60a5fa;
+                                font-size: 13px;
+                                font-weight: 600;
+                            }
+
+                            Text {
+                                text: "Clak chưa có trong danh sách bộ gõ. Nhấp để thêm ngay và đặt làm bộ gõ chính mà không cần cấu hình thủ công.";
+                                color: Theme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            HorizontalLayout {
+                                spacing: 8px;
+
+                                ActionButton {
+                                    text: "Vào Chẩn đoán";
+                                    clicked => { root.selected_tab = 3; }
+                                }
+
+                                ActionButton {
+                                    text: "Kích hoạt 1-Click";
+                                    primary: true;
+                                    clicked => { root.setup_profile_requested(); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // banner huong dan toi uu wps va jetbrains
+                if !root.profile_needs_setup && (root.wps_needs_fix || root.jetbrains_needs_fix) && root.selected_tab != 3: Rectangle {
+                    border-radius: Theme.radius-md;
+                    background: #8b5cf6.with-alpha(0.12);
+                    border-width: 1px;
+                    border-color: #8b5cf6.with-alpha(0.35);
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        padding-top: 10px;
+                        padding-bottom: 10px;
+                        alignment: space-between;
+                        spacing: 12px;
+
+                        VerticalLayout {
+                            alignment: center;
+                            width: 24px;
+                            Image {
+                                source: @image-url("../assets/icons/activity.svg");
+                                width: 18px;
+                                height: 18px;
+                                colorize: #a78bfa;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 2px;
+                            horizontal-stretch: 1;
+
+                            Text {
+                                text: "Phát hiện ứng dụng cần tối ưu (WPS Office / JetBrains)";
+                                color: #a78bfa;
+                                font-size: 13px;
+                                font-weight: 600;
+                            }
+
+                            Text {
+                                text: "Vào tab Chẩn đoán để kiểm tra môi trường và khắc phục lỗi nuốt dấu, mất focus trên Wayland.";
+                                color: Theme.text-muted;
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+
+                            ActionButton {
+                                text: "Vào Chẩn đoán";
+                                primary: true;
+                                clicked => { root.selected_tab = 3; }
+                            }
+                        }
+                    }
+                }
+
+                if root.selected_tab != 3: ScrollView {
                     vertical-stretch: 1;
-                    alignment: start;
 
-                    if root.selected_tab == 0: TabGeneral {
-                        vertical-stretch: 0;
-                        toggle_shortcut_index <=> root.toggle_shortcut_index;
-                        method_index <=> root.method_index;
-                        charset_index <=> root.charset_index;
-                        startup_mode_index <=> root.startup_mode_index;
-                        short_w <=> root.short_w;
-                        bracket_brackets <=> root.bracket_brackets;
-                        spelling_enabled <=> root.spelling_enabled;
-                        auto_restore <=> root.auto_restore;
-                        modern_tone <=> root.modern_tone;
-                        playground_input <=> root.playground_input;
-                        changed => { root.has_changes = true; }
-                    }
+                    VerticalLayout {
+                        alignment: start;
 
-                    if root.selected_tab == 1: TabTyping {
-                        vertical-stretch: 0;
-                        double_space_period <=> root.double_space_period;
-                        auto_capitalize <=> root.auto_capitalize;
-                        macros_enabled <=> root.macros_enabled;
-                        macro_items <=> root.macro_items;
-                        new_macro_trigger <=> root.new_macro_trigger;
-                        new_macro_replace <=> root.new_macro_replace;
-                        changed => { root.has_changes = true; }
-                        add_macro(trigger, replace) => { root.add_macro(trigger, replace); }
-                        remove_macro(idx) => { root.remove_macro(idx); }
-                    }
+                        if root.selected_tab == 0: TabGeneral {
+                            vertical-stretch: 0;
+                            toggle_shortcut_index <=> root.toggle_shortcut_index;
+                            method_index <=> root.method_index;
+                            charset_index <=> root.charset_index;
+                            startup_mode_index <=> root.startup_mode_index;
+                            short_w <=> root.short_w;
+                            bracket_brackets <=> root.bracket_brackets;
+                            spelling_enabled <=> root.spelling_enabled;
+                            auto_restore <=> root.auto_restore;
+                            modern_tone <=> root.modern_tone;
+                            playground_input <=> root.playground_input;
+                            changed => { root.has_changes = true; }
+                        }
 
-                    if root.selected_tab == 2: TabAdvanced {
-                        vertical-stretch: 0;
-                        autostart_system <=> root.autostart_system;
-                        remember_app_state <=> root.remember_app_state;
-                        excluded_apps <=> root.excluded_apps;
-                        new_app_name <=> root.new_app_name;
-                        uinput_ack <=> root.uinput_ack;
-                        debug_log <=> root.debug_log;
-                        changed => { root.has_changes = true; }
-                        add_excluded_app(name) => { root.add_excluded_app(name); }
-                        remove_excluded_app(idx) => { root.remove_excluded_app(idx); }
-                    }
+                        if root.selected_tab == 1: TabTyping {
+                            vertical-stretch: 0;
+                            double_space_period <=> root.double_space_period;
+                            auto_capitalize <=> root.auto_capitalize;
+                            macros_enabled <=> root.macros_enabled;
+                            macro_items <=> root.macro_items;
+                            new_macro_trigger <=> root.new_macro_trigger;
+                            new_macro_replace <=> root.new_macro_replace;
+                            changed => { root.has_changes = true; }
+                            add_macro(trigger, replace) => { root.add_macro(trigger, replace); }
+                            remove_macro(idx) => { root.remove_macro(idx); }
+                        }
 
-                    if root.selected_tab == 3: TabAbout {
-                        vertical-stretch: 0;
-                        app_version: root.app_version;
-                        auto_update_enabled <=> root.auto_update_enabled;
-                        git_commit_hash: root.git_commit_hash;
-                        git_commit_note: root.git_commit_note;
-                        git_commit_date: root.git_commit_date;
-                        update_poll_index <=> root.update_poll_index;
-                        update_status_text: root.update_status_text;
-                        is_updating: root.is_updating;
-                        changed => { root.has_changes = true; }
-                        open_url(url) => { root.open_url(url); }
-                        reset_defaults => { root.reset_defaults_requested(); }
-                        check_update_requested => { root.check_update_requested(); }
+                        if root.selected_tab == 2: TabAdvanced {
+                            vertical-stretch: 0;
+                            autostart_system <=> root.autostart_system;
+                            remember_app_state <=> root.remember_app_state;
+                            excluded_apps <=> root.excluded_apps;
+                            new_app_name <=> root.new_app_name;
+                            uinput_ack <=> root.uinput_ack;
+                            debug_log <=> root.debug_log;
+                            changed => { root.has_changes = true; }
+                            add_excluded_app(name) => { root.add_excluded_app(name); }
+                            remove_excluded_app(idx) => { root.remove_excluded_app(idx); }
+                        }
+
+                        if root.selected_tab == 4: TabAbout {
+                            vertical-stretch: 0;
+                            app_version: root.app_version;
+                            auto_update_enabled <=> root.auto_update_enabled;
+                            git_commit_hash: root.git_commit_hash;
+                            git_commit_note: root.git_commit_note;
+                            git_commit_date: root.git_commit_date;
+                            update_poll_index <=> root.update_poll_index;
+                            update_status_text: root.update_status_text;
+                            is_updating: root.is_updating;
+                            reload_needed: root.reload_needed;
+                            reload_status_text: root.reload_status_text;
+                            is_reloading: root.is_reloading;
+                            changed => { root.has_changes = true; }
+                            open_url(url) => { root.open_url(url); }
+                            reset_defaults => { root.reset_defaults_requested(); }
+                            check_update_requested => { root.check_update_requested(); }
+                            restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
+                            uninstall_requested => { root.uninstall_requested(); }
+                        }
                     }
+                }
+
+                if root.selected_tab == 3: TabDoctor {
+                    vertical-stretch: 1;
+                    lines: root.doctor_lines;
+                    has_scanned: root.doctor_has_scanned;
+                    is_scanning: root.doctor_is_scanning;
+                    last_scanned: root.doctor_last_scanned;
+                    summary_text: root.doctor_summary_text;
+                    is_healthy: root.doctor_is_healthy;
+                    copied_toast: root.doctor_copied_toast;
+                    score_level: root.doctor_score_level;
+                    score_text: root.doctor_score_text;
+                    score_label: root.doctor_score_label;
+                    score_color: root.doctor_score_color;
+                    reload_needed: root.reload_needed;
+                    is_reloading: root.is_reloading;
+                    profile_needs_setup: root.profile_needs_setup;
+                    wps_needs_fix: root.wps_needs_fix;
+                    jetbrains_needs_fix: root.jetbrains_needs_fix;
+                    scan_requested => { root.doctor_scan_requested(); }
+                    copy_requested => { root.doctor_copy_requested(); }
+                    restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
+                    setup_profile_requested => { root.setup_profile_requested(); }
+                    fix_wps_requested => { root.fix_wps_requested(); }
+                    fix_jetbrains_requested => { root.fix_jetbrains_requested(); }
                 }
 
                 // chan trang va nut bam thao tac

@@ -7,6 +7,7 @@
 #include "core.h"
 #include "uinput/uinput.h"
 #include "platform/window_info.h"
+#include "config/config.h"
 
 namespace clak {
 namespace test {
@@ -156,23 +157,14 @@ TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
     state.keyEvent(key_event);
 
     ic.setSurrounding("text", 0, 4);
+    uint64_t before_type_us = fcitx::now(CLOCK_MONOTONIC);
     ic.typeChar('d', &state);
     ic.typeChar('d', &state);
 
     EXPECT_TRUE(state.isDeleting());
     EXPECT_TRUE(state.isSelectionDeletion());
-
-    // at 100ms, the 250ms selection timer has not fired yet (unlike standard 50ms timer)
-    bool still_deleting_at_100ms = false;
-    auto mid_timer = instance_->eventLoop().addTimeEvent(
-        CLOCK_MONOTONIC,
-        fcitx::now(CLOCK_MONOTONIC) + 100000,
-        0,
-        [&](fcitx::EventSourceTime*, uint64_t) {
-            still_deleting_at_100ms = state.isDeleting();
-            return true;
-        }
-    );
+    // verify safety timer was armed with 250ms selection timeout instead of 50ms
+    EXPECT_GE(state.safetyTimerTime(), before_type_us + config::kSelectionDeletionTimeoutUs);
 
     // at 600ms, the 250ms selection timer has fired and recovered state cleanly
     auto exit_timer = instance_->eventLoop().addTimeEvent(
@@ -186,7 +178,6 @@ TEST_F(RegressionCorpusTest, test_regression_rapid_selection_deletion) {
     );
     instance_->eventLoop().exec();
 
-    EXPECT_TRUE(still_deleting_at_100ms);
     EXPECT_FALSE(state.isDeleting());
     ASSERT_FALSE(ic.commits.empty());
     EXPECT_EQ(ic.commits.back(), "đ");
@@ -347,7 +338,326 @@ TEST_F(RegressionCorpusTest, test_regression_newline_does_not_trigger_rich_text_
     EXPECT_EQ(ic.commits.back(), "ế");
 }
 
+TEST_F(RegressionCorpusTest, test_regression_twitter_draftjs_inss) {
+    // typing "instantly" on twitter: i-n-s -> "ín", next 's' cancels tone to "ins", not swallowed
+    platform::setMockActiveWindow(platform::WindowInfo{"google-chrome", "Home / X", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    fcitx::InputMethodEntry entry("clak", "Vietnamese", "vi", "clak");
+    fcitx::InputContextEvent deact_event(&ic, fcitx::EventType::InputContextInputMethodDeactivated);
+    fcitx::InputContextEvent act_event(&ic, fcitx::EventType::InputContextInputMethodActivated);
+
+    size_t uinput_calls = 0;
+    size_t uinput_bs_sent = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t count, uint32_t, uint32_t, uint32_t) {
+        uinput_calls++;
+        uinput_bs_sent = count;
+        return true;
+    });
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('i', state);
+    // chromium ozone wayland text-input pulses deactivate/activate on dom mutation
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    ic.typeChar('n', state);
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    ic.typeChar('s', state);
+
+    // expect 3 backspaces (2 to delete "in" + 1 sentinel) and state->isDeleting() == true
+    EXPECT_EQ(uinput_calls, 1);
+    EXPECT_EQ(uinput_bs_sent, 3);
+    EXPECT_TRUE(state->isDeleting());
+
+    // 2 deletion backspaces arrive
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+
+    // simulate chromium deactivate/activate during in-flight deletion
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+    // all real backspaces arrived so activate completes deletion early without waiting 150ms timeout
+    EXPECT_FALSE(state->isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "ín");
+
+    // late sentinel backspace is safely absorbed by grace window without deleting committed character
+    ic.sendCleanBackspace(state);
+    EXPECT_FALSE(state->isDeleting());
+    EXPECT_EQ(ic.commits.back(), "ín");
+
+    // simulate post-commit deactivate/activate pulse
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // user types 2nd 's' to revert tone to "ins" (deletes "ín", 2 chars + 1 sentinel = 3 bs)
+    ic.typeChar('s', state);
+    EXPECT_EQ(uinput_calls, 2);
+    EXPECT_EQ(uinput_bs_sent, 3);
+    EXPECT_TRUE(state->isDeleting());
+
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    EXPECT_FALSE(state->isDeleting());
+    EXPECT_EQ(ic.commits.back(), "ins");
+
+    // user continues typing "tantly" to complete "instantly"
+    ic.typeChar('t', state);
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    ic.typeChar('a', state);
+    ic.typeChar('n', state);
+    ic.typeChar('t', state);
+    ic.typeChar('l', state);
+    ic.typeChar('y', state);
+    EXPECT_FALSE(state->isDeleting());
+}
+
+TEST_F(RegressionCorpusTest, test_regression_twitter_draftjs_is_n_to_in) {
+    // typing "i" then "s" -> "í", then "n" -> "ín", then "s" -> reverts to "ins"
+    platform::setMockActiveWindow(platform::WindowInfo{"google-chrome", "Home / X", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    fcitx::InputMethodEntry entry("clak", "Vietnamese", "vi", "clak");
+    fcitx::InputContextEvent deact_event(&ic, fcitx::EventType::InputContextInputMethodDeactivated);
+    fcitx::InputContextEvent act_event(&ic, fcitx::EventType::InputContextInputMethodActivated);
+
+    size_t uinput_calls = 0;
+    size_t uinput_bs_sent = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t count, uint32_t, uint32_t, uint32_t) {
+        uinput_calls++;
+        uinput_bs_sent = count;
+        return true;
+    });
+
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('i', state);
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    ic.typeChar('s', state);
+    // expect uinput replacement of "i" with "í"
+    EXPECT_EQ(uinput_calls, 1);
+    EXPECT_EQ(uinput_bs_sent, 2);
+    EXPECT_TRUE(state->isDeleting());
+
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    EXPECT_FALSE(state->isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "í");
+
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // type "n" -> forwards 'n' directly to app (unfiltered), resulting in "ín"
+    EXPECT_FALSE(ic.typeChar('n', state));
+    EXPECT_EQ(uinput_calls, 1);
+    EXPECT_FALSE(state->isDeleting());
+
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // type "s" again -> reverts tone to "ins" (deletes "ín", 2 chars + 1 sentinel = 3 bs)
+    ic.typeChar('s', state);
+    EXPECT_EQ(uinput_calls, 2);
+    EXPECT_EQ(uinput_bs_sent, 3);
+    EXPECT_TRUE(state->isDeleting());
+
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    EXPECT_FALSE(state->isDeleting());
+    EXPECT_EQ(ic.commits.back(), "ins");
+}
+
+TEST_F(RegressionCorpusTest, test_regression_twitter_delete_all_and_retype) {
+    // deleting all text in twitter and typing again resets composition cleanly
+    platform::setMockActiveWindow(platform::WindowInfo{"google-chrome", "Home / X", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    fcitx::InputMethodEntry entry("clak", "Vietnamese", "vi", "clak");
+    fcitx::InputContextEvent deact_event(&ic, fcitx::EventType::InputContextInputMethodDeactivated);
+    fcitx::InputContextEvent act_event(&ic, fcitx::EventType::InputContextInputMethodActivated);
+
+    size_t uinput_calls = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t, uint32_t, uint32_t, uint32_t) {
+        uinput_calls++;
+        return true;
+    });
+
+    // type 'i'
+    ic.setSurrounding("\n", 0, 0);
+    ic.typeChar('i', state);
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // type 'n'
+    ic.setSurrounding("i\n", 1, 1);
+    ic.typeChar('n', state);
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // type 's' -> triggers replace to "ín"
+    ic.setSurrounding("in\n", 2, 2);
+    ic.typeChar('s', state);
+    EXPECT_EQ(uinput_calls, 1);
+    EXPECT_TRUE(state->isDeleting());
+
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    EXPECT_FALSE(state->isDeleting());
+    EXPECT_EQ(ic.commits.back(), "ín");
+
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // simulate user clearing all text on twitter (dom cleared to empty line)
+    ic.setSurrounding("\n", 0, 0);
+
+    // user types 'i' again -> must forward cleanly with fresh buffer
+    EXPECT_FALSE(ic.typeChar('i', state));
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // user types 'n'
+    ic.setSurrounding("i\n", 1, 1);
+    EXPECT_FALSE(ic.typeChar('n', state));
+    engine_->deactivate(entry, deact_event);
+    engine_->activate(entry, act_event);
+
+    // user types 's' -> must produce "ín", not swallowed or forwarded
+    ic.setSurrounding("in\n", 2, 2);
+    ic.typeChar('s', state);
+    EXPECT_EQ(uinput_calls, 2);
+    EXPECT_TRUE(state->isDeleting());
+
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+    EXPECT_FALSE(state->isDeleting());
+    EXPECT_EQ(ic.commits.back(), "ín");
+}
+
+TEST_F(RegressionCorpusTest, test_regression_unknown_site_draftjs_auto_detect) {
+    // unknown domain not in hardcoded list
+    platform::setMockActiveWindow(platform::WindowInfo{"google-chrome", "Some React App - random-site.org", 1234});
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    size_t uinput_calls = 0;
+    uint32_t last_post_delay = 0;
+    uint32_t last_gap_ms = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t, uint32_t post_delay, uint32_t, uint32_t gap) {
+        uinput_calls++;
+        last_post_delay = post_delay;
+        last_gap_ms = gap;
+        return true;
+    });
+
+    // initially not draftjs
+    EXPECT_FALSE(state->isDraftJsEditor());
+
+    // type 'd' then 'd'
+    ic.setSurrounding("", 0, 0);
+    ic.typeChar('d', state);
+
+    // 2nd 'd' tries surrounding delete
+    ic.setSurrounding("d", 1, 1);
+    ic.typeChar('d', state);
+    EXPECT_FALSE(ic.deletions.empty());
+
+    // react dom ignored the delete, so surrounding text became "dđ" instead of "đ"
+    ic.setSurrounding("dđ", 2, 2);
+    // next keystroke verifies surrounding and detects ignored delete
+    ic.typeChar('d', state);
+
+    // verify that draftjs was immediately auto-detected
+    EXPECT_TRUE(state->isDraftJsEditor());
+    EXPECT_TRUE(state->isRichTextEditor());
+
+    // next deletion must use uinput with draftjs pacing (1ms post_delay, 1ms gap)
+    EXPECT_GT(uinput_calls, 0);
+    EXPECT_EQ(last_post_delay, 1);
+    EXPECT_EQ(last_gap_ms, 1);
+}
+
+TEST_F(RegressionCorpusTest, test_regression_backspace_hold_policy_swallows_repeats_when_composing_empties) {
+    platform::setMockActiveWindow(platform::WindowInfo{"gedit", "Untitled Document", 4567});
+    MockInputContext ic(instance_->inputContextManager(), "gedit");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    // type "tieng" (in-flight composition without tone replacement)
+    ic.typeString("tieng", state);
+    EXPECT_FALSE(state->isBackspaceHoldArmed());
+    EXPECT_FALSE(state->isBackspaceSuppressing());
+
+    // initial backspace down press while composing (deletes 'g')
+    bool filtered = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+    EXPECT_FALSE(filtered);
+    EXPECT_TRUE(state->isBackspaceHoldArmed());
+    EXPECT_FALSE(state->isBackspaceSuppressing());
+
+    // key-repeats delete 'n', 'e', 'i'
+    for (int i = 0; i < 3; ++i) {
+        ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+        EXPECT_FALSE(state->isBackspaceSuppressing());
+    }
+
+    // next repeat deletes final character 't' and empties the composing buffer
+    ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+    EXPECT_TRUE(state->isBackspaceSuppressing());
+
+    // subsequent key-repeat events while still held down must be swallowed
+    bool repeat_filtered1 = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+    EXPECT_TRUE(repeat_filtered1);
+    bool repeat_filtered2 = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+    EXPECT_TRUE(repeat_filtered2);
+
+    // key release clears suppression
+    ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), true, state);
+    EXPECT_FALSE(state->isBackspaceHoldArmed());
+    EXPECT_FALSE(state->isBackspaceSuppressing());
+
+    // subsequent new backspace press is forwarded normally
+    bool new_press_filtered = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+    EXPECT_FALSE(new_press_filtered);
+    EXPECT_FALSE(state->isBackspaceHoldArmed());
+}
+
+TEST_F(RegressionCorpusTest, test_regression_backspace_hold_does_not_suppress_non_composing_text) {
+    platform::setMockActiveWindow(platform::WindowInfo{"gedit", "Untitled Document", 4567});
+    MockInputContext ic(instance_->inputContextManager(), "gedit");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    state->reset(true);
+
+    // hold backspace without composing
+    bool filtered1 = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+    EXPECT_FALSE(filtered1);
+    EXPECT_FALSE(state->isBackspaceHoldArmed());
+    EXPECT_FALSE(state->isBackspaceSuppressing());
+
+    // repeat events must not be suppressed
+    for (int i = 0; i < 5; ++i) {
+        bool repeat_filtered = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
+        EXPECT_FALSE(repeat_filtered);
+        EXPECT_FALSE(state->isBackspaceSuppressing());
+    }
+}
+
 } // namespace test
 } // namespace clak
+
+
 
 

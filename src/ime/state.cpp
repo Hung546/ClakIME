@@ -87,7 +87,7 @@ ClakState::~ClakState() {
 void ClakState::reset(bool force) {
     std::string app = appKey();
     std::string site = activeSite();
-    if (is_deleting_ && !force) {
+    if (is_deleting_) {
         utils::clakLog("reset: ignored mid-flight uinput deletion (sentinel in flight: " +
                        std::to_string(current_backspace_count_) + "/" + std::to_string(expected_backspaces_) +
                        " pending='" + pending_commit_string_ + "' app=" + app + " site='" + site + "')");
@@ -120,16 +120,20 @@ void ClakState::reset(bool force) {
     is_selection_deletion_ = false;
     expected_backspaces_ = 0;
     current_backspace_count_ = 0;
+    in_flight_sentinel_count_ = 0;
+    sentinel_grace_until_us_ = 0;
     pending_commit_string_.clear();
     buffered_keys_.clear();
     verify_.pending = false;
     is_canvas_editor_ = false;
-    if (force) {
-        is_rich_text_editor_ = false;
-        mismatch_count_ = 0;
-    }
+    is_rich_text_editor_ = false;
+    is_draftjs_editor_ = false;
+    mismatch_count_ = 0;
     cached_site_.clear();
     last_site_check_us_ = 0;
+    backspace_down_ = false;
+    backspace_hold_armed_ = false;
+    backspace_suppress_repeats_ = false;
     if (rust_ctx_) {
         clak_context_reset(rust_ctx_);
     }
@@ -171,6 +175,11 @@ bool ClakState::isGecko() const {
     return config::isGeckoApp(app);
 }
 
+bool ClakState::isDraftJsEditor() const {
+    std::string site = const_cast<ClakState*>(this)->activeSite();
+    return is_draftjs_editor_ || config::isDraftJsSite(site);
+}
+
 bool ClakState::isCursorNearWord(const fcitx::SurroundingText& surr) {
     if (!surr.isValid()) return false;
     const std::string& text = surr.text();
@@ -209,7 +218,7 @@ static bool isWpsFontSizeText(const std::string& text) {
     return true;
 }
 
-bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& surr) {
+bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, const fcitx::SurroundingText& /*surr*/) {
     if (is_modal_editor_) {
         return true;
     }
@@ -225,9 +234,6 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, cons
     if (config::isTerminalApp(app)) {
         return true;
     }
-    if (app == "default" && (!surr.isValid() || surr.text().empty() || surr.text() == "\n") && platform::isAnyTerminalForeground()) {
-        return true;
-    }
     // gecko apps (zen, firefox) require paced uinput to avoid wayland delete_surrounding_text bugs
     if (config::isGeckoApp(app)) {
         return true;
@@ -239,7 +245,7 @@ bool ClakState::shouldUseUinput(bool use_surrounding, uint32_t action_type, cons
     if (action_type == CLAK_ACTION_ADDRESS_BAR_FIX) {
         return true;
     }
-    if (config::isForceUinputSite(site)) {
+    if (config::isForceUinputSite(site) || isDraftJsEditor()) {
         return true;
     }
     if (is_canvas_editor_ || is_rich_text_editor_) {
@@ -299,11 +305,18 @@ void ClakState::verifySurrounding(const fcitx::SurroundingText& surr) {
     if (actualWord == verify_.expectWord) {
         mismatch_count_ = 0;
         is_rich_text_editor_ = false;
+        is_draftjs_editor_ = false;
     } else {
         mismatch_count_++;
         utils::clakLog("verifySurrounding mismatch #" + std::to_string(mismatch_count_) +
                        ": expected='" + verify_.expectWord + "' actual='" + actualWord + "'");
-        if (mismatch_count_ >= config::kMismatchThreshold) {
+        // if delete was completely ignored in rich text dom, switch immediately
+        bool delete_ignored = (!verify_.preWord.empty() && actualWord.find(verify_.preWord) != std::string::npos);
+        if (delete_ignored) {
+            is_draftjs_editor_ = true;
+            is_rich_text_editor_ = true;
+            utils::clakLog("verifySurrounding: detected draftjs / react contenteditable editor, switched to uinput");
+        } else if (mismatch_count_ >= config::kMismatchThreshold) {
             is_rich_text_editor_ = true;
             utils::clakLog("verifySurrounding: auto-switched to uinput for this editor");
         }
@@ -320,8 +333,10 @@ std::string ClakState::classifyGroup(const std::string& app, const std::string& 
     bool has_url_cap = ic_ && ic_->capabilityFlags().test(fcitx::CapabilityFlag::Url);
     if (is_autofill || has_url_cap) return "address-bar";
     if (isWpsOfficeApp(app)) return "WPS-Office";
+    if (config::isJetBrainsApp(app)) return "JetBrains-Uinput";
     if (config::isTerminalApp(app)) return "Terminal-Uinput";
     if (site == "docs.google.com" || site.find("docs.google.com") != std::string::npos) return "Docs-Uinput";
+    if (isDraftJsEditor()) return "DraftJS-Uinput";
     if (config::isGeckoApp(app)) return "Gecko-Uinput";
     if (used_uinput) return "Chromium-Uinput";
     return "Chromium-SurroundingText";
@@ -382,6 +397,8 @@ void ClakState::arm_safety_timer() {
                 is_selection_deletion_ = false;
                 expected_backspaces_ = 0;
                 current_backspace_count_ = 0;
+                in_flight_sentinel_count_ = 0;
+                sentinel_grace_until_us_ = 0;
                 if (!pending_commit_string_.empty()) {
                     doCommitString(pending_commit_string_);
                     pending_commit_string_.clear();
@@ -393,6 +410,35 @@ void ClakState::arm_safety_timer() {
             return true;
         }
     );
+}
+
+void ClakState::finishUinputDeletion() {
+    if (!is_deleting_) return;
+    if (safety_timer_) {
+        safety_timer_.reset();
+    }
+    if (expected_backspaces_ > current_backspace_count_) {
+        in_flight_sentinel_count_ = expected_backspaces_ - current_backspace_count_;
+        sentinel_grace_until_us_ = fcitx::now(CLOCK_MONOTONIC) + 50000;
+    }
+    is_deleting_ = false;
+    is_address_bar_fix_ = false;
+    is_selection_deletion_ = false;
+    expected_backspaces_ = 0;
+    current_backspace_count_ = 0;
+
+    if (!pending_commit_string_.empty()) {
+        doCommitString(pending_commit_string_);
+        pending_commit_string_.clear();
+    }
+    if (op_start_us_ > 0) {
+        uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
+        uint64_t roundtrip_us = (now_us > op_start_us_) ? (now_us - op_start_us_) : 0;
+        observeTransactionLatency(roundtrip_us);
+    }
+    logLatency(op_group_, op_start_us_, "REPLACE");
+    op_start_us_ = 0;
+    replayBufferedKeys();
 }
 
 void ClakState::replayBufferedKeys() {
@@ -450,12 +496,6 @@ void ClakState::updateModalEditorStatus() {
     platform::WindowInfo win = platform::getActiveWindow(fallback);
     bool was_editor = is_modal_editor_;
     is_modal_editor_ = platform::isEditorActive(win);
-    if (is_modal_editor_ && (win.win_class.empty() || win.win_class == "default") && ic_) {
-        const auto& surr = ic_->surroundingText();
-        if (surr.isValid() && surr.cursor() > 0 && !surr.text().empty() && surr.text() != "\n") {
-            is_modal_editor_ = false;
-        }
-    }
     if (!was_editor && is_modal_editor_) {
         editor_mode_ = EditorMode::NORMAL;
         utils::clakLog("modal editor activated: class='" + win.win_class + "' title='" + win.win_title + "' pid=" + std::to_string(win.pid) + " -> mode: NORMAL");
@@ -562,21 +602,26 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     std::string app = appKey();
     std::string site = activeSite();
     bool is_term = config::isTerminalApp(app);
+    bool is_jb = config::isJetBrainsApp(app);
     bool is_meta = config::isMetaSite(site) || config::isMetaSite(app);
-    bool is_force_uinput = config::isForceUinputSite(site);
+    bool is_draftjs = isDraftJsEditor();
+    bool is_force_uinput = config::isForceUinputSite(site) || is_draftjs;
     bool is_gecko = config::isGeckoApp(app);
 
     bool has_surrounding = ic_->capabilityFlags().test(fcitx::CapabilityFlag::SurroundingText);
     const auto& surr = ic_->surroundingText();
 
-    if (sym == FcitxKey_BackSpace && has_surrounding && surr.isValid() && surr.cursor() != surr.anchor()) {
-        reset(/*force=*/true);
-        return false;
+    if (sym == FcitxKey_BackSpace && has_surrounding && surr.isValid()) {
+        if (surr.cursor() == 0 || surr.cursor() != surr.anchor()) {
+            reset(/*force=*/true);
+            return false;
+        }
     }
 
     if (is_meta) {
         is_canvas_editor_ = false;
         is_rich_text_editor_ = false;
+        is_draftjs_editor_ = false;
     } else if (!is_gecko && has_surrounding && surr.isValid()) {
         const std::string& text = surr.text();
         if (text == "  " || text == "\xc2\xa0\xc2\xa0") {
@@ -589,7 +634,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     bool is_office = isWpsOfficeApp(app);
     bool is_wps_toolbar = is_office && isWpsFontSizeText(surr.text());
     // valid surrounding text to pass to rust engine (filter bogus wps font-size toolbar)
-    bool valid_surr = has_surrounding && surr.isValid() && !is_canvas_editor_ && !is_term && !is_wps_toolbar;
+    bool valid_surr = has_surrounding && surr.isValid() && !is_canvas_editor_ && !is_term && !is_jb && !is_wps_toolbar;
     if (valid_surr) {
         surr_text = surr.text().c_str();
         cursor = surr.cursor();
@@ -601,6 +646,8 @@ bool ClakState::handleKey(const fcitx::Key& key) {
     bool skip_verify = is_gecko || is_meta;
     if (verify_.pending && use_surrounding && !skip_verify) {
         verifySurrounding(surr);
+        is_draftjs = isDraftJsEditor();
+        use_surrounding = valid_surr && !is_rich_text_editor_ && !is_force_uinput && !is_draftjs && !is_office;
     } else if (verify_.pending) {
         verify_.pending = false;
     }
@@ -671,11 +718,14 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 op_group_ = classifyGroup(app, site, is_autofill, true);
 
                 bool is_wps = isWpsOfficeApp(app);
-                bool use_term_pacing = is_term || is_modal_editor_;
+                bool use_term_pacing = is_term || is_jb || is_modal_editor_;
                 uint32_t post_delay = is_autofill ? config::kAddressBarPostDelayMs :
                                       (use_term_pacing ? config::kTerminalPostDelayMs :
-                                      (is_wps ? 3 : 2));
-                uint32_t gap_ms = use_term_pacing ? config::kTerminalGapMs : (is_wps ? 2 : 2);
+                                      (is_draftjs ? 1 :
+                                      (is_wps ? 3 : 2)));
+                uint32_t gap_ms = use_term_pacing ? config::kTerminalGapMs :
+                                  (is_draftjs ? 1 :
+                                  (is_wps ? 2 : 2));
                 uint32_t pre_delay = 0;
 
                 utils::clakLog("uinput waiting for sentinel: expected=" + std::to_string(bs_to_send) +
@@ -736,36 +786,44 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     bool is_alt = key.states().test(fcitx::KeyState::Alt);
     bool is_ctrl = key.states().test(fcitx::KeyState::Ctrl);
     bool is_shift = key.states().test(fcitx::KeyState::Shift);
+    bool is_super = key.states().test(fcitx::KeyState::Super);
+    bool is_ctrl_sym = (key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R);
+    bool is_shift_sym = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R);
     char* sc_c = engine_->config() ? clak_config_get_toggle_shortcut(engine_->config()) : nullptr;
     std::string shortcut = sc_c ? sc_c : "ctrl_shift";
     if (sc_c) clak_free_string(sc_c);
 
     if (keyEvent.isRelease()) {
-        if (is_deleting_ && key.sym() == FcitxKey_BackSpace) {
-            keyEvent.filterAndAccept();
-            return;
+        if (key.sym() == FcitxKey_BackSpace) {
+            backspace_down_ = false;
+            backspace_hold_armed_ = false;
+            backspace_suppress_repeats_ = false;
         }
-        if (shortcut == "ctrl_shift" && ctrl_shift_down_) {
-            bool is_mod_release = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R ||
-                                   key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R);
-            if (is_mod_release) {
-                if (!ctrl_shift_other_key_) {
-                    engine_->toggleAppEnabled(app);
-                    reset(/*force=*/true);
-                    ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
-                    if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
+        if (shortcut == "ctrl_shift") {
+            if (ctrl_shift_armed_ && (is_shift_sym || is_ctrl_sym)) {
+                engine_->toggleAppEnabled(app);
+                reset(/*force=*/true);
+                ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
+                if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
 #ifdef FCITX5_HAVE_SHOW_CUSTOM_IM_INFO
-                        engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
+                    engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
 #else
-                        engine_->instance()->showInputMethodInformation(ic_);
+                    engine_->instance()->showInputMethodInformation(ic_);
 #endif
-                    }
                 }
-                ctrl_shift_down_ = false;
-                ctrl_shift_other_key_ = false;
+                ctrl_shift_armed_ = false;
+                ctrl_pressed_first_ = false;
+            } else if (is_ctrl_sym) {
+                ctrl_pressed_first_ = false;
             }
         }
         return;
+    }
+
+    if (key.sym() != FcitxKey_BackSpace) {
+        backspace_down_ = false;
+        backspace_hold_armed_ = false;
+        backspace_suppress_repeats_ = false;
     }
 
     syncConfig();
@@ -791,17 +849,24 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     }
 
     if (shortcut == "ctrl_shift") {
-        bool is_shift_press = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R) && is_ctrl;
-        bool is_ctrl_press = (key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R) && is_shift;
-        if (is_shift_press || is_ctrl_press) {
-            ctrl_shift_down_ = true;
-            // defer toggle to key release to avoid intercepting shortcuts like ctrl+shift+arrow
-        } else if (ctrl_shift_down_ && !key.isModifier()) {
-            ctrl_shift_other_key_ = true;
+        if (ctrl_shift_armed_) {
+            // any key other than ctrl or shift cancels armed toggle
+            if (!is_ctrl_sym && !is_shift_sym) {
+                ctrl_shift_armed_ = false;
+            }
+        } else if (is_ctrl_sym && !is_shift && !is_alt && !is_super) {
+            // phase 1: ctrl pressed first cleanly without other modifiers held
+            ctrl_pressed_first_ = true;
+        } else if (is_shift_sym && ctrl_pressed_first_ && is_ctrl) {
+            // phase 2: shift pressed strictly after clean ctrl
+            ctrl_shift_armed_ = true;
+            ctrl_pressed_first_ = false;
+        } else {
+            // any intervening key cancels phase 1
+            ctrl_pressed_first_ = false;
         }
     }
 
-    bool is_super = key.states().test(fcitx::KeyState::Super);
     bool has_ctrl_alt = is_ctrl || is_alt || is_super;
     uint32_t sym = key.sym();
 
@@ -828,33 +893,19 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
 
     // uinput deletion sentinel check: only clean backspace from uinput loopback counts
     bool is_clean_backspace = (sym == FcitxKey_BackSpace) && !has_ctrl_alt && !is_shift;
+    if (is_clean_backspace && in_flight_sentinel_count_ > 0 &&
+        fcitx::now(CLOCK_MONOTONIC) <= sentinel_grace_until_us_) {
+        in_flight_sentinel_count_--;
+        keyEvent.filterAndAccept();
+        return;
+    }
     if (is_deleting_ && is_clean_backspace) {
         current_backspace_count_++;
         if (current_backspace_count_ < expected_backspaces_) {
             return;
         }
         keyEvent.filterAndAccept();
-        if (safety_timer_) {
-            safety_timer_.reset();
-        }
-        is_deleting_ = false;
-        is_address_bar_fix_ = false;
-        is_selection_deletion_ = false;
-        expected_backspaces_ = 0;
-        current_backspace_count_ = 0;
-
-        if (!pending_commit_string_.empty()) {
-            doCommitString(pending_commit_string_);
-            pending_commit_string_.clear();
-        }
-        if (op_start_us_ > 0) {
-            uint64_t now_us = fcitx::now(CLOCK_MONOTONIC);
-            uint64_t roundtrip_us = (now_us > op_start_us_) ? (now_us - op_start_us_) : 0;
-            observeTransactionLatency(roundtrip_us);
-        }
-        logLatency(op_group_, op_start_us_, "REPLACE");
-        op_start_us_ = 0;
-        replayBufferedKeys();
+        finishUinputDeletion();
         return;
     }
 
@@ -869,6 +920,8 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
             is_selection_deletion_ = false;
             expected_backspaces_ = 0;
             current_backspace_count_ = 0;
+            in_flight_sentinel_count_ = 0;
+            sentinel_grace_until_us_ = 0;
             pending_commit_string_.clear();
             buffered_keys_.clear();
         }
@@ -906,6 +959,17 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
 
     if (sym == FcitxKey_BackSpace) {
         last_selection_time_us_ = 0;
+        if (!has_ctrl_alt) {
+            if (backspace_suppress_repeats_) {
+                // swallow backspace repeats after composing buffer is emptied
+                keyEvent.filterAndAccept();
+                return;
+            }
+            if (!backspace_down_) {
+                backspace_down_ = true;
+                backspace_hold_armed_ = rust_ctx_ && clak_is_composing(rust_ctx_);
+            }
+        }
     }
 
     if (!is_deleting_) {
@@ -914,6 +978,12 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
 
     if (handleKey(key)) {
         keyEvent.filterAndAccept();
+    }
+
+    if (sym == FcitxKey_BackSpace && !has_ctrl_alt && backspace_hold_armed_) {
+        if (!rust_ctx_ || !clak_is_composing(rust_ctx_)) {
+            backspace_suppress_repeats_ = true;
+        }
     }
 }
 

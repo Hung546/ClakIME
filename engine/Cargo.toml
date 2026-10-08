@@ -1,6 +1,6 @@
 [package]
 name = "clak-engine"
-version = "0.2.9"
+version = "0.4.4"
 edition = "2021"
 description = "Vietnamese input method engine"
 license = "0BSD"
@@ -28,3 +28,22 @@ harness = false
 missing_safety_doc = "allow"
 ptr_arg = "allow"
 needless_range_loop = "allow"
+
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
+

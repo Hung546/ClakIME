@@ -1,0 +1,9 @@
+Package: clak
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: fcitx5
+Maintainer: versenilvis <versedev.store@proton.me>
+Description: High-stability Vietnamese input method for Linux with Fcitx5
+ Clak is a modern, stable Vietnamese input engine designed for Linux.

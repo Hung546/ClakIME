@@ -63,6 +63,9 @@ public:
     void toggleAppEnabled(const std::string& app);
     void setAppEnabled(const std::string& app, bool enabled);
     void onMouseClick();
+    fcitx::FactoryFor<ime::ClakState>& factory() { return factory_; }
+    bool checkBinaryReplaced();
+    bool isBinaryReplaced() const { return binary_replaced_; }
 
 private:
     fcitx::Instance* instance_;
@@ -79,6 +82,9 @@ private:
     std::unique_ptr<platform::MouseTracker> mouse_tracker_;
     ClakSettingsAction settings_action_;
     ClakFcitxConfig fcitx_config_;
+    uint64_t last_replacement_check_us_{0};
+    bool binary_replaced_{false};
+    bool notification_sent_{false};
 };
 
 class ClakEngineFactory : public fcitx::AddonFactory {

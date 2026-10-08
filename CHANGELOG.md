@@ -2,6 +2,131 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.4.4](https://github.com/versenilvis/clak/releases/tag/v0.4.4) - 2026-10-07
+
+### Bug fixes
+
+- Use fcitx5 dbus controller to add clak and switch im reliably ([87a6c5](https://github.com/versenilvis/clak/commit/87a6c52eedc815ba62ab439100bac3e175c98ad4))
+
+## [v0.4.3](https://github.com/versenilvis/clak/releases/tag/v0.4.3) - 2026-10-07
+
+### Bug fixes
+
+- Add doctor reminder in post_upgrade and ensure 1-click activates clak immediately ([1b6a71](https://github.com/versenilvis/clak/commit/1b6a71b9d863ed44e69e556744d73a116b09c5c9))
+
+## [v0.4.2](https://github.com/versenilvis/clak/releases/tag/v0.4.2) - 2026-10-07
+
+### Bug fixes
+
+- Redesign doctor tab layout to prevent horizontal overflow ([b4ccae](https://github.com/versenilvis/clak/commit/b4ccae54bd1dbe5951c54f688a3570557ab04f7f))
+- Dynamic layout for doctor console log to eliminate empty void ([d5cecd](https://github.com/versenilvis/clak/commit/d5cecdaeeaa612909a664fc34661255f46281118))
+
+### Documentation
+
+- Fix typos and enhance readability ([4e8b53](https://github.com/versenilvis/clak/commit/4e8b533e235d0f77afbfda58a5d83ae22b8dae5b))
+- Indicate that clak menu, not its core ([d4161a](https://github.com/versenilvis/clak/commit/d4161af18b608d57a81d21381b28c2f40245846f))
+
+### Features
+
+- Backspace hold policy to prevent over-deletion ([6af36d](https://github.com/versenilvis/clak/commit/6af36d3787b7c74a3cc47d1272e52b6c69f1b46e))
+- Binary replacement detection in engine and one-click reload in ui ([18606f](https://github.com/versenilvis/clak/commit/18606fa302131b85790fdfc5285c665bc222356f))
+- Tolerance for lagging surrounding text during rapid typing ([dbb3f0](https://github.com/versenilvis/clak/commit/dbb3f09d4bbf11cb71c8e61848ae8e5b0dc4394b))
+- Dynamically update subModeLabel to VI and EN ([0dd908](https://github.com/versenilvis/clak/commit/0dd9082e46a5e5b8c0bfafd07120ecea45b8b016))
+- Packaging udev rules and 1-click compatibility setup in clak-gui ([049665](https://github.com/versenilvis/clak/commit/049665337eb606bc011cdfa9b66f30c7be89000c))
+- Prompt user to run diagnostics in AUR install and auto-run diagnostics on gui startup ([4f3a89](https://github.com/versenilvis/clak/commit/4f3a8900b5c4d8e2b23ebd29e2e57eccce423786))
+
+### Performance
+
+- Optimize for input using draftjs ([cccb3c](https://github.com/versenilvis/clak/commit/cccb3c83bb542d3ce7e662dd38eb3937f59ab69b))
+
+## [v0.4.1](https://github.com/versenilvis/clak/releases/tag/v0.4.1) - 2026-10-06
+
+### Documentation
+
+- Reformat ([7550ab](https://github.com/versenilvis/clak/commit/7550ab78b2c382c64f306872353a234a414c9404))
+- Settings menu and feedback info ([e37c90](https://github.com/versenilvis/clak/commit/e37c909c528b85ac83e9545791847af502d1e471))
+
+### Performance
+
+- Trim unused font weights, disable accessibility, and enable fat LTO ([23e9d6](https://github.com/versenilvis/clak/commit/23e9d697a703893ee2798ef7440e2dc3103fd09a))
+
+## [v0.4.0](https://github.com/versenilvis/clak/releases/tag/v0.4.0) - 2026-10-06
+
+### Features
+
+- Automatically diagnose system issues ([#2](https://github.com/versenilvis/clak/issues/2)) ([915456](https://github.com/versenilvis/clak/commit/915456a48f984adfdeffa9425571e2e039c860f6))
+
+### Performance
+
+- Maximize production performance and optimize storage caching ([820aa3](https://github.com/versenilvis/clak/commit/820aa31076ba40a5092f27a9a3dfe39c5841d3b0))
+
+## [v0.3.2](https://github.com/versenilvis/clak/releases/tag/v0.3.2) - 2026-10-05
+
+## [v0.3.1](https://github.com/versenilvis/clak/releases/tag/v0.3.1) - 2026-10-05
+
+### Bug fixes
+
+- Eliminate timing flake in rapid selection deletion test ([d6eb2a](https://github.com/versenilvis/clak/commit/d6eb2a7c7fe5302d605b637fed3b8dc1390745b6))
+
+### Documentation
+
+- Refine Clak feature descriptions in README ([c4ebef](https://github.com/versenilvis/clak/commit/c4ebef4bdfaa8090274985726e02bc3f2218f0dd))
+
+### Features
+
+- Support jetbrains apps ([f9b6db](https://github.com/versenilvis/clak/commit/f9b6db21067cb89f10d21105612e5f87b48022ac))
+
+## [v0.3.0](https://github.com/versenilvis/clak/releases/tag/v0.3.0) - 2026-10-05
+
+### Bug fixes
+
+- Fix duplicate characters by restoring backspace release events and delay pacing ([270f1c](https://github.com/versenilvis/clak/commit/270f1c41e6d33577fafbd7dec0cbd7a9c791c1ae))
+- Restore classic 950x700 floating window size ([a8a9b9](https://github.com/versenilvis/clak/commit/a8a9b9ba8998fa748fa16ce51194340d7af6e248))
+
+### Documentation
+
+- Small note ([91d3d8](https://github.com/versenilvis/clak/commit/91d3d8f6d876cd47448e1206c9b3cf2c02dd048a))
+- Add image to uninstall ([9ae079](https://github.com/versenilvis/clak/commit/9ae0798878fd2656d6908b288a22e79f52610267))
+
+## [v0.2.11](https://github.com/versenilvis/clak/releases/tag/v0.2.11) - 2026-10-05
+
+### Bug fixes
+
+- Using renderer-skia-opengl to render correct font ([f97b77](https://github.com/versenilvis/clak/commit/f97b776982c1c461cd7357a5d9cdd67f7cdc4449))
+
+### Documentation
+
+- Small note ([d2c22c](https://github.com/versenilvis/clak/commit/d2c22c83f507c77bfb04da67b00a0ac092fb16fd))
+
+### Features
+
+- Uninstall setting option ([5e0219](https://github.com/versenilvis/clak/commit/5e02193adc108aadeeae62cbf104d99c0ca9091b))
+
+## [v0.2.10](https://github.com/versenilvis/clak/releases/tag/v0.2.10) - 2026-10-05
+
+### Bug fixes
+
+- Prevent word deletion on space and improve terminal compatibility ([#1](https://github.com/versenilvis/clak/issues/1)) ([8055aa](https://github.com/versenilvis/clak/commit/8055aa608f383df91ee533713c99f8229fdfd5fc))
+
+## [v0.2.9](https://github.com/versenilvis/clak/releases/tag/v0.2.9) - 2026-10-05
+
+### Bug fixes
+
+- Resolve installer hangs, dynamic download size, and optimize install flow ([8b7325](https://github.com/versenilvis/clak/commit/8b7325670cd5126e14a973211258078f4341f2ea))
+- Always restore original fcitx5 config backup on uninstall ([927c5e](https://github.com/versenilvis/clak/commit/927c5ec8e651f387639335886051de697a454d09))
+- Resolve ubuntu compatibility, desktop path, and multiarch paths ([9855fa](https://github.com/versenilvis/clak/commit/9855fa32d787e1957ac25c8ee48e2f9f04d030dd))
+- Enable window resizing, fix sidebar clipping and add tab scrollview ([e7ee95](https://github.com/versenilvis/clak/commit/e7ee9592de04a5200e8df68b789c3ac1bc95d0ab))
+- Adjust default floating window size to 880x560 ([2e49c4](https://github.com/versenilvis/clak/commit/2e49c47000a5bd0ee2ab98f4347903c664f5de13))
+
+### Features
+
+- Prompt user to install fcitx5 if missing and stop if declined ([f42173](https://github.com/versenilvis/clak/commit/f42173df2d12b48d1276435376da0b8b575f7d8a))
+
+### Refactors
+
+- Apply safe installer enhancements and avoid invasive system changes ([1b293f](https://github.com/versenilvis/clak/commit/1b293f9b18a3dbc5417a14393e445b1960eb7c54))
+- Remove dead pkg_cmd variable and streamline ensure_fcitx5 ([4f291a](https://github.com/versenilvis/clak/commit/4f291a83d1af5820764b61ad97e239605677097c))
+
 ## [v0.2.9](https://github.com/versenilvis/clak/releases/tag/v0.2.9) - 2026-10-05
 
 ### Bug fixes

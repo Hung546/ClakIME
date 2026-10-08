@@ -1,8 +1,806 @@
 slint::include_modules!();
 
+use clak_diagnostics::DiagnosticReport;
 use clak_engine::config::{ClakConfig, MacroItem};
 use slint::{ComponentHandle, Model, SharedString, VecModel};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+
+// build colorized doctor log lines for slint terminal console
+fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorLineData> {
+    let mut lines = Vec::new();
+    let header_color = slint::Color::from_argb_u8(255, 56, 189, 248);
+    let normal_color = slint::Color::from_argb_u8(255, 212, 212, 216);
+    let ok_color = slint::Color::from_argb_u8(255, 52, 211, 153);
+    let warn_color = slint::Color::from_argb_u8(255, 251, 191, 36);
+    let error_color = slint::Color::from_argb_u8(255, 248, 113, 113);
+    let code_color = slint::Color::from_argb_u8(255, 167, 139, 250);
+    let dim_color = slint::Color::from_argb_u8(255, 113, 113, 122);
+
+    // danh sach cac file va checkpoint kiem tra theo thu tu
+    if report.permissions.uinput_writable {
+        lines.push(DoctorLineData {
+            text: format!("[{}] SUCCESS | /dev/uinput (Quyền ghi khả dụng)", time_tag).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!("[{}] FAILED  | /dev/uinput (Không có quyền ghi)", time_tag).into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+
+    if report.permissions.input_readable_count > 0 {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | /dev/input (Đọc được {}/{} thiết bị)",
+                time_tag,
+                report.permissions.input_readable_count,
+                report.permissions.input_total_count
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | /dev/input (Không đọc được thiết bị input)",
+                time_tag
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+
+    if report.daemon.fcitx5_running && report.memory.clak_loaded && !report.memory.is_deleted_inode
+    {
+        let pids = report
+            .daemon
+            .fcitx5_pids
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | /proc/{}/maps (Fcitx5 nạp libclak.so)",
+                time_tag, pids
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else if report.daemon.fcitx5_running
+        && report.memory.clak_loaded
+        && report.memory.is_deleted_inode
+    {
+        let pids = report
+            .daemon
+            .fcitx5_pids
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | /proc/{}/maps (Inode cũ trong RAM)",
+                time_tag, pids
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    } else if report.daemon.fcitx5_running {
+        let pids = report
+            .daemon
+            .fcitx5_pids
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | /proc/{}/maps (Chưa nạp libclak.so)",
+                time_tag, pids
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | fcitx5 daemon (Không tìm thấy tiến trình)",
+                time_tag
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+
+    if report.config.config_file_exists {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | {}",
+                time_tag,
+                report.config.config_path.display()
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | {} (Mặc định)",
+                time_tag,
+                report.config.config_path.display()
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    }
+
+    if report.config.log_file_exists {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | {} ({:.1} KB)",
+                time_tag,
+                report.config.log_path.display(),
+                report.config.log_size_kb.unwrap_or(0.0)
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | {} (Chưa bật debug)",
+                time_tag,
+                report.config.log_path.display()
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    }
+
+    if report.autostart.is_enabled {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | ~/.config/autostart/org.fcitx.Fcitx5.desktop",
+                time_tag
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | ~/.config/autostart/org.fcitx.Fcitx5.desktop (Chưa kích hoạt)",
+                time_tag
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+
+    let gtk_im = report.environment.gtk_im_module.as_deref().unwrap_or("");
+    if gtk_im == "ibus" {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | GTK_IM_MODULE=ibus (Xung đột với IBus)",
+                time_tag
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | GTK_IM_MODULE ({})",
+                time_tag,
+                if gtk_im.is_empty() {
+                    "Mặc định Wayland"
+                } else {
+                    gtk_im
+                }
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    }
+
+    let has_gtk = report.frontends.gtk3 || report.frontends.gtk4;
+    if has_gtk {
+        lines.push(DoctorLineData {
+            text: format!("[{}] SUCCESS | Frontend GTK Fcitx5 (Khả dụng)", time_tag).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | Frontend GTK Fcitx5 (Thiếu module GTK3/4)",
+                time_tag
+            )
+            .into(),
+            color: warn_color,
+            bold: true,
+        });
+    }
+
+    if report.conflicts.is_empty() {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] SUCCESS | Kiểm tra xung đột (Không phát hiện xung đột)",
+                time_tag
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "[{}] FAILED  | Kiểm tra xung đột (Phát hiện {} ứng dụng/daemon)",
+                time_tag,
+                report.conflicts.len()
+            )
+            .into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+
+    lines.push(DoctorLineData {
+        text: "Đã quét xong!".into(),
+        color: ok_color,
+        bold: true,
+    });
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+
+    lines.push(DoctorLineData {
+        text: "[1/8] Môi trường hệ thống:".into(),
+        color: header_color,
+        bold: true,
+    });
+    lines.push(DoctorLineData {
+        text: format!(
+            "  • Hệ điều hành: {} ({})",
+            report.system.os_name, report.system.architecture
+        )
+        .into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: format!("  • Nhân Linux: {}", report.system.kernel_release).into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: format!(
+            "  • Session: {} (Desktop: {})",
+            report.system.session_type, report.system.desktop_environment
+        )
+        .into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+
+    lines.push(DoctorLineData {
+        text: "[2/8] Thiết bị ảo và Quyền hạn:".into(),
+        color: header_color,
+        bold: true,
+    });
+    if report.permissions.uinput_writable {
+        lines.push(DoctorLineData {
+            text: "  • /dev/uinput: [OK] Khả dụng (chống nuốt chữ Kitty, Ghostty, Chrome, VSCode)"
+                .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • /dev/uinput: [THIẾU QUYỀN] Người dùng chưa có quyền ghi vào /dev/uinput"
+                .into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+    if report.permissions.input_readable_count > 0 {
+        lines.push(DoctorLineData {
+            text: format!(
+                "  • /dev/input (Mouse Tracking): [OK] Đọc được {}/{} thiết bị",
+                report.permissions.input_readable_count, report.permissions.input_total_count
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • /dev/input (Mouse Tracking): [CẢNH BÁO] Không đọc được thiết bị input"
+                .into(),
+            color: warn_color,
+            bold: true,
+        });
+    }
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+
+    lines.push(DoctorLineData {
+        text: "[3/8] Trạng thái Daemon Fcitx5:".into(),
+        color: header_color,
+        bold: true,
+    });
+    if report.daemon.fcitx5_running {
+        let pids_str = report
+            .daemon
+            .fcitx5_pids
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        lines.push(DoctorLineData {
+            text: format!("  • Tiến trình Fcitx5: [OK] Đang chạy (PID {})", pids_str).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • Tiến trình Fcitx5: [LỖI] Fcitx5 chưa khởi chạy".into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+    if let Some(ref im) = report.daemon.current_im {
+        let is_clak = im == "clak";
+        lines.push(DoctorLineData {
+            text: format!("  • Bộ gõ hiện tại: {}", im).into(),
+            color: if is_clak { ok_color } else { warn_color },
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • fcitx5-remote: Không thể kết nối tới Fcitx5".into(),
+            color: warn_color,
+            bold: false,
+        });
+    }
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+
+    lines.push(DoctorLineData {
+        text: "[4/8] Kiểm tra Binary & Nạp bộ nhớ (RAM):".into(),
+        color: header_color,
+        bold: true,
+    });
+    if report.memory.clak_loaded {
+        let path = report.memory.mapped_path.as_deref().unwrap_or("libclak.so");
+        if report.memory.is_deleted_inode {
+            lines.push(DoctorLineData {
+                text: format!(
+                    "  • Bộ nhớ: [CẢNH BÁO] Fcitx5 đang giữ inode CŨ trong RAM: {}",
+                    path
+                )
+                .into(),
+                color: warn_color,
+                bold: true,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text: format!("  • Bộ nhớ: [OK] Đang nạp {}", path).into(),
+                color: ok_color,
+                bold: false,
+            });
+        }
+    } else if report.daemon.fcitx5_running {
+        lines.push(DoctorLineData {
+            text: "  • Bộ nhớ: [LỖI] libclak.so chưa được Fcitx5 nạp vào tiến trình".into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+
+    lines.push(DoctorLineData {
+        text: "[5/8] Cấu hình và Nhật ký (Log):".into(),
+        color: header_color,
+        bold: true,
+    });
+    if report.config.config_file_exists {
+        lines.push(DoctorLineData {
+            text: format!(
+                "  • File cấu hình: [OK] {}",
+                report.config.config_path.display()
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • File cấu hình: [MẶC ĐỊNH] Chưa tạo file riêng, đang dùng giá trị mặc định"
+                .into(),
+            color: normal_color,
+            bold: false,
+        });
+    }
+    if report.config.log_file_exists {
+        lines.push(DoctorLineData {
+            text: format!(
+                "  • File log: [OK] {} ({:.1} KB)",
+                report.config.log_path.display(),
+                report.config.log_size_kb.unwrap_or(0.0)
+            )
+            .into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: format!(
+                "  • File log: Chưa kích hoạt ghi log debug vào {}",
+                report.config.log_path.display()
+            )
+            .into(),
+            color: dim_color,
+            bold: false,
+        });
+    }
+    if report.autostart.is_enabled {
+        lines.push(DoctorLineData {
+            text: "  • Khởi động cùng hệ thống: [OK] Đã kích hoạt".into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text:
+                "  • Khởi động cùng hệ thống: [CẢNH BÁO] Chưa kích hoạt tự động chạy khi đăng nhập"
+                    .into(),
+            color: warn_color,
+            bold: true,
+        });
+    }
+
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: "[6/8] Biến Môi Trường Input Method:".into(),
+        color: header_color,
+        bold: true,
+    });
+    let gtk_str = report
+        .environment
+        .gtk_im_module
+        .as_deref()
+        .unwrap_or("(chưa đặt)");
+    let is_gtk_bad = gtk_str == "ibus";
+    lines.push(DoctorLineData {
+        text: format!(
+            "  • GTK_IM_MODULE: [{}] {}",
+            if is_gtk_bad { "XUNG ĐỘT" } else { "OK" },
+            gtk_str
+        )
+        .into(),
+        color: if is_gtk_bad { error_color } else { ok_color },
+        bold: is_gtk_bad,
+    });
+    let qt_str = report
+        .environment
+        .qt_im_module
+        .as_deref()
+        .unwrap_or("(chưa đặt)");
+    let is_qt_bad = qt_str == "ibus";
+    lines.push(DoctorLineData {
+        text: format!(
+            "  • QT_IM_MODULE: [{}] {}",
+            if is_qt_bad { "XUNG ĐỘT" } else { "OK" },
+            qt_str
+        )
+        .into(),
+        color: if is_qt_bad { error_color } else { ok_color },
+        bold: is_qt_bad,
+    });
+    let xmod_str = report
+        .environment
+        .xmodifiers
+        .as_deref()
+        .unwrap_or("(chưa đặt)");
+    let is_xmod_bad = xmod_str.contains("ibus");
+    lines.push(DoctorLineData {
+        text: format!(
+            "  • XMODIFIERS: [{}] {}",
+            if is_xmod_bad { "CẢNH BÁO" } else { "OK" },
+            xmod_str
+        )
+        .into(),
+        color: if is_xmod_bad { warn_color } else { ok_color },
+        bold: is_xmod_bad,
+    });
+    if report.environment.env_file_exists {
+        lines.push(DoctorLineData {
+            text: "  • File 99-clak-im.conf: [OK] Đã cấu hình".into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • File 99-clak-im.conf: [LƯU Ý] Chưa tạo file ~/.config/environment.d/99-clak-im.conf".into(),
+            color: warn_color,
+            bold: true,
+        });
+    }
+
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: "[7/8] Thư Viện Frontend Fcitx5:".into(),
+        color: header_color,
+        bold: true,
+    });
+    if let Some(ref p) = report.frontends.gtk3_path {
+        lines.push(DoctorLineData {
+            text: format!("  • GTK 3: [OK] {}", p).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • GTK 3: [CHƯA CÓ] Chưa tìm thấy module frontend GTK3".into(),
+            color: warn_color,
+            bold: false,
+        });
+    }
+    if let Some(ref p) = report.frontends.gtk4_path {
+        lines.push(DoctorLineData {
+            text: format!("  • GTK 4: [OK] {}", p).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • GTK 4: [CHƯA CÓ] Chưa tìm thấy module frontend GTK4".into(),
+            color: warn_color,
+            bold: false,
+        });
+    }
+    if let Some(ref p) = report.frontends.qt5_path {
+        lines.push(DoctorLineData {
+            text: format!("  • Qt 5: [OK] {}", p).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • Qt 5: [CHƯA CÓ] Chưa tìm thấy plugin frontend Qt5".into(),
+            color: warn_color,
+            bold: false,
+        });
+    }
+    if let Some(ref p) = report.frontends.qt6_path {
+        lines.push(DoctorLineData {
+            text: format!("  • Qt 6: [OK] {}", p).into(),
+            color: ok_color,
+            bold: false,
+        });
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • Qt 6: [CHƯA CÓ] Chưa tìm thấy plugin frontend Qt6".into(),
+            color: warn_color,
+            bold: false,
+        });
+    }
+
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: "[8/8] Cấu Hình Fcitx5 & Tương Thích Ứng Dụng:".into(),
+        color: header_color,
+        bold: true,
+    });
+    if report.profile.clak_in_profile {
+        if report.profile.is_default_im {
+            lines.push(DoctorLineData {
+                text: "  • Fcitx5 Profile: [OK] Đã kích hoạt và là bộ gõ mặc định".into(),
+                color: ok_color,
+                bold: false,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text: "  • Fcitx5 Profile: [LƯU Ý] Đã thêm nhưng chưa đặt DefaultIM=clak".into(),
+                color: warn_color,
+                bold: false,
+            });
+        }
+    } else {
+        lines.push(DoctorLineData {
+            text: "  • Fcitx5 Profile: [CHƯA CÓ] Chưa thêm Clak vào danh sách bộ gõ".into(),
+            color: error_color,
+            bold: true,
+        });
+    }
+    if report.wps.installed {
+        if report.wps.configured {
+            lines.push(DoctorLineData {
+                text: "  • WPS Office: [OK] Đã tối ưu biến QT_IM_MODULE=fcitx".into(),
+                color: ok_color,
+                bold: false,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text:
+                    "  • WPS Office: [CẦN TỐI ƯU] Chạy Qt5 nội bộ trên XWayland (Dùng nút Tối ưu)"
+                        .into(),
+                color: warn_color,
+                bold: true,
+            });
+        }
+    }
+    if report.jetbrains.installed {
+        if report.jetbrains.unconfigured_ides.is_empty() {
+            lines.push(DoctorLineData {
+                text: format!(
+                    "  • JetBrains IDEs: [OK] Đã cấu hình XToolkit ({})",
+                    report.jetbrains.configured_ides.join(", ")
+                )
+                .into(),
+                color: ok_color,
+                bold: false,
+            });
+        } else {
+            lines.push(DoctorLineData {
+                text: format!(
+                    "  • JetBrains IDEs: [CẦN TỐI ƯU] Chưa cấu hình: {}",
+                    report.jetbrains.unconfigured_ides.join(", ")
+                )
+                .into(),
+                color: warn_color,
+                bold: true,
+            });
+        }
+    }
+
+    if !report.conflicts.is_empty() {
+        lines.push(DoctorLineData {
+            text: "".into(),
+            color: normal_color,
+            bold: false,
+        });
+        lines.push(DoctorLineData {
+            text: "Ứng dụng xung đột:".into(),
+            color: warn_color,
+            bold: true,
+        });
+        for conf in &report.conflicts {
+            lines.push(DoctorLineData {
+                text: format!(
+                    "  • {} (PID {}): {}",
+                    conf.app_name, conf.pid, conf.description
+                )
+                .into(),
+                color: warn_color,
+                bold: false,
+            });
+            lines.push(DoctorLineData {
+                text: format!("    Khắc phục: {}", conf.resolution_hint).into(),
+                color: code_color,
+                bold: false,
+            });
+        }
+    }
+
+    lines.push(DoctorLineData {
+        text: "".into(),
+        color: normal_color,
+        bold: false,
+    });
+    lines.push(DoctorLineData {
+        text: "=".repeat(55).into(),
+        color: dim_color,
+        bold: false,
+    });
+
+    if report.issues.is_empty() && report.warnings.is_empty() {
+        lines.push(DoctorLineData {
+            text: "✔ TẤT CẢ KIỂM TRA ĐỀU HOÀN HẢO! Clak đã sẵn sàng hoạt động tối ưu.".into(),
+            color: ok_color,
+            bold: true,
+        });
+    } else {
+        if !report.issues.is_empty() {
+            lines.push(DoctorLineData {
+                text: format!("❌ CẦN XỬ LÝ ({} vấn đề):", report.issues.len()).into(),
+                color: error_color,
+                bold: true,
+            });
+            for (i, iss) in report.issues.iter().enumerate() {
+                lines.push(DoctorLineData {
+                    text: format!("  {}. {}", i + 1, iss.message).into(),
+                    color: error_color,
+                    bold: false,
+                });
+                if let Some(ref fix) = iss.fix_command {
+                    lines.push(DoctorLineData {
+                        text: format!("     Lệnh sửa: {}", fix).into(),
+                        color: code_color,
+                        bold: false,
+                    });
+                }
+            }
+        }
+        if !report.warnings.is_empty() {
+            lines.push(DoctorLineData {
+                text: format!("⚠️  LƯU Ý ({} khuyến nghị):", report.warnings.len()).into(),
+                color: warn_color,
+                bold: true,
+            });
+            for (i, warn) in report.warnings.iter().enumerate() {
+                lines.push(DoctorLineData {
+                    text: format!("  {}. {}", i + 1, warn.message).into(),
+                    color: warn_color,
+                    bold: false,
+                });
+                if let Some(ref fix) = warn.fix_command {
+                    lines.push(DoctorLineData {
+                        text: format!("     Khuyến nghị: {}", fix).into(),
+                        color: code_color,
+                        bold: false,
+                    });
+                }
+            }
+        }
+    }
+    lines.push(DoctorLineData {
+        text: "=".repeat(55).into(),
+        color: dim_color,
+        bold: false,
+    });
+
+    lines
+}
 
 // extract and save configuration from ui state
 fn save_config(
@@ -221,6 +1019,122 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // doctor callbacks
+    let last_report: Arc<Mutex<Option<DiagnosticReport>>> = Arc::new(Mutex::new(None));
+    let last_report_scan = last_report.clone();
+    let last_report_copy = last_report.clone();
+
+    let win_scan = main_window.as_weak();
+    main_window.on_doctor_scan_requested(move || {
+        let Some(window) = win_scan.upgrade() else {
+            return;
+        };
+        window.set_doctor_is_scanning(true);
+
+        let win_async = win_scan.clone();
+        let last_report_async = last_report_scan.clone();
+
+        std::thread::spawn(move || {
+            let report = clak_diagnostics::run_diagnostics();
+            let is_healthy = report.is_healthy();
+            let time_tag = chrono::Local::now().format("%H:%M:%S").to_string();
+            let now = chrono::Local::now()
+                .format("%H:%M:%S · %d/%m/%Y")
+                .to_string();
+            let lines = format_doctor_lines(&report, &time_tag);
+
+            let mut score: i32 = 100;
+            score -= (report.issues.len() as i32) * 25;
+            score -= (report.warnings.len() as i32) * 10;
+            let score = score.clamp(0, 100);
+
+            let (score_level, score_label, score_color) = if score >= 90 {
+                (
+                    0,
+                    "Khỏe mạnh",
+                    slint::Color::from_argb_u8(255, 16, 185, 129),
+                )
+            } else if score >= 60 {
+                (
+                    1,
+                    "Cần lưu ý",
+                    slint::Color::from_argb_u8(255, 245, 158, 11),
+                )
+            } else {
+                (2, "Nguy hiểm", slint::Color::from_argb_u8(255, 239, 68, 68))
+            };
+
+            let summary = if report.issues.is_empty() && report.warnings.is_empty() {
+                "Tất cả kiểm tra đều hoàn hảo. Clak sẵn sàng hoạt động tối ưu.".to_string()
+            } else {
+                format!(
+                    "Phát hiện {} vấn đề cần xử lý, {} lưu ý.",
+                    report.issues.len(),
+                    report.warnings.len()
+                )
+            };
+
+            let report_for_ui = report.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    let lines_model = Rc::new(VecModel::from(lines));
+                    w.set_doctor_lines(lines_model.into());
+                    w.set_doctor_last_scanned(now.into());
+                    w.set_doctor_summary_text(summary.into());
+                    w.set_doctor_is_healthy(is_healthy);
+                    w.set_doctor_score_level(score_level);
+                    w.set_doctor_score_text(score.to_string().into());
+                    w.set_doctor_score_label(score_label.into());
+                    w.set_doctor_score_color(score_color);
+                    w.set_doctor_has_scanned(true);
+                    w.set_doctor_is_scanning(false);
+                    w.set_reload_needed(report_for_ui.memory.is_deleted_inode);
+                    w.set_profile_needs_setup(
+                        !report_for_ui.profile.clak_in_profile
+                            || !report_for_ui.profile.is_default_im,
+                    );
+                    w.set_wps_needs_fix(
+                        report_for_ui.wps.installed && !report_for_ui.wps.configured,
+                    );
+                    w.set_jetbrains_needs_fix(
+                        report_for_ui.jetbrains.installed
+                            && !report_for_ui.jetbrains.unconfigured_ides.is_empty(),
+                    );
+                    if let Ok(mut guard) = last_report_async.lock() {
+                        *guard = Some(report_for_ui);
+                    }
+                }
+            });
+        });
+    });
+
+    let win_copy = main_window.as_weak();
+    main_window.on_doctor_copy_requested(move || {
+        let Some(window) = win_copy.upgrade() else {
+            return;
+        };
+        let md = if let Ok(guard) = last_report_copy.lock() {
+            if let Some(ref report) = *guard {
+                report.to_markdown()
+            } else {
+                clak_diagnostics::run_diagnostics().to_markdown()
+            }
+        } else {
+            clak_diagnostics::run_diagnostics().to_markdown()
+        };
+
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            let _ = clipboard.set_text(md);
+            window.set_doctor_copied_toast(true);
+            let win_timer = win_copy.clone();
+            slint::Timer::single_shot(std::time::Duration::from_millis(2000), move || {
+                if let Some(w) = win_timer.upgrade() {
+                    w.set_doctor_copied_toast(false);
+                }
+            });
+        }
+    });
+
     // action callbacks: ok, apply, cancel, esc
     let win_ok = main_window.as_weak();
     let apps_ok = apps_model.clone();
@@ -405,9 +1319,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .status()
             };
 
+            let daemon = clak_diagnostics::check_daemon();
+            let is_deleted = if daemon.fcitx5_running {
+                let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
+                memory.is_deleted_inode
+            } else {
+                false
+            };
+
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(w) = win_weak_thread.upgrade() {
                     w.set_is_updating(false);
+                    w.set_reload_needed(is_deleted);
                     match res {
                         Ok(s) if s.success() => {
                             w.set_update_status_text("Cập nhật hoàn tất!".into());
@@ -420,6 +1343,318 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         });
     });
+
+    let win_uninstall = main_window.as_weak();
+    main_window.on_uninstall_requested(move || {
+        let terminals = [
+            "kitty",
+            "alacritty",
+            "foot",
+            "wezterm",
+            "gnome-terminal",
+            "konsole",
+            "xterm",
+        ];
+        let term = terminals.iter().find(|&&t| {
+            std::process::Command::new("which")
+                .arg(t)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        });
+
+        let script_cmd = "if [ -f scripts/uninstall.sh ]; then bash scripts/uninstall.sh; elif [ -f \"$HOME/.local/share/clak/uninstall.sh\" ]; then bash \"$HOME/.local/share/clak/uninstall.sh\"; else curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/uninstall.sh | bash; fi; echo ''; read -p 'Nhấn Enter để đóng...' dummy";
+
+        if let Some(&term_cmd) = term {
+            let mut cmd = std::process::Command::new(term_cmd);
+            match term_cmd {
+                "gnome-terminal" => {
+                    cmd.args(["--", "bash", "-c", script_cmd]);
+                }
+                "wezterm" => {
+                    cmd.args(["start", "--", "bash", "-c", script_cmd]);
+                }
+                _ => {
+                    cmd.args(["-e", "bash", "-c", script_cmd]);
+                }
+            }
+            let _ = cmd.spawn();
+        } else {
+            let _ = std::process::Command::new("bash")
+                .args(["-c", script_cmd])
+                .spawn();
+        }
+
+        if let Some(w) = win_uninstall.upgrade() {
+            let _ = w.hide();
+        }
+        std::process::exit(0);
+    });
+
+    let win_restart = main_window.as_weak();
+    main_window.on_restart_fcitx5_requested(move || {
+        let Some(window) = win_restart.upgrade() else {
+            return;
+        };
+        window.set_is_reloading(true);
+        window.set_reload_status_text("Đang khởi động lại Fcitx5...".into());
+
+        let win_async = win_restart.clone();
+        std::thread::spawn(move || {
+            let restarted = if std::process::Command::new("systemctl")
+                .args(["--user", "is-active", "fcitx5.service"])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
+                std::process::Command::new("systemctl")
+                    .args(["--user", "restart", "fcitx5.service"])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            } else {
+                std::process::Command::new("fcitx5")
+                    .args(["-r", "-d"])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            };
+
+            // poll fcitx5 daemon readiness instead of blind fixed sleep
+            let mut is_deleted = true;
+            let mut daemon_ready = false;
+            for _ in 0..15 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let daemon = clak_diagnostics::check_daemon();
+                if daemon.fcitx5_running && !daemon.fcitx5_pids.is_empty() {
+                    let memory = clak_diagnostics::check_memory(&daemon.fcitx5_pids);
+                    if memory.clak_loaded && !memory.is_deleted_inode {
+                        is_deleted = false;
+                        daemon_ready = true;
+                        break;
+                    }
+                }
+            }
+
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    w.set_is_reloading(false);
+                    if restarted && daemon_ready && !is_deleted {
+                        w.set_reload_needed(false);
+                        w.set_reload_status_text(
+                            "Khởi động lại Fcitx5 thành công! Phiên bản mới đã được nạp.".into(),
+                        );
+                        if w.get_doctor_has_scanned() {
+                            w.invoke_doctor_scan_requested();
+                        }
+                    } else {
+                        w.set_reload_status_text(
+                            "Khởi động lại Fcitx5 thất bại hoặc daemon chưa sẵn sàng".into(),
+                        );
+                    }
+                }
+            });
+        });
+    });
+
+    let win_prof = main_window.as_weak();
+    main_window.on_setup_profile_requested(move || {
+        let Some(_window) = win_prof.upgrade() else {
+            return;
+        };
+        let win_async = win_prof.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = clak_diagnostics::fix_fcitx5_profile() {
+                eprintln!("lỗi thêm clak vào profile: {}", e);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    w.set_profile_needs_setup(false);
+                    if w.get_doctor_has_scanned() {
+                        w.invoke_doctor_scan_requested();
+                    }
+                }
+            });
+        });
+    });
+
+    let win_wps = main_window.as_weak();
+    main_window.on_fix_wps_requested(move || {
+        let Some(window) = win_wps.upgrade() else {
+            return;
+        };
+        if let Err(e) = clak_diagnostics::fix_wps_compatibility() {
+            eprintln!("lỗi tối ưu wps office: {}", e);
+        } else {
+            window.set_wps_needs_fix(false);
+            if window.get_doctor_has_scanned() {
+                window.invoke_doctor_scan_requested();
+            }
+        }
+    });
+
+    let win_jb = main_window.as_weak();
+    main_window.on_fix_jetbrains_requested(move || {
+        let Some(window) = win_jb.upgrade() else {
+            return;
+        };
+        if let Err(e) = clak_diagnostics::fix_jetbrains_compatibility() {
+            eprintln!("lỗi tối ưu jetbrains: {}", e);
+        } else {
+            window.set_jetbrains_needs_fix(false);
+            if window.get_doctor_has_scanned() {
+                window.invoke_doctor_scan_requested();
+            }
+        }
+    });
+
+    let win_startup = main_window.as_weak();
+    let last_report_startup = last_report.clone();
+    std::thread::spawn(move || {
+        let report = clak_diagnostics::run_diagnostics();
+        let is_healthy = report.is_healthy();
+        let time_tag = chrono::Local::now().format("%H:%M:%S").to_string();
+        let now = chrono::Local::now()
+            .format("%H:%M:%S · %d/%m/%Y")
+            .to_string();
+        let lines = format_doctor_lines(&report, &time_tag);
+
+        let mut score: i32 = 100;
+        score -= (report.issues.len() as i32) * 25;
+        score -= (report.warnings.len() as i32) * 10;
+        let score = score.clamp(0, 100);
+
+        let (score_level, score_label, score_color) = if score >= 90 {
+            (
+                0,
+                "Khỏe mạnh",
+                slint::Color::from_argb_u8(255, 16, 185, 129),
+            )
+        } else if score >= 60 {
+            (
+                1,
+                "Cần lưu ý",
+                slint::Color::from_argb_u8(255, 245, 158, 11),
+            )
+        } else {
+            (2, "Nguy hiểm", slint::Color::from_argb_u8(255, 239, 68, 68))
+        };
+
+        let summary = if report.issues.is_empty() && report.warnings.is_empty() {
+            "Tất cả kiểm tra đều hoàn hảo. Clak sẵn sàng hoạt động tối ưu.".to_string()
+        } else {
+            format!(
+                "Phát hiện {} vấn đề cần xử lý, {} khuyến nghị lưu ý.",
+                report.issues.len(),
+                report.warnings.len()
+            )
+        };
+
+        let is_deleted = report.memory.is_deleted_inode;
+        let needs_setup = !report.profile.clak_in_profile || !report.profile.is_default_im;
+        let wps_fix = report.wps.installed && !report.wps.configured;
+        let jb_fix = report.jetbrains.installed && !report.jetbrains.unconfigured_ides.is_empty();
+
+        let report_for_ui = report.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(w) = win_startup.upgrade() {
+                let lines_model = Rc::new(VecModel::from(lines));
+                w.set_doctor_lines(lines_model.into());
+                w.set_doctor_last_scanned(now.into());
+                w.set_doctor_summary_text(summary.into());
+                w.set_doctor_is_healthy(is_healthy);
+                w.set_doctor_score_level(score_level);
+                w.set_doctor_score_text(score.to_string().into());
+                w.set_doctor_score_label(score_label.into());
+                w.set_doctor_score_color(score_color);
+                w.set_doctor_has_scanned(true);
+                w.set_doctor_is_scanning(false);
+
+                if is_deleted {
+                    w.set_reload_needed(true);
+                }
+                w.set_profile_needs_setup(needs_setup);
+                w.set_wps_needs_fix(wps_fix);
+                w.set_jetbrains_needs_fix(jb_fix);
+
+                // nếu chưa thêm vào profile, tự động mở tab Chẩn đoán để hướng dẫn người dùng
+                if needs_setup {
+                    w.set_selected_tab(3);
+                }
+
+                if let Ok(mut guard) = last_report_startup.lock() {
+                    *guard = Some(report_for_ui);
+                }
+            }
+        });
+    });
+
+    // run diagnostics immediately if preview flag is passed
+    if std::env::args().any(|a| a == "--preview-doctor") {
+        let report = clak_diagnostics::run_diagnostics();
+        let is_healthy = report.is_healthy();
+        let time_tag = chrono::Local::now().format("%H:%M:%S").to_string();
+        let now = chrono::Local::now()
+            .format("%H:%M:%S · %d/%m/%Y")
+            .to_string();
+        let lines = format_doctor_lines(&report, &time_tag);
+
+        let mut score: i32 = 100;
+        score -= (report.issues.len() as i32) * 25;
+        score -= (report.warnings.len() as i32) * 10;
+        let score = score.clamp(0, 100);
+
+        let (score_level, score_label, score_color) = if score >= 90 {
+            (
+                0,
+                "Khỏe mạnh",
+                slint::Color::from_argb_u8(255, 16, 185, 129),
+            )
+        } else if score >= 60 {
+            (
+                1,
+                "Cần lưu ý",
+                slint::Color::from_argb_u8(255, 245, 158, 11),
+            )
+        } else {
+            (2, "Nguy hiểm", slint::Color::from_argb_u8(255, 239, 68, 68))
+        };
+
+        let summary = if report.issues.is_empty() && report.warnings.is_empty() {
+            "Tất cả kiểm tra đều hoàn hảo. Clak sẵn sàng hoạt động tối ưu.".to_string()
+        } else {
+            format!(
+                "Phát hiện {} vấn đề cần xử lý, {} khuyến nghị lưu ý.",
+                report.issues.len(),
+                report.warnings.len()
+            )
+        };
+
+        let lines_rc = std::rc::Rc::new(slint::VecModel::from(lines));
+        main_window.set_doctor_lines(lines_rc.into());
+        main_window.set_doctor_last_scanned(now.into());
+        main_window.set_doctor_summary_text(summary.into());
+        main_window.set_doctor_is_healthy(is_healthy);
+        main_window.set_doctor_score_level(score_level);
+        main_window.set_doctor_score_text(score.to_string().into());
+        main_window.set_doctor_score_label(score_label.into());
+        main_window.set_doctor_score_color(score_color);
+        main_window.set_doctor_has_scanned(true);
+        main_window.set_doctor_is_scanning(false);
+        main_window.set_reload_needed(report.memory.is_deleted_inode);
+        main_window.set_profile_needs_setup(
+            !report.profile.clak_in_profile || !report.profile.is_default_im,
+        );
+        main_window.set_wps_needs_fix(report.wps.installed && !report.wps.configured);
+        main_window.set_jetbrains_needs_fix(
+            report.jetbrains.installed && !report.jetbrains.unconfigured_ides.is_empty(),
+        );
+        main_window.set_selected_tab(3);
+        if let Ok(mut guard) = last_report.lock() {
+            *guard = Some(report);
+        }
+    }
 
     main_window.run()?;
     Ok(())

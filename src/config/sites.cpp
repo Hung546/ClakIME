@@ -15,15 +15,24 @@ bool isMetaSite(const std::string& site) {
   return false;
 }
 
+bool isDraftJsSite(const std::string& site) {
+  static const std::vector<std::string> draftjs_sites = {
+    "x.com", "twitter.com", "tiktok.com", "threads.net"
+  };
+  for (const auto& s : draftjs_sites) {
+    if (site == s || site.find(s) != std::string::npos) return true;
+  }
+  return false;
+}
+
 bool isForceUinputSite(const std::string& site) {
   static const std::vector<std::string> force_sites = {
-    "docs.google.com", "sheets.google.com", "slides.google.com",
-    "tiktok.com", "x.com", "twitter.com"
+    "docs.google.com", "sheets.google.com", "slides.google.com"
   };
   for (const auto& s : force_sites) {
     if (site == s || site.find(s) != std::string::npos) return true;
   }
-  return false;
+  return isDraftJsSite(site);
 }
 
 bool isVSCodeApp(const std::string& app) {
@@ -37,8 +46,20 @@ bool isVSCodeApp(const std::string& app) {
   return false;
 }
 
+bool isJetBrainsApp(const std::string& app) {
+  static const std::vector<std::string> jb = {
+    "idea", "jetbrains", "pycharm", "clion", "webstorm", "goland",
+    "rider", "rubymine", "phpstorm", "datagrip", "android-studio", "studio",
+    "rustrover", "fleet", "aqua", "dataspell", "gateway", "mps"};
+  for (const auto& j : jb) {
+    if (app.find(j) != std::string::npos) return true;
+  }
+  return false;
+}
+
 bool isTerminalApp(const std::string& app) {
   if (isVSCodeApp(app)) return true;
+  if (isJetBrainsApp(app)) return true;
   static const std::vector<std::string> terms = {
     "kitty", "ghostty", "alacritty", "foot", "wezterm", "xterm",
     "gnome-terminal", "konsole", "tilix", "terminator", "urxvt",
@@ -50,7 +71,7 @@ bool isTerminalApp(const std::string& app) {
 }
 
 bool isBrowserApp(const std::string& app) {
-  if (isVSCodeApp(app)) return false;
+  if (isVSCodeApp(app) || isJetBrainsApp(app)) return false;
   static const std::vector<std::string> browsers = {
     "chromium", "chrome", "google-chrome", "brave", "firefox", "zen",
     "vivaldi", "opera", "microsoft-edge", "edge", "waterfox", "librewolf",

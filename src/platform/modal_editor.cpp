@@ -100,8 +100,7 @@ bool isEditorActive(const WindowInfo& win) {
     bool is_term = config::isTerminalApp(lower_class);
     bool is_gui_editor = (lower_class.find("neovide") != std::string::npos ||
                           lower_class.find("gvim") != std::string::npos);
-    bool is_unknown_class = lower_class.empty() || lower_class == "default";
-    if (!is_term && !is_gui_editor && !is_unknown_class) {
+    if (!is_term && !is_gui_editor) {
         return false;
     }
 
@@ -175,43 +174,9 @@ bool isEditorActive(const WindowInfo& win) {
                 break;
             }
             // fallback for desktop environments without window pid (e.g. gnome)
-            if (win.pid <= 1 && isForegroundTerminalProcess(p) &&
-                (is_unknown_class || hasAncestorMatching(p, lower_class))) {
+            if (win.pid <= 1 && isForegroundTerminalProcess(p) && hasAncestorMatching(p, lower_class)) {
                 found = true;
                 break;
-            }
-        }
-    }
-    closedir(dir);
-    return found;
-}
-
-bool isAnyTerminalForeground() {
-    DIR* dir = opendir("/proc");
-    if (!dir) return false;
-
-    static const std::unordered_set<std::string> term_parents = {
-        "kitty", "alacritty", "foot", "wezterm", "gnome-terminal-server",
-        "gnome-terminal", "konsole", "xterm", "x-terminal-emul"
-    };
-
-    struct dirent* ent;
-    bool found = false;
-    while ((ent = readdir(dir)) != nullptr) {
-        if (ent->d_name[0] < '0' || ent->d_name[0] > '9') continue;
-        pid_t p = static_cast<pid_t>(atoi(ent->d_name));
-        if (isForegroundTerminalProcess(p)) {
-            pid_t ppid = getProcessPpid(p);
-            std::string comm_path = "/proc/" + std::to_string(ppid) + "/comm";
-            std::ifstream f(comm_path);
-            if (f.is_open()) {
-                std::string pcomm;
-                f >> pcomm;
-                for (char& c : pcomm) c = tolower(c);
-                if (term_parents.count(pcomm) > 0 || pcomm.find("terminal") != std::string::npos || pcomm.find("kitty") != std::string::npos) {
-                    found = true;
-                    break;
-                }
             }
         }
     }

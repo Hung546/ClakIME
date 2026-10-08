@@ -5,6 +5,7 @@
 #include "utils/log.h"
 #include <sys/inotify.h>
 #include <unistd.h>
+#include <fstream>
 
 namespace clak {
 
@@ -149,7 +150,7 @@ void ClakEngine::toggleAppEnabled(const std::string& app) {
     } else {
         global_enabled_ = next;
     }
-    utils::clakLog("toggled input state for app '" + app + "' -> " + (next ? "Vi" : "En"));
+    utils::clakLog("toggled input state for app '" + app + "' -> " + (next ? "VI" : "EN"));
 }
 
 void ClakEngine::setAppEnabled(const std::string& app, bool enabled) {
@@ -185,8 +186,17 @@ void ClakEngine::activate(const fcitx::InputMethodEntry& entry, fcitx::InputCont
     auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
     std::string app = state ? state->appKey() : (ic ? ic->program() : "");
     utils::clakLog("engine::activate: ic program='" + (ic ? ic->program() : "") + "' app='" + app + "' enabled=" + std::to_string(isAppEnabled(app)));
-    if (state) {
-        state->reset(/*force=*/true);
+    if (checkBinaryReplaced() && !notification_sent_) {
+        notification_sent_ = true;
+        utils::clakLog("engine: libclak.so updated on disk ((deleted) inode), reload fcitx5 to apply");
+        int ret = system("command -v notify-send >/dev/null 2>&1 && notify-send -u normal -a Clak -i org.fcitx.Fcitx5 'Clak có bản cập nhật mới' 'Đã cài đặt bản mới thành công. Hãy khởi động lại Fcitx5 để áp dụng.' &");
+        (void)ret;
+    }
+    if (state && state->allRealBackspacesReceived()) {
+        // complete uinput deletion early if all real backspaces were already processed before text-input reactivation
+        utils::clakLog("engine::activate: completing uinput deletion early during text-input reactivation (real backspaces: " +
+                       std::to_string(state->currentBackspaceCount()) + "/" + std::to_string(state->expectedBackspaces()) + ")");
+        state->finishUinputDeletion();
     }
 }
 
@@ -194,10 +204,6 @@ void ClakEngine::deactivate(const fcitx::InputMethodEntry& entry, fcitx::InputCo
     FCITX_UNUSED(entry);
     auto* ic = event.inputContext();
     utils::clakLog("engine::deactivate: ic program='" + (ic ? ic->program() : "") + "'");
-    auto* state = ic ? ic->propertyFor(&factory_) : nullptr;
-    if (state) {
-        state->reset(/*force=*/true);
-    }
 }
 
 void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContextEvent& event) {
@@ -210,7 +216,11 @@ void ClakEngine::reset(const fcitx::InputMethodEntry& entry, fcitx::InputContext
 
 std::string ClakEngine::subMode(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    FCITX_UNUSED(ic);
+    auto* state = ic.propertyFor(&factory_);
+    std::string app = state ? state->appKey() : (ic.program().empty() ? "default" : ic.program());
+    if (!isAppEnabled(app)) {
+        return "English";
+    }
     if (!config_) return "Telex";
     int method = clak_config_get_method(config_);
     switch (method) {
@@ -229,8 +239,32 @@ std::string ClakEngine::subModeIconImpl(const fcitx::InputMethodEntry& entry, fc
 
 std::string ClakEngine::subModeLabelImpl(const fcitx::InputMethodEntry& entry, fcitx::InputContext& ic) {
     FCITX_UNUSED(entry);
-    FCITX_UNUSED(ic);
-    return "Vi";
+    auto* state = ic.propertyFor(&factory_);
+    std::string app = state ? state->appKey() : (ic.program().empty() ? "default" : ic.program());
+    return isAppEnabled(app) ? "VI" : "EN";
+}
+
+bool ClakEngine::checkBinaryReplaced() {
+    uint64_t now = fcitx::now(CLOCK_MONOTONIC);
+    // rate-limit check to once every 60 seconds
+    if (now - last_replacement_check_us_ < 60000000) {
+        return binary_replaced_;
+    }
+    last_replacement_check_us_ = now;
+
+    std::ifstream maps("/proc/self/maps");
+    if (!maps.is_open()) {
+        return binary_replaced_;
+    }
+
+    std::string line;
+    while (std::getline(maps, line)) {
+        if (line.find("clak") != std::string::npos && line.find("(deleted)") != std::string::npos) {
+            binary_replaced_ = true;
+            break;
+        }
+    }
+    return binary_replaced_;
 }
 
 } // namespace clak

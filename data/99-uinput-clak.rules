@@ -1,0 +1,2 @@
+# uinput rule for clak vietnamese input method
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"

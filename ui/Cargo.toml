@@ -1,20 +1,29 @@
 [package]
 name = "clak-gui"
-version = "0.2.9"
+version = "0.4.4"
 edition = "2021"
 
 [dependencies]
 clak-engine = { path = "../engine" }
-slint = { version = "1.9", default-features = false, features = ["backend-winit", "renderer-femtovg", "compat-1-2", "accessibility"] }
+clak-diagnostics = { path = "../diagnostics" }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+arboard = "3"
+slint = { version = "1.9", default-features = false, features = ["backend-winit", "renderer-skia-opengl", "compat-1-2"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 
 [build-dependencies]
 slint-build = "1.9"
 
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
-opt-level = "z"
-lto = true
+opt-level = 3
+lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true

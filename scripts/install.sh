@@ -506,7 +506,12 @@ EOF
         fi
         sed -i 's/^DefaultIM=.*/DefaultIM=clak/' "$profile_file" 2>/dev/null || true
         # ensure base layout is us (not vn or vn-us, which map dead keys and break telex/vni)
-        sed -i 's/^Default Layout=vn.*/Default Layout=us/' "$profile_file" 2>/dev/null || true
+        if grep -q "^Default Layout=" "$profile_file" 2>/dev/null; then
+            sed -i 's/^Default Layout=.*/Default Layout=us/' "$profile_file" 2>/dev/null || true
+        else
+            sed -i '/^\[Groups\/0\]/a Default Layout=us' "$profile_file" 2>/dev/null || true
+        fi
+        setxkbmap -layout us 2>/dev/null || true
     fi
 
     # configure gtk im module for gnome and wayland compatibility

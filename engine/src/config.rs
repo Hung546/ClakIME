@@ -311,15 +311,22 @@ fn configure_fcitx5_profile(home: &std::path::Path, startup_mode: &str) {
     }
 
     if let Ok(mut text) = fs::read_to_string(&profile_path) {
-        if text.contains("DefaultIM=") {
-            let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
-            for line in &mut lines {
-                if line.starts_with("DefaultIM=") {
-                    *line = format!("DefaultIM={}", default_im);
-                }
+        let mut lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
+        let mut has_default_layout = false;
+        for line in &mut lines {
+            if line.starts_with("DefaultIM=") {
+                *line = format!("DefaultIM={}", default_im);
+            } else if line.starts_with("Default Layout=") {
+                *line = "Default Layout=us".to_string();
+                has_default_layout = true;
             }
-            text = lines.join("\n") + "\n";
         }
+        if !has_default_layout {
+            if let Some(pos) = lines.iter().position(|l| l == "[Groups/0]") {
+                lines.insert(pos + 1, "Default Layout=us".to_string());
+            }
+        }
+        text = lines.join("\n") + "\n";
 
         if !text.contains("Name=clak") {
             let mut count = 0;
@@ -338,6 +345,23 @@ fn configure_fcitx5_profile(home: &std::path::Path, startup_mode: &str) {
 
         let _ = fs::write(&profile_path, text);
     }
+
+    // Ensure GNOME input sources do not use vn/vn+us layout which maps dead keys and breaks telex/vni
+    if let Ok(output) = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.input-sources", "sources"])
+        .output()
+    {
+        let s = String::from_utf8_lossy(&output.stdout);
+        if s.contains("vn") {
+            let new_src = s.replace("'vn+us'", "'us'").replace("'vn'", "'us'");
+            let _ = std::process::Command::new("gsettings")
+                .args(["set", "org.gnome.desktop.input-sources", "sources", new_src.trim()])
+                .output();
+        }
+    }
+    let _ = std::process::Command::new("setxkbmap")
+        .args(["-layout", "us"])
+        .output();
 }
 
 #[cfg(test)]

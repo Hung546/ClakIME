@@ -15,6 +15,53 @@
 namespace clak {
 namespace ime {
 
+static bool translateDeadKey(uint32_t& sym, std::string& key_str) {
+    if (!key_str.empty()) {
+        return false;
+    }
+    switch (sym) {
+        case FcitxKey_dead_belowdot:
+        case FcitxKey_dead_abovedot:
+            sym = FcitxKey_period;
+            key_str = ".";
+            return true;
+        case FcitxKey_dead_hook:
+            sym = FcitxKey_slash;
+            key_str = "/";
+            return true;
+        case FcitxKey_dead_acute:
+            sym = FcitxKey_apostrophe;
+            key_str = "'";
+            return true;
+        case FcitxKey_dead_grave:
+            sym = FcitxKey_grave;
+            key_str = "`";
+            return true;
+        case FcitxKey_dead_tilde:
+            sym = FcitxKey_asciitilde;
+            key_str = "~";
+            return true;
+        case FcitxKey_dead_circumflex:
+            sym = FcitxKey_asciicircum;
+            key_str = "^";
+            return true;
+        case FcitxKey_dead_horn:
+            sym = FcitxKey_plus;
+            key_str = "+";
+            return true;
+        case FcitxKey_dead_stroke:
+            sym = FcitxKey_minus;
+            key_str = "-";
+            return true;
+        case FcitxKey_dead_diaeresis:
+            sym = FcitxKey_quotedbl;
+            key_str = "\"";
+            return true;
+        default:
+            return false;
+    }
+}
+
 ClakState::ClakState(ClakEngine* engine, fcitx::InputContext* ic)
     : engine_(engine), ic_(ic) {
     rust_ctx_ = clak_context_new(CLAK_METHOD_TELEX);
@@ -429,6 +476,7 @@ bool ClakState::handleKey(const fcitx::Key& key) {
 
     std::string key_str = fcitx::Key::keySymToUTF8(key.sym());
     uint32_t sym = key.sym();
+    bool is_dead_key = translateDeadKey(sym, key_str);
 
     updateModalEditorStatus();
 
@@ -451,6 +499,10 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                 return false;
             }
             reset();
+            if (is_dead_key) {
+                doCommitString(key_str);
+                return true;
+            }
             utils::clakLog("editor COMMAND: forward raw '" + key_str + "'");
             return false;
         } else {
@@ -460,6 +512,10 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                     editor_mode_ = EditorMode::COMMAND;
                     reset();
                     utils::clakLog("editor mode -> COMMAND (via " + key_str + ")");
+                    if (is_dead_key) {
+                        doCommitString(key_str);
+                        return true;
+                    }
                     return false;
                 }
                 if (sym == FcitxKey_i || sym == FcitxKey_I ||
@@ -472,10 +528,18 @@ bool ClakState::handleKey(const fcitx::Key& key) {
                     editor_mode_ = EditorMode::INSERT;
                     reset();
                     utils::clakLog("editor mode -> INSERT (via " + key_str + ")");
+                    if (is_dead_key) {
+                        doCommitString(key_str);
+                        return true;
+                    }
                     return false;
                 }
             }
             reset();
+            if (is_dead_key) {
+                doCommitString(key_str);
+                return true;
+            }
             utils::clakLog("editor NORMAL: forward raw '" + key_str + "'");
             return false;
         }
@@ -561,6 +625,13 @@ bool ClakState::handleKey(const fcitx::Key& key) {
 
     switch (action.action_type) {
         case CLAK_ACTION_FORWARD:
+            if (is_dead_key) {
+                doCommitString(key_str);
+                last_text_len_ = 0;
+                logLatency(classifyGroup(app, site, false, false), op_start_us_, "COMMIT_DEAD");
+                op_start_us_ = 0;
+                return true;
+            }
             if (valid_surr) {
                 last_text_len_ = surr.cursor() + 1;
             } else {
@@ -736,6 +807,11 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
 
     if (!engine_->isAppEnabled(app)) {
         reset(/*force=*/true);
+        if (translateDeadKey(sym, key_str)) {
+            doCommitString(key_str);
+            keyEvent.filterAndAccept();
+            return;
+        }
         return;
     }
 

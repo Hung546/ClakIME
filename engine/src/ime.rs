@@ -187,6 +187,23 @@ impl ClakContext {
             return self.forward();
         }
 
+        let (key_str, key_sym, is_dead_key) = if key_str.is_empty() {
+            match key_sym {
+                0xfe60 | 0xfe56 => (".", 0x2e, true), // dead_belowdot, dead_abovedot
+                0xfe61 => ("/", 0x2f, true),          // dead_hook
+                0xfe51 => ("'", 0x27, true),          // dead_acute
+                0xfe50 => ("`", 0x60, true),          // dead_grave
+                0xfe53 => ("~", 0x7e, true),          // dead_tilde
+                0xfe52 => ("^", 0x5e, true),          // dead_circumflex
+                0xfe62 => ("+", 0x2b, true),          // dead_horn
+                0xfe63 => ("-", 0x2d, true),          // dead_stroke
+                0xfe57 => ("\"", 0x22, true),         // dead_diaeresis
+                _ => ("", key_sym, false),
+            }
+        } else {
+            (key_str, key_sym, false)
+        };
+
         if key_str.is_empty() {
             return self.forward();
         }
@@ -265,6 +282,9 @@ impl ClakContext {
             self.reset();
             self.just_deleted = false;
             self.stale_surr = None;
+            if is_dead_key {
+                return self.replace(0, "", key_str);
+            }
             return self.forward();
         }
 
@@ -385,6 +405,9 @@ impl ClakContext {
 
         if deleted_part.is_empty() && added_part == key_str {
             self.last_composed = new_word;
+            if is_dead_key {
+                return self.replace(0, "", key_str);
+            }
             return self.forward();
         }
 
@@ -1274,5 +1297,47 @@ mod tests {
         assert_eq!(act.delete_count, 2);
         let commit = unsafe { CStr::from_ptr(act.commit_str).to_str().unwrap() };
         assert_eq!(commit, "được ");
+    }
+
+    #[test]
+    fn test_dead_belowdot_commits_period() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        // Type "c", "o", "m", "i", "x", "x"
+        ctx.process_key(b'c' as u32, "c", false, None, 0, 0);
+        ctx.process_key(b'o' as u32, "o", false, None, 1, 1);
+        ctx.process_key(b'm' as u32, "m", false, None, 2, 2);
+        ctx.process_key(b'i' as u32, "i", false, None, 3, 3);
+        ctx.process_key(b'x' as u32, "x", false, None, 4, 4);
+        let _a_x2 = ctx.process_key(b'x' as u32, "x", false, None, 4, 4);
+        assert_eq!(ctx.last_composed, "comix");
+
+        // Now press dead_belowdot (0xfe60) with empty key_str as sent by XKB vn layout
+        let a_dot = ctx.process_key(0xfe60, "", false, None, 5, 5);
+        assert_eq!(a_dot.action_type, ACTION_REPLACE);
+        assert_eq!(a_dot.delete_count, 0);
+        let commit_dot = unsafe { CStr::from_ptr(a_dot.commit_str).to_str().unwrap().to_string() };
+        assert_eq!(commit_dot, ".");
+
+        // Type "t", "o"
+        let a_t = ctx.process_key(b't' as u32, "t", false, None, 6, 6);
+        assert_eq!(a_t.action_type, ACTION_FORWARD);
+        let a_o = ctx.process_key(b'o' as u32, "o", false, None, 7, 7);
+        assert_eq!(a_o.action_type, ACTION_FORWARD);
+    }
+
+    #[test]
+    fn test_dead_keys_mapped_properly() {
+        let mut ctx = ClakContext::new(Method::Telex);
+        // 0xfe61: dead_hook -> /
+        let a_hook = ctx.process_key(0xfe61, "", false, None, 0, 0);
+        assert_eq!(a_hook.action_type, ACTION_REPLACE);
+        let commit_hook = unsafe { CStr::from_ptr(a_hook.commit_str).to_str().unwrap() };
+        assert_eq!(commit_hook, "/");
+
+        // 0xfe51: dead_acute -> '
+        let a_acute = ctx.process_key(0xfe51, "", false, None, 0, 0);
+        assert_eq!(a_acute.action_type, ACTION_REPLACE);
+        let commit_acute = unsafe { CStr::from_ptr(a_acute.commit_str).to_str().unwrap() };
+        assert_eq!(commit_acute, "'");
     }
 }

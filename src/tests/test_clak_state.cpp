@@ -232,5 +232,24 @@ TEST_F(ClakStateTest, GivenCtrlShift_TogglesEnabledState) {
     EXPECT_TRUE(engine_->isAppEnabled("test-app"));
 }
 
+TEST_F(ClakStateTest, GivenDeadKeys_CommitsLiteralPunctuationWithoutStacking) {
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ime::ClakState state(engine_.get(), &ic);
+    ic.setSurrounding("", 0, 0);
+
+    // Typing dead_belowdot (0xfe60) should commit "." directly
+    ic.sendKey(FcitxKey_dead_belowdot, fcitx::KeyStates(), false, &state);
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), ".");
+
+    // Typing dead_hook (0xfe61) should commit "/" directly
+    ic.sendKey(FcitxKey_dead_hook, fcitx::KeyStates(), false, &state);
+    EXPECT_EQ(ic.commits.back(), "/");
+
+    // Typing dead_acute (0xfe51) should commit "'" directly
+    ic.sendKey(FcitxKey_dead_acute, fcitx::KeyStates(), false, &state);
+    EXPECT_EQ(ic.commits.back(), "'");
+}
+
 } // namespace test
 } // namespace clak

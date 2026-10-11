@@ -119,4 +119,6 @@ Clak Settings > Giới thiệu > Gỡ cài đặt
 
 ## Giấy phép
 
-Bộ gõ này được cấp phép bởi giấy phép [0BSD License](LICENSE). Điều đó có nghĩa rằng bạn có thể sửa, xóa, thêm hay làm bất cứ thứ gì bạn muốn với nó.
+Bộ gõ này được cấp phép bởi giấy phép [0BSD License](LICENSE). Điều đó có nghĩa rằng bạn có thể tự do tối đa trong việc sửa, xóa, thêm, thương mại hóa, lấy code và không ghi nguồn hay làm bất cứ thứ gì bạn muốn với nó.
+
+Mã nguồn được cung cấp ở trạng thái nguyên trạng, tôi sẽ không chịu bất kỳ trách nhiệm nào đối với mọi rủi ro, hư hại hệ thống, thiết bị hoặc mất mát dữ liệu phát sinh từ việc tải về, sử dụng hoặc phát triển lại mã nguồn này

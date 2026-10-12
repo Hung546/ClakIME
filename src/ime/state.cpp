@@ -576,15 +576,26 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     const auto& key = keyEvent.key();
     std::string key_str = fcitx::Key::keySymToUTF8(key.sym());
 
-    bool is_alt = key.states().test(fcitx::KeyState::Alt);
     bool is_ctrl = key.states().test(fcitx::KeyState::Ctrl);
     bool is_shift = key.states().test(fcitx::KeyState::Shift);
+    bool is_alt = key.states().test(fcitx::KeyState::Alt);
     bool is_super = key.states().test(fcitx::KeyState::Super);
     bool is_ctrl_sym = (key.sym() == FcitxKey_Control_L || key.sym() == FcitxKey_Control_R);
     bool is_shift_sym = (key.sym() == FcitxKey_Shift_L || key.sym() == FcitxKey_Shift_R);
+    bool is_alt_sym = (key.sym() == FcitxKey_Alt_L || key.sym() == FcitxKey_Alt_R);
     char* sc_c = engine_->config() ? clak_config_get_toggle_shortcut(engine_->config()) : nullptr;
-    std::string shortcut = sc_c ? sc_c : "ctrl_shift";
+    std::string raw_shortcut = sc_c ? sc_c : "ctrl_shift";
     if (sc_c) clak_free_string(sc_c);
+
+    std::string shortcut = "";
+    for (char c : raw_shortcut) {
+        if (c == '+' || c == ' ' || c == '-') {
+            if (!shortcut.empty() && shortcut.back() != '_') shortcut.push_back('_');
+        } else {
+            shortcut.push_back(std::tolower(static_cast<unsigned char>(c)));
+        }
+    }
+    if (shortcut.empty()) shortcut = "ctrl_shift";
 
     if (keyEvent.isRelease()) {
         if (repeat_handler_.heldKey().sym() != 0 && (key.sym() == repeat_handler_.heldKey().sym() || key.isModifier())) {
@@ -607,6 +618,23 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
             } else if (is_ctrl_sym) {
                 ctrl_pressed_first_ = false;
             }
+        } else if (shortcut == "alt_shift") {
+            if (alt_shift_armed_ && (is_shift_sym || is_alt_sym)) {
+                engine_->toggleAppEnabled(app);
+                reset(/*force=*/true);
+                ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
+                if (engine_->instance() && std::string(ic_->frontend()) != "mock") {
+#ifdef FCITX5_HAVE_SHOW_CUSTOM_IM_INFO
+                    engine_->instance()->showCustomInputMethodInformation(ic_, engine_->isAppEnabled(app) ? "VI" : "EN");
+#else
+                    engine_->instance()->showInputMethodInformation(ic_);
+#endif
+                }
+                alt_shift_armed_ = false;
+                alt_pressed_first_ = false;
+            } else if (is_alt_sym) {
+                alt_pressed_first_ = false;
+            }
         }
         return;
     }
@@ -616,9 +644,23 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
     utils::clakLog("keyEvent: sym=" + std::to_string(key.sym()) + " ('" + key_str + "') app='" + app +
                    "' enabled=" + std::to_string(engine_->isAppEnabled(app)) +
                    " ctrl=" + std::to_string(is_ctrl) + " shift=" + std::to_string(is_shift) +
-                   " alt=" + std::to_string(is_alt) + " shortcut='" + shortcut + "'");
+                   " alt=" + std::to_string(is_alt) + " super=" + std::to_string(is_super) +
+                   " shortcut='" + shortcut + "'");
 
+    bool match_toggle = false;
     if (shortcut == "alt_z" && is_alt && !is_ctrl && (key.sym() == FcitxKey_z || key.sym() == FcitxKey_Z)) {
+        match_toggle = true;
+    } else if (shortcut == "super_space" && is_super && (key.sym() == FcitxKey_space || key.sym() == FcitxKey_KP_Space)) {
+        match_toggle = true;
+    } else if (shortcut == "ctrl_space" && is_ctrl && !is_shift && !is_alt && (key.sym() == FcitxKey_space || key.sym() == FcitxKey_KP_Space)) {
+        match_toggle = true;
+    } else if (shortcut == "shift_space" && is_shift && !is_ctrl && !is_alt && (key.sym() == FcitxKey_space || key.sym() == FcitxKey_KP_Space)) {
+        match_toggle = true;
+    } else if (shortcut == "alt_space" && is_alt && !is_ctrl && (key.sym() == FcitxKey_space || key.sym() == FcitxKey_KP_Space)) {
+        match_toggle = true;
+    }
+
+    if (match_toggle) {
         engine_->toggleAppEnabled(app);
         reset(/*force=*/true);
         ic_->updateUserInterface(fcitx::UserInterfaceComponent::StatusArea, true);
@@ -645,6 +687,19 @@ void ClakState::keyEvent(fcitx::KeyEvent& keyEvent) {
             ctrl_pressed_first_ = false;
         } else {
             ctrl_pressed_first_ = false;
+        }
+    } else if (shortcut == "alt_shift") {
+        if (alt_shift_armed_) {
+            if (!is_alt_sym && !is_shift_sym) {
+                alt_shift_armed_ = false;
+            }
+        } else if (is_alt_sym && !is_shift && !is_ctrl && !is_super) {
+            alt_pressed_first_ = true;
+        } else if (is_shift_sym && alt_pressed_first_ && is_alt) {
+            alt_shift_armed_ = true;
+            alt_pressed_first_ = false;
+        } else {
+            alt_pressed_first_ = false;
         }
     }
 

@@ -3,30 +3,27 @@ use clak_diagnostics::run_diagnostics;
 pub fn execute(markdown: bool, json: bool, fix: bool) {
     if fix {
         println!("=== CLAK DOCTOR: TỰ ĐỘNG KHẮC PHỤC SỰ CỐ ===");
-        println!("  • Đang đồng bộ cấu hình Fcitx5 profile và liên kết thư viện...");
-        if let Err(e) = clak_diagnostics::fix_fcitx5_profile() {
-            eprintln!("    ❌ Lỗi cấu hình profile: {}", e);
-        } else {
-            println!("    ✔ Đã cấu hình profile và khởi động lại Fcitx5 daemon thành công.");
+        let summary = clak_diagnostics::auto_fix_all(true);
+        if summary.profile_fixed {
+            println!("    ✔ Đã cấu hình profile và liên kết thư viện thành công.");
         }
-
-        let pre_report = run_diagnostics();
-        if pre_report.wps.installed && !pre_report.wps.configured {
-            println!("  • Đang tối ưu tương thích WPS Office...");
-            if let Err(e) = clak_diagnostics::fix_wps_compatibility() {
-                eprintln!("    ❌ Lỗi cấu hình WPS: {}", e);
-            } else {
-                println!("    ✔ Đã cấu hình tương thích WPS Office.");
-            }
+        if summary.fcitx5_restarted {
+            println!("    ✔ Đã khởi động lại Fcitx5 daemon thành công.");
         }
-
-        if pre_report.jetbrains.installed && !pre_report.jetbrains.unconfigured_ides.is_empty() {
-            println!("  • Đang tối ưu tương thích JetBrains IDEs...");
-            if let Err(e) = clak_diagnostics::fix_jetbrains_compatibility() {
-                eprintln!("    ❌ Lỗi cấu hình JetBrains: {}", e);
-            } else {
-                println!("    ✔ Đã cấu hình tương thích JetBrains IDEs.");
-            }
+        if summary.autostart_enabled {
+            println!("    ✔ Đã kích hoạt khởi động cùng hệ thống.");
+        }
+        if summary.wps_patched > 0 {
+            println!("    ✔ Đã cấu hình tương thích WPS Office.");
+        }
+        if summary.jetbrains_patched > 0 {
+            println!("    ✔ Đã cấu hình tương thích JetBrains IDEs.");
+        }
+        if summary.permissions_fixed {
+            println!("    ✔ Đã cấp quyền thiết bị input/uinput thành công.");
+        }
+        for err in &summary.errors {
+            eprintln!("    ❌ {}", err);
         }
         println!();
     }

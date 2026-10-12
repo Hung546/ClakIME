@@ -40,3 +40,37 @@ pub fn check_permissions() -> PermissionChecks {
         input_total_count,
     }
 }
+
+pub fn fix_input_permissions() -> Result<(), String> {
+    let user = std::env::var("USER").map_err(|e| e.to_string())?;
+    if user.is_empty() {
+        return Err("Không xác định được biến USER".to_string());
+    }
+
+    let script = format!(
+        "usermod -aG input {} && setfacl -m u:{}:rw /dev/uinput /dev/input/event* 2>/dev/null || true",
+        user, user
+    );
+
+    let pkexec_status = std::process::Command::new("pkexec")
+        .args(["sh", "-c", &script])
+        .status();
+
+    if let Ok(status) = pkexec_status {
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    let sudo_status = std::process::Command::new("sudo")
+        .args(["sh", "-c", &script])
+        .status();
+
+    if let Ok(status) = sudo_status {
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    Err("Không thể cấp quyền: cần quyền quản trị root qua pkexec hoặc sudo".to_string())
+}

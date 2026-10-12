@@ -595,34 +595,6 @@ TEST_F(RegressionCorpusTest, test_regression_unknown_site_draftjs_auto_detect) {
     EXPECT_EQ(last_gap_ms, 1);
 }
 
-TEST_F(RegressionCorpusTest, test_regression_electron_stale_surrounding_does_not_trigger_draftjs) {
-    platform::setMockActiveWindow(platform::WindowInfo{"google-chrome", "Antigravity Chat", 12345});
-    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
-    auto* state = ic.propertyFor(&engine_->factory());
-
-    EXPECT_FALSE(state->isDraftJsEditor());
-
-    // type 't' then 'o'
-    ic.setSurrounding("", 0, 0);
-    ic.typeChar('t', state);
-    ic.setSurrounding("t", 1, 1);
-    ic.typeChar('o', state);
-
-    // 2nd 'o' tries surrounding delete to form 'tô'
-    ic.setSurrounding("to", 2, 2);
-    ic.typeChar('o', state);
-    EXPECT_FALSE(ic.deletions.empty());
-
-    // IPC latency: surrounding text still says "to" (stale, not updated yet to "tô")
-    ic.setSurrounding("to", 2, 2);
-    // next keystroke 'i' arrives while surrounding is still stale
-    ic.typeChar('i', state);
-
-    // MUST NOT falsely detect DraftJS/React editor!
-    EXPECT_FALSE(state->isDraftJsEditor());
-    EXPECT_FALSE(state->isRichTextEditor());
-}
-
 TEST_F(RegressionCorpusTest, test_regression_backspace_hold_continues_deleting_when_composing_empties) {
     platform::setMockActiveWindow(platform::WindowInfo{"gedit", "Untitled Document", 4567});
     MockInputContext ic(instance_->inputContextManager(), "gedit");

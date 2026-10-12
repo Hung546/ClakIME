@@ -197,12 +197,19 @@ spin_pid() {
     printf "\r\033[K"
 }
 
-# reload fcitx5 daemon via systemctl or direct command
+# reload fcitx5 daemon via dbus, systemctl or direct command
 reload_fcitx5() {
+    if command -v gdbus >/dev/null 2>&1; then
+        gdbus call --session --dest org.fcitx.Fcitx5 --object-path /controller \
+            --method org.fcitx.Fcitx.Controller1.Restart >/dev/null 2>&1 || true
+    fi
     if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active fcitx5.service >/dev/null 2>&1; then
         systemctl --user restart fcitx5.service >/dev/null 2>&1 || true
     elif command -v fcitx5 >/dev/null 2>&1; then
         fcitx5 -r -d >/dev/null 2>&1 || true
+    fi
+    if command -v fcitx5-remote >/dev/null 2>&1; then
+        fcitx5-remote -s clak >/dev/null 2>&1 || true
     fi
 }
 

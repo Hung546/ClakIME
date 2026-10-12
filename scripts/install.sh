@@ -1339,11 +1339,11 @@ run_install() {
     local tag_name
     tag_name=$(echo "$releases_json" | grep '"tag_name":' | head -1 | cut -d '"' -f 4 || echo "$release_tag")
     local download_url=""
-    local archive_pat="${arch}\.tar\.xz"
+    local archive_pat="${arch}.tar.xz"
     download_url=$(echo "$releases_json" | grep "browser_download_url" | grep "${arch}\.tar\.xz" | head -1 | cut -d '"' -f 4 || true)
     if [ -z "$download_url" ]; then
         download_url=$(echo "$releases_json" | grep "browser_download_url" | grep "${arch}\.tar\.gz" | head -1 | cut -d '"' -f 4 || true)
-        archive_pat="${arch}\.tar\.gz"
+        archive_pat="${arch}.tar.gz"
     fi
 
     if [ -z "$download_url" ]; then

@@ -656,11 +656,11 @@ run_update() {
     local arch
     arch=$(uname -m)
     local download_url=""
-    local archive_pat="linux-${arch}\.tar\.xz"
+    local archive_pat="linux-${arch}.tar.xz"
     download_url=$(echo "$releases_json" | grep "browser_download_url" | grep "linux-${arch}\.tar\.xz" | head -1 | cut -d '"' -f 4 || true)
     if [ -z "$download_url" ]; then
         download_url=$(echo "$releases_json" | grep "browser_download_url" | grep "linux-${arch}\.tar\.gz" | head -1 | cut -d '"' -f 4 || true)
-        archive_pat="linux-${arch}\.tar\.gz"
+        archive_pat="linux-${arch}.tar.gz"
     fi
 
     if [ -z "$download_url" ]; then

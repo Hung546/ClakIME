@@ -802,6 +802,123 @@ fn format_doctor_lines(report: &DiagnosticReport, time_tag: &str) -> Vec<DoctorL
     lines
 }
 
+fn shortcut_id_to_display(id: &str) -> String {
+    let lower = id.trim().to_lowercase();
+    match lower.as_str() {
+        "ctrl_shift" | "ctrl+shift" => "Ctrl + Shift".to_string(),
+        "alt_z" | "alt+z" => "Alt + Z".to_string(),
+        "super_space" | "super+space" => "Super + Space".to_string(),
+        "ctrl_space" | "ctrl+space" => "Ctrl + Space".to_string(),
+        "shift_space" | "shift+space" => "Shift + Space".to_string(),
+        "alt_shift" | "alt+shift" => "Alt + Shift".to_string(),
+        "alt_space" | "alt+space" => "Alt + Space".to_string(),
+        other => {
+            if other.is_empty() {
+                "Ctrl + Shift".to_string()
+            } else {
+                other
+                    .replace('_', " + ")
+                    .split(" + ")
+                    .map(|p| {
+                        let mut chars = p.chars();
+                        match chars.next() {
+                            None => String::new(),
+                            Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" + ")
+            }
+        }
+    }
+}
+
+fn shortcut_display_to_id(display: &str) -> String {
+    let s = display.trim().to_lowercase().replace(" + ", "_").replace(' ', "_");
+    if s.is_empty() {
+        "ctrl_shift".to_string()
+    } else {
+        s
+    }
+}
+
+fn format_recorded_shortcut(
+    key_text: &str,
+    ctrl: bool,
+    alt: bool,
+    shift: bool,
+    meta: bool,
+) -> Option<(String, String)> {
+    let is_space = key_text == " "
+        || key_text == "\u{0020}"
+        || key_text.eq_ignore_ascii_case("space");
+
+    // Case 1: Super / Meta (Windows key) combinations (e.g. Super + Space)
+    if meta {
+        if is_space {
+            return Some(("Super + Space".to_string(), "super_space".to_string()));
+        }
+        let clean = key_text.trim();
+        if !clean.is_empty() && clean.chars().any(|c| c.is_alphanumeric()) {
+            let u = clean.to_uppercase();
+            let l = clean.to_lowercase();
+            return Some((format!("Super + {}", u), format!("super_{}", l)));
+        }
+        return None;
+    }
+
+    // Case 2: Ctrl + Shift
+    if ctrl && shift {
+        if is_space {
+            return Some(("Ctrl + Shift + Space".to_string(), "ctrl_shift_space".to_string()));
+        }
+        return Some(("Ctrl + Shift".to_string(), "ctrl_shift".to_string()));
+    }
+
+    // Case 3: Alt + Shift
+    if alt && shift {
+        return Some(("Alt + Shift".to_string(), "alt_shift".to_string()));
+    }
+
+    // Case 4: Ctrl + key (e.g. Ctrl + Space)
+    if ctrl && !alt {
+        if is_space {
+            return Some(("Ctrl + Space".to_string(), "ctrl_space".to_string()));
+        }
+        let clean = key_text.trim();
+        if !clean.is_empty() && clean.chars().any(|c| c.is_alphanumeric() || c.is_ascii_punctuation()) {
+            let u = clean.to_uppercase();
+            let l = clean.to_lowercase();
+            return Some((format!("Ctrl + {}", u), format!("ctrl_{}", l)));
+        }
+        return None;
+    }
+
+    // Case 5: Alt + key (e.g. Alt + Z, Alt + Space)
+    if alt && !ctrl {
+        if is_space {
+            return Some(("Alt + Space".to_string(), "alt_space".to_string()));
+        }
+        let clean = key_text.trim();
+        if !clean.is_empty() && clean.chars().any(|c| c.is_alphanumeric() || c.is_ascii_punctuation()) {
+            let u = clean.to_uppercase();
+            let l = clean.to_lowercase();
+            return Some((format!("Alt + {}", u), format!("alt_{}", l)));
+        }
+        return None;
+    }
+
+    // Case 6: Shift + Space
+    if shift && !ctrl && !alt {
+        if is_space {
+            return Some(("Shift + Space".to_string(), "shift_space".to_string()));
+        }
+        return None;
+    }
+
+    None
+}
+
 // extract and save configuration from ui state
 fn save_config(
     window: &MainWindow,
@@ -822,10 +939,8 @@ fn save_config(
         1 => "english",
         _ => "vietnamese",
     };
-    let toggle_sc_str = match window.get_toggle_shortcut_index() {
-        1 => "alt_z",
-        _ => "ctrl_shift",
-    };
+    let toggle_sc_display = window.get_toggle_shortcut_text().to_string();
+    let toggle_sc_str = shortcut_display_to_id(&toggle_sc_display);
     let switch_sc_str = match window.get_switch_shortcut_index() {
         1 => "none",
         _ => "ctrl_space",
@@ -922,11 +1037,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.set_auto_capitalize(cfg.typing.auto_capitalize);
     main_window.set_macros_enabled(cfg.macros.enabled);
 
-    let toggle_sc_idx = match cfg.shortcuts.toggle_vietnamese.as_str() {
-        "alt_z" => 1,
-        _ => 0,
-    };
-    main_window.set_toggle_shortcut_index(toggle_sc_idx);
+    let toggle_sc_display = shortcut_id_to_display(&cfg.shortcuts.toggle_vietnamese);
+    main_window.set_toggle_shortcut_text(toggle_sc_display.into());
 
     if let Ok(tab_str) = std::env::var("CLAK_TAB") {
         if let Ok(tab_num) = tab_str.parse::<i32>() {
@@ -1195,6 +1307,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .spawn();
     });
 
+    let win_record = main_window.as_weak();
+    let apps_rec = apps_model.clone();
+    let macros_rec = macros_model.clone();
+    main_window.on_record_shortcut_pressed(move |text, ctrl, alt, shift, meta| {
+        let Some(window) = win_record.upgrade() else {
+            return;
+        };
+        if let Some((display_str, _id_str)) =
+            format_recorded_shortcut(text.as_str(), ctrl, alt, shift, meta)
+        {
+            window.set_toggle_shortcut_text(display_str.into());
+            window.set_is_recording_shortcut(false);
+            window.set_has_changes(true);
+            save_config(&window, &apps_rec, &macros_rec);
+        }
+    });
+
     let win_reset = main_window.as_weak();
     let apps_reset = apps_model.clone();
     let macros_reset = macros_model.clone();
@@ -1214,7 +1343,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         window.set_double_space_period(default_cfg.typing.double_space_period);
         window.set_auto_capitalize(default_cfg.typing.auto_capitalize);
         window.set_macros_enabled(default_cfg.macros.enabled);
-        window.set_toggle_shortcut_index(0);
+        window.set_toggle_shortcut_text("Ctrl + Shift".into());
+        window.set_is_recording_shortcut(false);
         window.set_switch_shortcut_index(0);
         window.set_autostart_system(default_cfg.advanced.autostart);
         window.set_remember_app_state(default_cfg.per_app.remember_state);

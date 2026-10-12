@@ -54,7 +54,8 @@ export component MainWindow inherits Window {
     in-out property <string> new_macro_replace: "";
 
     // phim tat
-    in-out property <int> toggle_shortcut_index: 0;
+    in-out property <string> toggle_shortcut_text: "Ctrl + Shift";
+    in-out property <bool> is_recording_shortcut: false;
     in-out property <int> switch_shortcut_index: 0;
 
     // theo ung dung
@@ -111,6 +112,7 @@ export component MainWindow inherits Window {
     callback auto_fix_requested();
     callback fix_autostart_requested();
     callback fix_permissions_requested();
+    callback record_shortcut_pressed(string, bool, bool, bool, bool);
 
     callback ok_requested();
     callback apply_requested();
@@ -131,6 +133,14 @@ export component MainWindow inherits Window {
         width: 100%;
         height: 100%;
         key-pressed(event) => {
+            if (root.is_recording_shortcut) {
+                if (event.text == Key.Escape) {
+                    root.is_recording_shortcut = false;
+                    return accept;
+                }
+                root.record_shortcut_pressed(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift, event.modifiers.meta);
+                return accept;
+            }
             if (event.text == Key.Escape) {
                 root.escape_requested();
                 return accept;
@@ -289,7 +299,12 @@ export component MainWindow inherits Window {
 
                 if root.selected_tab == 0: TabGeneral {
                     vertical-stretch: 1;
-                    toggle_shortcut_index <=> root.toggle_shortcut_index;
+                    toggle_shortcut_text <=> root.toggle_shortcut_text;
+                    is_recording_shortcut <=> root.is_recording_shortcut;
+                    start_recording_shortcut => {
+                        root.is_recording_shortcut = true;
+                        fs.focus();
+                    }
                     method_index <=> root.method_index;
                     charset_index <=> root.charset_index;
                     startup_mode_index <=> root.startup_mode_index;

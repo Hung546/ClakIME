@@ -48,7 +48,11 @@ void SurroundingVerifier::verify(const fcitx::SurroundingText& surr) {
         mismatch_count_++;
         utils::clakLog("verifySurrounding mismatch #" + std::to_string(mismatch_count_) +
                        ": expected='" + verify_.expectWord + "' actual='" + actualWord + "'");
-        bool delete_ignored = (!verify_.preWord.empty() && actualWord.find(verify_.preWord) != std::string::npos);
+        bool delete_ignored = (!verify_.preWord.empty() &&
+                               !verify_.added.empty() &&
+                               actualWord.find(verify_.preWord) != std::string::npos &&
+                               actualWord.find(verify_.added) != std::string::npos &&
+                               actualWord.length() > verify_.preWord.length());
         if (delete_ignored) {
             is_draftjs_editor_ = true;
             is_rich_text_editor_ = true;

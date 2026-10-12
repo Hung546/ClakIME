@@ -62,7 +62,7 @@ export component SocialBadge inherits Rectangle {
     in property <string> handle: "@versenilvis";
     callback clicked();
 
-    height: 32px;
+    height: 28px;
     background: transparent;
 
     badge_ta := TouchArea {
@@ -146,7 +146,7 @@ export component Sidebar inherits Rectangle {
         // banner hinh anh kem gradient lam mo phia duoi
         Rectangle {
             width: parent.width;
-            height: 105px;
+            height: 94px;
             clip: true;
 
             Image {
@@ -175,7 +175,7 @@ export component Sidebar inherits Rectangle {
 
         VerticalLayout {
             padding-top: 4px;
-            padding-bottom: 14px;
+            padding-bottom: 10px;
             padding-left: 14px;
             padding-right: 14px;
             spacing: 4px;
@@ -275,7 +275,7 @@ export component Sidebar inherits Rectangle {
 
             // badges mang xa hoi dat gan nhau o day sidebar
             VerticalLayout {
-                spacing: 5px;
+                spacing: 4px;
 
                 SocialBadge {
                     icon: @image-url("../../assets/icons/github.svg");

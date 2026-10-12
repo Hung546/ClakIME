@@ -19,8 +19,10 @@ export { MacroItemData, DoctorLineData }
 export component MainWindow inherits Window {
     title: "Cài đặt Clak";
     icon: @image-url("../assets/icons/clak-logo.svg");
-    width: 920px;
-    height: 680px;
+    preferred-width: 920px;
+    preferred-height: 700px;
+    min-width: 880px;
+    min-height: 640px;
     background: Theme.bg;
     default-font-family: "SF Pro Text";
     default-font-size: 14px;
@@ -141,9 +143,11 @@ export component MainWindow inherits Window {
 
             // noi dung cac tab
             VerticalLayout {
-                padding: 20px;
-                padding-top: 18px;
-                spacing: 12px;
+                padding-left: 20px;
+                padding-right: 20px;
+                padding-top: 14px;
+                padding-bottom: 10px;
+                spacing: 8px;
 
                 // banner canh bao clak chua duoc kich hoat hoac chua nap trong fcitx5
                 if (root.profile_needs_setup || root.addon_needs_load) && root.selected_tab != 3: Rectangle {
@@ -379,7 +383,7 @@ export component MainWindow inherits Window {
                 HorizontalLayout {
                     padding-left: 14px;
                     padding-right: 14px;
-                    height: 44px;
+                    height: 38px;
                     alignment: space-between;
                     spacing: 10px;
 

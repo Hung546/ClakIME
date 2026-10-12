@@ -1088,20 +1088,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     w.set_doctor_score_color(score_color);
                     w.set_doctor_has_scanned(true);
                     w.set_doctor_is_scanning(false);
-                    w.set_reload_needed(report_for_ui.memory.is_deleted_inode);
+                    let is_deleted = report_for_ui.memory.is_deleted_inode;
                     let addon_not_loaded = report_for_ui.daemon.fcitx5_running && !report_for_ui.memory.clak_loaded;
-                    w.set_addon_needs_load(addon_not_loaded && !report_for_ui.memory.is_deleted_inode);
-                    w.set_profile_needs_setup(
-                        !report_for_ui.profile.clak_in_profile
-                            || !report_for_ui.profile.is_default_im,
-                    );
-                    w.set_wps_needs_fix(
-                        report_for_ui.wps.installed && !report_for_ui.wps.configured,
-                    );
-                    w.set_jetbrains_needs_fix(
-                        report_for_ui.jetbrains.installed
-                            && !report_for_ui.jetbrains.unconfigured_ides.is_empty(),
-                    );
+                    let profile_needs = !report_for_ui.profile.clak_in_profile || !report_for_ui.profile.is_default_im;
+                    let autostart_needs = !report_for_ui.autostart.is_enabled;
+                    let permissions_needs = !report_for_ui.permissions.uinput_writable || report_for_ui.permissions.input_readable_count == 0;
+                    let wps_fix = report_for_ui.wps.installed && !report_for_ui.wps.configured;
+                    let jb_fix = report_for_ui.jetbrains.installed && !report_for_ui.jetbrains.unconfigured_ides.is_empty();
+                    let has_fixable = is_deleted || (addon_not_loaded && !is_deleted) || profile_needs || autostart_needs || permissions_needs || wps_fix || jb_fix;
+
+                    w.set_reload_needed(is_deleted);
+                    w.set_addon_needs_load(addon_not_loaded && !is_deleted);
+                    w.set_profile_needs_setup(profile_needs);
+                    w.set_autostart_needs_fix(autostart_needs);
+                    w.set_permissions_needs_fix(permissions_needs);
+                    w.set_wps_needs_fix(wps_fix);
+                    w.set_jetbrains_needs_fix(jb_fix);
+                    w.set_has_fixable_issues(has_fixable);
                     if let Ok(mut guard) = last_report_async.lock() {
                         *guard = Some(report_for_ui);
                     }
@@ -1471,6 +1474,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let win_autofix = main_window.as_weak();
+    main_window.on_auto_fix_requested(move || {
+        let Some(window) = win_autofix.upgrade() else {
+            return;
+        };
+        window.set_is_fixing(true);
+        let win_async = win_autofix.clone();
+        std::thread::spawn(move || {
+            let _ = clak_diagnostics::auto_fix_all(true);
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    w.set_is_fixing(false);
+                    w.invoke_doctor_scan_requested();
+                }
+            });
+        });
+    });
+
+    let win_auto = main_window.as_weak();
+    main_window.on_fix_autostart_requested(move || {
+        let Some(window) = win_auto.upgrade() else {
+            return;
+        };
+        if let Err(e) = clak_diagnostics::enable_autostart() {
+            eprintln!("lỗi bật autostart: {}", e);
+        } else {
+            window.set_autostart_needs_fix(false);
+            if window.get_doctor_has_scanned() {
+                window.invoke_doctor_scan_requested();
+            }
+        }
+    });
+
+    let win_perm = main_window.as_weak();
+    main_window.on_fix_permissions_requested(move || {
+        let Some(window) = win_perm.upgrade() else {
+            return;
+        };
+        window.set_is_fixing(true);
+        let win_async = win_perm.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = clak_diagnostics::fix_input_permissions() {
+                eprintln!("lỗi phân quyền: {}", e);
+            }
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(w) = win_async.upgrade() {
+                    w.set_is_fixing(false);
+                    w.invoke_doctor_scan_requested();
+                }
+            });
+        });
+    });
+
     let win_startup = main_window.as_weak();
     let last_report_startup = last_report.clone();
     std::thread::spawn(move || {
@@ -1514,9 +1571,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         let is_deleted = report.memory.is_deleted_inode;
+        let addon_not_loaded = report.daemon.fcitx5_running && !report.memory.clak_loaded;
         let needs_setup = !report.profile.clak_in_profile || !report.profile.is_default_im;
+        let autostart_needs = !report.autostart.is_enabled;
+        let permissions_needs = !report.permissions.uinput_writable || report.permissions.input_readable_count == 0;
         let wps_fix = report.wps.installed && !report.wps.configured;
         let jb_fix = report.jetbrains.installed && !report.jetbrains.unconfigured_ides.is_empty();
+        let has_fixable = is_deleted || (addon_not_loaded && !is_deleted) || needs_setup || autostart_needs || permissions_needs || wps_fix || jb_fix;
 
         let report_for_ui = report.clone();
         let _ = slint::invoke_from_event_loop(move || {
@@ -1536,11 +1597,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if is_deleted {
                     w.set_reload_needed(true);
                 }
-                let addon_not_loaded = report_for_ui.daemon.fcitx5_running && !report_for_ui.memory.clak_loaded;
                 w.set_addon_needs_load(addon_not_loaded && !is_deleted);
                 w.set_profile_needs_setup(needs_setup);
+                w.set_autostart_needs_fix(autostart_needs);
+                w.set_permissions_needs_fix(permissions_needs);
                 w.set_wps_needs_fix(wps_fix);
                 w.set_jetbrains_needs_fix(jb_fix);
+                w.set_has_fixable_issues(has_fixable);
 
                 // nếu chưa thêm vào profile hoặc chưa nạp addon, tự động mở tab Chẩn đoán để hướng dẫn người dùng
                 if needs_setup || (addon_not_loaded && !is_deleted) {

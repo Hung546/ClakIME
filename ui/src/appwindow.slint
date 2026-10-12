@@ -98,12 +98,19 @@ export component MainWindow inherits Window {
     in-out property <bool> addon_needs_load: false;
     in-out property <bool> wps_needs_fix: false;
     in-out property <bool> jetbrains_needs_fix: false;
+    in-out property <bool> autostart_needs_fix: false;
+    in-out property <bool> permissions_needs_fix: false;
+    in-out property <bool> has_fixable_issues: false;
+    in-out property <bool> is_fixing: false;
 
     callback doctor_scan_requested();
     callback doctor_copy_requested();
     callback setup_profile_requested();
     callback fix_wps_requested();
     callback fix_jetbrains_requested();
+    callback auto_fix_requested();
+    callback fix_autostart_requested();
+    callback fix_permissions_requested();
 
     callback ok_requested();
     callback apply_requested();
@@ -369,12 +376,19 @@ export component MainWindow inherits Window {
                     addon_needs_load: root.addon_needs_load;
                     wps_needs_fix: root.wps_needs_fix;
                     jetbrains_needs_fix: root.jetbrains_needs_fix;
+                    autostart_needs_fix: root.autostart_needs_fix;
+                    permissions_needs_fix: root.permissions_needs_fix;
+                    has_fixable_issues: root.has_fixable_issues;
+                    is_fixing: root.is_fixing;
                     scan_requested => { root.doctor_scan_requested(); }
                     copy_requested => { root.doctor_copy_requested(); }
                     restart_fcitx5_requested => { root.restart_fcitx5_requested(); }
                     setup_profile_requested => { root.setup_profile_requested(); }
                     fix_wps_requested => { root.fix_wps_requested(); }
                     fix_jetbrains_requested => { root.fix_jetbrains_requested(); }
+                    auto_fix_requested => { root.auto_fix_requested(); }
+                    fix_autostart_requested => { root.fix_autostart_requested(); }
+                    fix_permissions_requested => { root.fix_permissions_requested(); }
                 }
 
                 // chan trang va nut bam thao tac

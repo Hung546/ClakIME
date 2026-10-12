@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub use checks::autostart::{check_autostart, AutostartStatus};
 pub use checks::compatibility::{
     check_jetbrains, check_profile, check_wps, fix_fcitx5_profile, fix_jetbrains_compatibility,
-    fix_wps_compatibility, JetBrainsStatus, ProfileStatus, WpsStatus,
+    fix_wps_compatibility, restart_fcitx5_daemon, JetBrainsStatus, ProfileStatus, WpsStatus,
 };
 pub use checks::config::{check_config, ConfigStatus};
 pub use checks::conflicts::{check_conflicts, AppConflict};

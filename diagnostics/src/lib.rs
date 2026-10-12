@@ -291,6 +291,8 @@ pub fn auto_fix_all(include_permissions: bool) -> AutoFixSummary {
         } else {
             summary.errors.push("Khởi động lại Fcitx5 không thành công".to_string());
         }
+    } else if pre_report.daemon.fcitx5_running && pre_report.daemon.current_im.as_deref() != Some("clak") {
+        let _ = std::process::Command::new("fcitx5-remote").args(["-s", "clak"]).status();
     }
 
     // 3. Enable autostart if disabled

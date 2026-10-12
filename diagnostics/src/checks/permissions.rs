@@ -48,8 +48,23 @@ pub fn fix_input_permissions() -> Result<(), String> {
     }
 
     let script = format!(
-        "usermod -aG input {} && setfacl -m u:{}:rw /dev/uinput /dev/input/event* 2>/dev/null || true",
-        user, user
+        r#"mkdir -p /etc/udev/rules.d /etc/modules-load.d && \
+printf '%s\n' 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", MODE="0660", GROUP="input", TAG+="uaccess"' \
+'SUBSYSTEM=="input", ENV{{ID_INPUT_MOUSE}}=="1", TAG+="uaccess"' \
+'SUBSYSTEM=="input", ENV{{ID_INPUT_TOUCHPAD}}=="1", TAG+="uaccess"' > /etc/udev/rules.d/99-uinput.rules && \
+echo 'uinput' > /etc/modules-load.d/uinput.conf && \
+modprobe uinput 2>/dev/null || true; \
+udevadm control --reload-rules 2>/dev/null || true; \
+udevadm trigger --name-match=uinput 2>/dev/null || udevadm trigger /dev/uinput 2>/dev/null || true; \
+udevadm trigger --subsystem-match=input 2>/dev/null || true; \
+usermod -aG input "{user}" 2>/dev/null || true; \
+if command -v setfacl >/dev/null 2>&1; then \
+  setfacl -m "u:{user}:rw" /dev/uinput 2>/dev/null || true; \
+  for ev in /dev/input/event*; do \
+    [ -e "$ev" ] && setfacl -m "u:{user}:rw" "$ev" 2>/dev/null || true; \
+  done; \
+fi"#,
+        user = user
     );
 
     let pkexec_status = std::process::Command::new("pkexec")

@@ -19,10 +19,10 @@ export { MacroItemData, DoctorLineData }
 export component MainWindow inherits Window {
     title: "Cài đặt Clak";
     icon: @image-url("../assets/icons/clak-logo.svg");
-    preferred-width: 920px;
-    preferred-height: 700px;
-    min-width: 880px;
-    min-height: 640px;
+    preferred-width: 940px;
+    preferred-height: 680px;
+    min-width: 820px;
+    min-height: 580px;
     background: Theme.bg;
     default-font-family: "SF Pro Text";
     default-font-size: 14px;
@@ -160,6 +160,7 @@ export component MainWindow inherits Window {
 
             // noi dung cac tab
             VerticalLayout {
+                horizontal-stretch: 1;
                 padding-left: 20px;
                 padding-right: 20px;
                 padding-top: 14px;

@@ -53,10 +53,11 @@ export component TabDoctor inherits VerticalLayout {
 
         VerticalLayout {
             alignment: center;
-            spacing: 4px;
+            spacing: 3px;
+            horizontal-stretch: 1;
 
             HorizontalLayout {
-                spacing: 10px;
+                spacing: 8px;
                 alignment: start;
 
                 Text {
@@ -71,8 +72,8 @@ export component TabDoctor inherits VerticalLayout {
                     alignment: center;
 
                     Rectangle {
-                        height: 24px;
-                        border-radius: 12px;
+                        height: 22px;
+                        border-radius: 11px;
                         background: root.score_color.with-alpha(0.12);
                         border-width: 0px;
                         border-color: transparent;
@@ -80,7 +81,7 @@ export component TabDoctor inherits VerticalLayout {
                         HorizontalLayout {
                             padding-left: 8px;
                             padding-right: 10px;
-                            spacing: 6px;
+                            spacing: 5px;
                             alignment: center;
 
                             VerticalLayout {
@@ -88,20 +89,20 @@ export component TabDoctor inherits VerticalLayout {
 
                                 if root.score_level == 0: Image {
                                     source: @image-url("../../assets/icons/smile.svg");
-                                    width: 14px;
-                                    height: 14px;
+                                    width: 13px;
+                                    height: 13px;
                                     colorize: root.score_color;
                                 }
                                 if root.score_level == 1: Image {
                                     source: @image-url("../../assets/icons/meh.svg");
-                                    width: 14px;
-                                    height: 14px;
+                                    width: 13px;
+                                    height: 13px;
                                     colorize: root.score_color;
                                 }
                                 if root.score_level == 2: Image {
                                     source: @image-url("../../assets/icons/frown.svg");
-                                    width: 14px;
-                                    height: 14px;
+                                    width: 13px;
+                                    height: 13px;
                                     colorize: root.score_color;
                                 }
                             }
@@ -112,7 +113,7 @@ export component TabDoctor inherits VerticalLayout {
                                 Text {
                                     text: root.score_text + "/100 · " + root.score_label;
                                     color: root.score_color;
-                                    font-size: 12px;
+                                    font-size: 11px;
                                     font-weight: 600;
                                     vertical-alignment: center;
                                 }
@@ -125,7 +126,7 @@ export component TabDoctor inherits VerticalLayout {
             Text {
                 text: root.has_scanned ? ("Lần quét gần nhất: " + root.last_scanned) : "Chưa thực hiện chẩn đoán trong phiên làm việc này";
                 color: Theme.text-muted;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: Theme.text-weight;
             }
         }
@@ -145,7 +146,7 @@ export component TabDoctor inherits VerticalLayout {
                 }
 
                 if root.has_scanned: ActionButton {
-                    text: root.copied_toast ? "Đã sao chép!" : "Sao chép báo cáo";
+                    text: root.copied_toast ? "Đã sao chép!" : "Sao chép";
                     enabled: !root.is_scanning && !root.is_fixing;
                     clicked => { root.copy_requested(); }
                 }

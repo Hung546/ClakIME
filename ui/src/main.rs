@@ -1089,6 +1089,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     w.set_doctor_has_scanned(true);
                     w.set_doctor_is_scanning(false);
                     w.set_reload_needed(report_for_ui.memory.is_deleted_inode);
+                    let addon_not_loaded = report_for_ui.daemon.fcitx5_running && !report_for_ui.memory.clak_loaded;
+                    w.set_addon_needs_load(addon_not_loaded && !report_for_ui.memory.is_deleted_inode);
                     w.set_profile_needs_setup(
                         !report_for_ui.profile.clak_in_profile
                             || !report_for_ui.profile.is_default_im,
@@ -1369,24 +1371,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let win_async = win_restart.clone();
         std::thread::spawn(move || {
-            let restarted = if std::process::Command::new("systemctl")
-                .args(["--user", "is-active", "fcitx5.service"])
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-            {
-                std::process::Command::new("systemctl")
-                    .args(["--user", "restart", "fcitx5.service"])
-                    .status()
-                    .map(|s| s.success())
-                    .unwrap_or(false)
-            } else {
-                std::process::Command::new("fcitx5")
-                    .args(["-r", "-d"])
-                    .status()
-                    .map(|s| s.success())
-                    .unwrap_or(false)
-            };
+            // Dam bao symlink Ubuntu va cau hinh profile duoc dong bo
+            let _ = clak_diagnostics::fix_fcitx5_profile();
+
+            let restarted = clak_diagnostics::restart_fcitx5_daemon();
 
             // poll fcitx5 daemon readiness instead of blind fixed sleep
             let mut is_deleted = true;
@@ -1409,6 +1397,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     w.set_is_reloading(false);
                     if restarted && daemon_ready && !is_deleted {
                         w.set_reload_needed(false);
+                        w.set_addon_needs_load(false);
+                        w.set_profile_needs_setup(false);
                         w.set_reload_status_text(
                             "Khởi động lại Fcitx5 thành công! Phiên bản mới đã được nạp.".into(),
                         );
@@ -1427,18 +1417,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let win_prof = main_window.as_weak();
     main_window.on_setup_profile_requested(move || {
-        let Some(_window) = win_prof.upgrade() else {
+        let Some(window) = win_prof.upgrade() else {
             return;
         };
+        window.set_is_reloading(true);
+        window.set_reload_status_text("Đang kích hoạt Clak và khởi động lại Fcitx5...".into());
         let win_async = win_prof.clone();
         std::thread::spawn(move || {
             if let Err(e) = clak_diagnostics::fix_fcitx5_profile() {
                 eprintln!("lỗi thêm clak vào profile: {}", e);
             }
-            std::thread::sleep(std::time::Duration::from_millis(300));
+            std::thread::sleep(std::time::Duration::from_millis(500));
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(w) = win_async.upgrade() {
+                    w.set_is_reloading(false);
                     w.set_profile_needs_setup(false);
+                    w.set_addon_needs_load(false);
                     if w.get_doctor_has_scanned() {
                         w.invoke_doctor_scan_requested();
                     }
@@ -1542,12 +1536,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if is_deleted {
                     w.set_reload_needed(true);
                 }
+                let addon_not_loaded = report_for_ui.daemon.fcitx5_running && !report_for_ui.memory.clak_loaded;
+                w.set_addon_needs_load(addon_not_loaded && !is_deleted);
                 w.set_profile_needs_setup(needs_setup);
                 w.set_wps_needs_fix(wps_fix);
                 w.set_jetbrains_needs_fix(jb_fix);
 
-                // nếu chưa thêm vào profile, tự động mở tab Chẩn đoán để hướng dẫn người dùng
-                if needs_setup {
+                // nếu chưa thêm vào profile hoặc chưa nạp addon, tự động mở tab Chẩn đoán để hướng dẫn người dùng
+                if needs_setup || (addon_not_loaded && !is_deleted) {
                     w.set_selected_tab(3);
                 }
 
@@ -1611,6 +1607,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_doctor_has_scanned(true);
         main_window.set_doctor_is_scanning(false);
         main_window.set_reload_needed(report.memory.is_deleted_inode);
+        let addon_not_loaded = report.daemon.fcitx5_running && !report.memory.clak_loaded;
+        main_window.set_addon_needs_load(addon_not_loaded && !report.memory.is_deleted_inode);
         main_window.set_profile_needs_setup(
             !report.profile.clak_in_profile || !report.profile.is_default_im,
         );

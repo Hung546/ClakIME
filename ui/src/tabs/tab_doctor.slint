@@ -19,6 +19,7 @@ export component TabDoctor inherits VerticalLayout {
     in property <bool> reload_needed: false;
     in property <bool> is_reloading: false;
     in property <bool> profile_needs_setup: false;
+    in property <bool> addon_needs_load: false;
     in property <bool> wps_needs_fix: false;
     in property <bool> jetbrains_needs_fix: false;
 
@@ -265,6 +266,65 @@ export component TabDoctor inherits VerticalLayout {
                     primary: true;
                     enabled: !root.is_scanning;
                     clicked => { root.setup_profile_requested(); }
+                }
+            }
+        }
+    }
+
+    // card xu ly fcitx5 chua nap thu vien clak
+    if root.has_scanned && root.addon_needs_load && !root.reload_needed && !root.profile_needs_setup: Rectangle {
+        border-radius: Theme.radius-md;
+        background: #ef4444.with-alpha(0.12);
+        border-width: 0px;
+        border-color: transparent;
+
+        HorizontalLayout {
+            padding-left: 14px;
+            padding-right: 14px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            alignment: space-between;
+            spacing: 12px;
+
+            VerticalLayout {
+                alignment: center;
+                width: 24px;
+                Image {
+                    source: @image-url("../../assets/icons/zap.svg");
+                    width: 18px;
+                    height: 18px;
+                    colorize: #f87171;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: "Fcitx5 chưa nạp thư viện Clak";
+                    color: #f87171;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+
+                Text {
+                    text: "Thư viện libclak.so chưa được nạp vào RAM. Nhấp để tự động liên kết thư viện và kích hoạt Fcitx5 ngay.";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+
+                ActionButton {
+                    text: root.is_reloading ? "Đang xử lý..." : "Nạp & Kích hoạt 1-Click";
+                    primary: true;
+                    enabled: !root.is_reloading && !root.is_scanning;
+                    clicked => { root.restart_fcitx5_requested(); }
                 }
             }
         }

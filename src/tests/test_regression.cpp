@@ -235,6 +235,7 @@ TEST_F(RegressionCorpusTest, test_regression_gecko_stale_surrounding) {
 TEST_F(RegressionCorpusTest, test_regression_twitter_draftjs_dd) {
     // draftjs rich text editors switch to uinput after 3 surrounding text mismatches
     MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ic.auto_update_surrounding = true;
     ime::ClakState state(engine_.get(), &ic);
 
     size_t uinput_calls = 0;
@@ -647,6 +648,51 @@ TEST_F(RegressionCorpusTest, test_regression_backspace_hold_does_not_suppress_no
         bool repeat_filtered = ic.sendKey(FcitxKey_BackSpace, fcitx::KeyStates(), false, state);
         EXPECT_FALSE(repeat_filtered);
     }
+}
+
+TEST_F(RegressionCorpusTest, test_regression_zero_cursor_surrounding_never_crashes_compositor) {
+    // When an editor (e.g. Twitter/DraftJS on GNOME Wayland) reports cursor 0 in surrounding text
+    // while replacing 'dd' -> 'đ', calling deleteSurroundingText(-1, 1) violates Wayland protocol
+    // and causes Mutter (GNOME Shell) to crash with SIGABRT (assertion before >= start failed).
+    // Clak must detect cursor < real_bs, never invoke deleteSurroundingText, and route safely to uinput.
+    MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    auto* state = ic.propertyFor(&engine_->factory());
+
+    size_t uinput_calls = 0;
+    size_t uinput_bs_sent = 0;
+    uinput::UinputTool::instance().setMockHandler([&](size_t count, uint32_t, uint32_t, uint32_t) {
+        uinput_calls++;
+        uinput_bs_sent = count;
+        return true;
+    });
+
+    // Twitter Tweet composer on Wayland reports newline with cursor 0
+    ic.setSurrounding("\n", 0, 0);
+    ic.typeChar('d', state);
+
+    // DraftJS React DOM re-renders without updating surrounding text cursor (cursor remains 0)
+    ic.setSurrounding("\n", 0, 0);
+    ic.typeChar('d', state);
+
+    // Must NEVER call deleteSurroundingText (which crashes Mutter)
+    EXPECT_TRUE(ic.deletions.empty());
+
+    // Must route to uinput with 1 deletion + 1 sentinel = 2 backspaces
+    EXPECT_EQ(uinput_calls, 1);
+    EXPECT_EQ(uinput_bs_sent, 2);
+    EXPECT_TRUE(state->isDeleting());
+
+    // Must automatically flag editor as DraftJS/RichText
+    EXPECT_TRUE(state->isDraftJsEditor());
+    EXPECT_TRUE(state->isRichTextEditor());
+
+    // Send backspaces to finish deletion and commit 'đ'
+    ic.sendCleanBackspace(state);
+    ic.sendCleanBackspace(state);
+
+    EXPECT_FALSE(state->isDeleting());
+    ASSERT_FALSE(ic.commits.empty());
+    EXPECT_EQ(ic.commits.back(), "đ");
 }
 
 } // namespace test

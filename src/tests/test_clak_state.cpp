@@ -86,6 +86,8 @@ TEST_F(ClakStateTest, GivenStaleSurroundingText3TimesInRow_FallsBackToUinput) {
         return true;
     });
 
+    ic.auto_update_surrounding = true;
+
     for (int i = 0; i < 3; ++i) {
         state.reset();
         ic.clearHistory();
@@ -182,6 +184,7 @@ TEST_F(ClakStateTest, GivenKeysBufferedDuringDelete_ReplaysInOriginalOrder) {
 TEST_F(ClakStateTest, GivenChromiumNormalPage_UsesSurroundingText) {
     // normal browser page with valid surrounding text should use surrounding text deletion
     MockInputContext ic(instance_->inputContextManager(), "google-chrome");
+    ic.auto_update_surrounding = true;
     ime::ClakState state(engine_.get(), &ic);
 
     ic.setSurrounding("", 0, 0);

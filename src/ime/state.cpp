@@ -462,6 +462,12 @@ bool ClakState::handleKey(const fcitx::Key& key) {
 
             bool is_autofill = (action.action_type == CLAK_ACTION_ADDRESS_BAR_FIX) ||
                                (isBrowser() && isAutofillCertain(surr));
+            if (real_bs > 0 && surr.isValid() && surr.cursor() < real_bs) {
+                use_surrounding = false;
+                verifier_.setDraftJsEditor(true);
+                verifier_.setRichTextEditor(true);
+                is_draftjs = isDraftJsEditor();
+            }
             bool use_uinput = is_autofill || shouldUseUinput(use_surrounding, action.action_type, surr);
 
             if (use_uinput && real_bs > 0) {
@@ -506,12 +512,21 @@ bool ClakState::handleKey(const fcitx::Key& key) {
 
             if (real_bs > 0) {
                 if (use_surrounding) {
-                    std::string wordBefore = utils::extractWordBeforeCursor(surr.text(), surr.cursor());
-                    verifier_.setExpectation(wordBefore, real_bs, action.commit_str ? action.commit_str : "");
-                    utils::clakLog("surrounding delete: -" + std::to_string(real_bs) + " commit='" +
-                                   (action.commit_str ? action.commit_str : "") + "' app=" + app + " site='" + site + "'");
-                    ic_->deleteSurroundingText(-static_cast<int>(real_bs),
-                                               static_cast<unsigned int>(real_bs));
+                    if (surr.cursor() < real_bs) {
+                        utils::clakLog("WARNING: surr.cursor()=" + std::to_string(surr.cursor()) +
+                                       " < real_bs=" + std::to_string(real_bs) +
+                                       ", skipping deleteSurroundingText to prevent compositor crash!");
+                        for (size_t i = 0; i < real_bs; ++i) {
+                            ic_->forwardKey(fcitx::Key(FcitxKey_BackSpace));
+                        }
+                    } else {
+                        std::string wordBefore = utils::extractWordBeforeCursor(surr.text(), surr.cursor());
+                        verifier_.setExpectation(wordBefore, real_bs, action.commit_str ? action.commit_str : "");
+                        utils::clakLog("surrounding delete: -" + std::to_string(real_bs) + " commit='" +
+                                       (action.commit_str ? action.commit_str : "") + "' app=" + app + " site='" + site + "'");
+                        ic_->deleteSurroundingText(-static_cast<int>(real_bs),
+                                                   static_cast<unsigned int>(real_bs));
+                    }
                 } else if (is_steam) {
                     utils::clakLog("steam forward backspace: count=" + std::to_string(real_bs) +
                                    " commit='" + (action.commit_str ? action.commit_str : "") + "' app=" + app);

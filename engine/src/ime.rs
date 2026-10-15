@@ -366,7 +366,9 @@ impl ClakContext {
                 let word: String = chars[start..cur].iter().collect();
                 if !word.is_empty() {
                     let word_telex = decompose_to_telex(&word);
-                    if self.raw_buffer.starts_with(&word_telex) || self.raw_buffer.starts_with(&word) {
+                    if self.raw_buffer.starts_with(&word_telex)
+                        || self.raw_buffer.starts_with(&word)
+                    {
                         matches_last = true;
                     }
                 }

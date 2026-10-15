@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # configuration and defaults
-repo="versenilvis/clak"
+repo="versenilvis/ClakIME"
 api_url="${CLAK_API_URL:-https://api.github.com}"
 version_file="${HOME}/.local/share/clak/version"
 dry_run=0
@@ -34,7 +34,7 @@ for arg in "$@"; do
             target_version="${arg#*=}"
             ;;
         --help|-h)
-            echo "Cách dùng: curl -fsSL https://raw.githubusercontent.com/versenilvis/clak/main/scripts/update.sh | bash [options]"
+            echo "Cách dùng: curl -fsSL https://raw.githubusercontent.com/versenilvis/ClakIME/main/scripts/update.sh | bash [options]"
             echo "Hoặc: bash scripts/update.sh [options]"
             echo ""
             echo "Tùy chọn:"

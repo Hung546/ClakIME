@@ -214,6 +214,13 @@ TEST_F(ClakStateTest, GivenGnomeFallbackApp_PopulatesTerminalClass) {
     EXPECT_EQ(win.win_class, "gnome-terminal-server");
 }
 
+TEST_F(ClakStateTest, GivenXTerminalEmul_RecognizedAsTerminalAndEditorWhenTitleMatches) {
+    EXPECT_TRUE(config::isTerminalApp("x-terminal-emul"));
+    EXPECT_TRUE(config::isTerminalApp("x-terminal-emulator"));
+    platform::WindowInfo win{"x-terminal-emul", "nvim main.rs", 1234};
+    EXPECT_TRUE(platform::isEditorActive(win));
+}
+
 TEST_F(ClakStateTest, GivenCtrlShift_TogglesEnabledState) {
     MockInputContext ic(instance_->inputContextManager(), "test-app");
     ime::ClakState state(engine_.get(), &ic);
